@@ -1,0 +1,25 @@
+# Gizli anahtarlar — ASLA commit etme
+.env
+*.env
+.env.local
+APIKEY_FOLDER/api_key.txt
+
+# Logs
+logs/*.log
+logs/*.log.*
+!logs/.gitkeep
+
+# Cache
+data/cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Snapshots ve learning history (kisisel veri)
+data/history/*.json
+data/learning_history.json
