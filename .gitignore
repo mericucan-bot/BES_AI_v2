@@ -11,6 +11,11 @@ logs/*.log.*
 
 # Cache
 data/cache/
+data/tefas_cache/
+data/ml/
+
+# ML model dosyalari (buyuk binary)
+*.pkl
 
 # Python
 __pycache__/

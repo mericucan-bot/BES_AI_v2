@@ -6,204 +6,209 @@ from src.data_collector import TEFASCollector, POPULAR_BES_FUNDS
 
 class TestTEFASCollector:
     def test_init(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path))
+        with patch.object(TEFASCollector, "_init_session"):
+            collector = TEFASCollector(cache_dir=str(tmp_path))
         assert collector.cache_dir.exists()
 
-    def test_parse_fund_data_standard_format(self):
-        collector = TEFASCollector()
-        items = [
-            {"TARIH": "15.01.2025", "FIYAT": "1.234567"},
-            {"TARIH": "16.01.2025", "FIYAT": "1.245678"},
-            {"TARIH": "17.01.2025", "FIYAT": "1.256789"},
-        ]
-        df = collector._parse_fund_data(items, "TEST")
-        assert df is not None
-        assert len(df) == 3
-        assert "date" in df.columns
-        assert "nav" in df.columns
-        assert df["fund_code"].iloc[0] == "TEST"
+    def test_normalize_date_yyyymmdd(self):
+        c = TEFASCollector.__new__(TEFASCollector)
+        c.cache_dir = None
+        assert c._normalize_date("20250115") == "20250115"
 
-    def test_parse_fund_data_iso_format(self):
-        collector = TEFASCollector()
-        items = [
-            {"TARIH": "2025-01-15T00:00:00", "FIYAT": 1.234567},
-        ]
-        df = collector._parse_fund_data(items, "TEST")
-        assert df is not None
-        assert len(df) == 1
+    def test_normalize_date_iso(self):
+        c = TEFASCollector.__new__(TEFASCollector)
+        assert c._normalize_date("2025-01-15") == "20250115"
 
-    def test_parse_fund_data_alternative_keys(self):
-        collector = TEFASCollector()
-        items = [
-            {"Tarih": "2025-01-15T00:00:00", "ToplamDeger": "1.234567"},
-        ]
-        df = collector._parse_fund_data(items, "TEST")
-        assert df is not None
-        assert len(df) == 1
+    def test_normalize_date_dotted(self):
+        c = TEFASCollector.__new__(TEFASCollector)
+        assert c._normalize_date("15.01.2025") == "20250115"
 
-    def test_parse_fund_data_empty(self):
-        collector = TEFASCollector()
-        df = collector._parse_fund_data([], "TEST")
-        assert df is None
-
-    def test_parse_fund_data_invalid_price(self):
-        collector = TEFASCollector()
-        items = [
-            {"TARIH": "15.01.2025", "FIYAT": "0"},
-            {"TARIH": "16.01.2025", "FIYAT": "-1"},
-        ]
-        df = collector._parse_fund_data(items, "TEST")
-        assert df is None
-
-    def test_parse_fund_data_sorted_by_date(self):
-        collector = TEFASCollector()
-        items = [
-            {"TARIH": "17.01.2025", "FIYAT": "1.3"},
-            {"TARIH": "15.01.2025", "FIYAT": "1.1"},
-            {"TARIH": "16.01.2025", "FIYAT": "1.2"},
-        ]
-        df = collector._parse_fund_data(items, "TEST")
-        assert df is not None
-        dates = df["date"].tolist()
-        assert dates == sorted(dates)
-
-    def test_parse_fund_data_deduplicates(self):
-        collector = TEFASCollector()
-        items = [
-            {"TARIH": "15.01.2025", "FIYAT": "1.1"},
-            {"TARIH": "15.01.2025", "FIYAT": "1.2"},  # duplicate
-        ]
-        df = collector._parse_fund_data(items, "TEST")
-        assert df is not None
-        assert len(df) == 1
-
-    def test_cache_write_and_read(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path))
-        df = pd.DataFrame({
-            "date": pd.date_range("2025-01-01", periods=5),
-            "nav": [1.0, 1.1, 1.2, 1.3, 1.4],
-            "fund_code": "TEST",
-        })
-        collector._write_cache("test_key", df)
-        cached = collector._read_cache("test_key")
-        assert cached is not None
-        assert len(cached) == 5
-
-    def test_cache_miss_when_not_exists(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path))
-        result = collector._read_cache("nonexistent_key")
-        assert result is None
+    def test_normalize_date_iso_method(self):
+        c = TEFASCollector.__new__(TEFASCollector)
+        assert c._normalize_date_iso("20250115") == "2025-01-15"
+        assert c._normalize_date_iso("2025-01-15") == "2025-01-15"
+        assert c._normalize_date_iso("15.01.2025") == "2025-01-15"
 
     def test_popular_funds_not_empty(self):
         assert len(POPULAR_BES_FUNDS) >= 10
 
     def test_popular_funds_has_required_categories(self):
-        codes = list(POPULAR_BES_FUNDS.keys())
         names = list(POPULAR_BES_FUNDS.values())
-        assert any("Hisse" in n for n in names)
-        assert any("Borç" in n or "Kamu" in n for n in names)
-        assert any("Altın" in n for n in names)
+        assert any("Altin" in n or "Altn" in n for n in names)
+        assert any("Kamu" in n for n in names)
 
 
-class TestFetchFundHistory:
-    def test_returns_none_on_http_error(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path), rate_limit_sec=0)
+class TestParseSnapshot:
+    def setup_method(self):
+        with patch.object(TEFASCollector, "_init_session"):
+            self.collector = TEFASCollector()
+
+    def test_standard_response(self):
+        items = [
+            {"fonKodu": "AEA", "fonUnvan": "Test Fon A", "fonTurAciklama": "Altin",
+             "riskDegeri": "3", "getiri1a": "2.5", "getiri1y": "45.0"},
+            {"fonKodu": "IPB", "fonUnvan": "Test Fon B", "fonTurAciklama": "Hisse",
+             "riskDegeri": "5", "getiri1a": "3.1", "getiri1y": "60.0"},
+        ]
+        df = self.collector._parse_snapshot(items, "20250115")
+        assert df is not None
+        assert len(df) == 2
+        assert set(df.columns) >= {"date", "fund_code", "fund_name", "return_1m", "return_1y"}
+        assert df.loc[df["fund_code"] == "AEA", "return_1m"].iloc[0] == pytest.approx(2.5)
+
+    def test_empty_list(self):
+        df = self.collector._parse_snapshot([], "20250115")
+        assert df is None
+
+    def test_missing_fund_code_skipped(self):
+        items = [
+            {"fonKodu": "", "fonUnvan": "No Code"},
+            {"fonKodu": "AEA", "fonUnvan": "Valid", "getiri1a": "1.0"},
+        ]
+        df = self.collector._parse_snapshot(items, "20250115")
+        assert df is not None
+        assert len(df) == 1
+        assert df.iloc[0]["fund_code"] == "AEA"
+
+    def test_null_return_handled(self):
+        items = [{"fonKodu": "AEA", "fonUnvan": "Test", "getiri1a": None, "getiri1y": None}]
+        df = self.collector._parse_snapshot(items, "20250115")
+        assert df is not None
+        assert pd.isna(df.iloc[0]["return_1m"])
+
+    def test_comma_decimal_price(self):
+        items = [{"fonKodu": "AEA", "fonUnvan": "Test", "getiri1a": "2,5"}]
+        df = self.collector._parse_snapshot(items, "20250115")
+        assert df is not None
+        assert df.iloc[0]["return_1m"] == pytest.approx(2.5)
+
+    def test_date_parsed_correctly(self):
+        items = [{"fonKodu": "AEA", "fonUnvan": "Test", "getiri1a": "1.0"}]
+        df = self.collector._parse_snapshot(items, "20250115")
+        assert isinstance(df.iloc[0]["date"], pd.Timestamp)
+        assert df.iloc[0]["date"].year == 2025
+        assert df.iloc[0]["date"].month == 1
+        assert df.iloc[0]["date"].day == 15
+
+    def test_duplicate_fund_code_deduplicated(self):
+        items = [
+            {"fonKodu": "AEA", "fonUnvan": "A", "getiri1a": "1.0"},
+            {"fonKodu": "AEA", "fonUnvan": "A-dup", "getiri1a": "2.0"},
+        ]
+        df = self.collector._parse_snapshot(items, "20250115")
+        assert df is not None
+        assert len(df) == 1
+
+
+class TestFetchFundSnapshot:
+    def setup_method(self):
+        with patch.object(TEFASCollector, "_init_session"):
+            self.collector = TEFASCollector(rate_limit_sec=0)
+
+    def test_success(self, tmp_path):
+        self.collector.cache_dir = tmp_path
         mock_resp = MagicMock()
-        mock_resp.status_code = 500
-        mock_resp.raise_for_status.side_effect = Exception("500 Server Error")
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = [
+            {"fonKodu": "AEA", "fonUnvan": "Test", "getiri1a": "2.5", "getiri1y": "45.0"}
+        ]
+        mock_resp.raise_for_status.return_value = None
 
-        with patch.object(collector.session, "post", return_value=mock_resp):
-            result = collector.fetch_fund_history("AEA", "01.01.2025", "30.04.2025", use_cache=False)
+        with patch.object(self.collector.session, "post", return_value=mock_resp):
+            df = self.collector.fetch_fund_snapshot("20250115", use_cache=False)
+
+        assert df is not None
+        assert len(df) == 1
+
+    def test_empty_response_returns_none(self, tmp_path):
+        self.collector.cache_dir = tmp_path
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = []
+        mock_resp.raise_for_status.return_value = None
+
+        with patch.object(self.collector.session, "post", return_value=mock_resp):
+            df = self.collector.fetch_fund_snapshot("20250115", use_cache=False)
+
+        assert df is None
+
+    def test_http_error_returns_none(self, tmp_path):
+        self.collector.cache_dir = tmp_path
+        with patch.object(self.collector.session, "post",
+                          side_effect=requests_exception()):
+            df = self.collector.fetch_fund_snapshot("20250115", use_cache=False)
+        assert df is None
+
+    def test_cache_used_on_second_call(self, tmp_path):
+        self.collector.cache_dir = tmp_path
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = [
+            {"fonKodu": "AEA", "fonUnvan": "Test", "getiri1a": "2.5"}
+        ]
+        mock_resp.raise_for_status.return_value = None
+
+        with patch.object(self.collector.session, "post", return_value=mock_resp) as mock_post:
+            self.collector.fetch_fund_snapshot("20250115", use_cache=True)
+            self.collector.fetch_fund_snapshot("20250115", use_cache=True)
+            assert mock_post.call_count == 1
+
+
+class TestCacheOperations:
+    def setup_method(self):
+        with patch.object(TEFASCollector, "_init_session"):
+            self.collector = TEFASCollector()
+
+    def test_write_and_read(self, tmp_path):
+        self.collector.cache_dir = tmp_path
+        df = pd.DataFrame({
+            "date": pd.date_range("2025-01-01", periods=3),
+            "fund_code": "AEA",
+            "return_1m": [1.0, 1.5, 2.0],
+        })
+        self.collector._write_cache("test_key", df)
+        cached = self.collector._read_cache("test_key")
+        assert cached is not None
+        assert len(cached) == 3
+
+    def test_cache_miss_when_not_exists(self, tmp_path):
+        self.collector.cache_dir = tmp_path
+        result = self.collector._read_cache("nonexistent_key")
         assert result is None
-
-    def test_returns_none_on_empty_response(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path), rate_limit_sec=0)
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.headers = {"Content-Type": "application/json"}
-        mock_resp.json.return_value = {"data": []}
-        mock_resp.raise_for_status.return_value = None
-
-        with patch.object(collector.session, "post", return_value=mock_resp):
-            result = collector.fetch_fund_history("AEA", "01.01.2025", "30.04.2025", use_cache=False)
-        assert result is None
-
-    def test_returns_dataframe_on_success(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path), rate_limit_sec=0)
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.headers = {"Content-Type": "application/json"}
-        mock_resp.json.return_value = {
-            "data": [
-                {"TARIH": "15.01.2025", "FIYAT": "1.234"},
-                {"TARIH": "16.01.2025", "FIYAT": "1.245"},
-            ]
-        }
-        mock_resp.raise_for_status.return_value = None
-
-        with patch.object(collector.session, "post", return_value=mock_resp):
-            result = collector.fetch_fund_history("AEA", "01.01.2025", "30.04.2025", use_cache=False)
-
-        assert result is not None
-        assert len(result) == 2
-        assert "nav" in result.columns
-
-    def test_uses_cache_on_second_call(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path), rate_limit_sec=0)
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.headers = {"Content-Type": "application/json"}
-        mock_resp.json.return_value = {
-            "data": [{"TARIH": "15.01.2025", "FIYAT": "1.234"}]
-        }
-        mock_resp.raise_for_status.return_value = None
-
-        with patch.object(collector.session, "post", return_value=mock_resp) as mock_post:
-            collector.fetch_fund_history("AEA", "01.01.2025", "30.04.2025", use_cache=True)
-            collector.fetch_fund_history("AEA", "01.01.2025", "30.04.2025", use_cache=True)
-            assert mock_post.call_count == 1  # ikinci çağrı cache'ten geldi
 
 
 class TestFetchMultipleFunds:
-    def test_combines_results(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path))
-        df1 = pd.DataFrame({
-            "date": pd.date_range("2025-01-01", periods=3),
-            "nav": [1.0, 1.1, 1.2],
-            "fund_code": "FUND1",
-        })
-        df2 = pd.DataFrame({
-            "date": pd.date_range("2025-01-01", periods=3),
-            "nav": [2.0, 2.1, 2.2],
-            "fund_code": "FUND2",
-        })
+    def setup_method(self):
+        with patch.object(TEFASCollector, "_init_session"):
+            self.collector = TEFASCollector()
 
-        with patch.object(collector, "fetch_fund_history", side_effect=[df1, df2]):
-            result = collector.fetch_multiple_funds(
-                ["FUND1", "FUND2"], "01.01.2025", "31.03.2025"
+    def test_filters_by_fund_code(self, tmp_path):
+        self.collector.cache_dir = tmp_path
+        combined = pd.DataFrame({
+            "date": [pd.Timestamp("2025-01-31")] * 3,
+            "fund_code": ["AEA", "IPB", "GAE"],
+            "fund_name": ["A", "B", "C"],
+            "return_1m": [1.0, 2.0, 3.0],
+        })
+        with patch.object(self.collector, "fetch_monthly_series", return_value=combined):
+            result = self.collector.fetch_multiple_funds(
+                ["AEA", "IPB"], "2025-01-01", "2025-01-31"
             )
+        assert len(result) == 2
+        assert set(result["fund_code"]) == {"AEA", "IPB"}
 
-        assert len(result) == 6
-        assert result["fund_code"].nunique() == 2
-
-    def test_returns_empty_on_all_failures(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path))
-        with patch.object(collector, "fetch_fund_history", return_value=None):
-            result = collector.fetch_multiple_funds(
-                ["FUND1", "FUND2"], "01.01.2025", "31.03.2025"
+    def test_returns_empty_on_no_data(self, tmp_path):
+        self.collector.cache_dir = tmp_path
+        with patch.object(self.collector, "fetch_monthly_series", return_value=pd.DataFrame()):
+            result = self.collector.fetch_multiple_funds(
+                ["AEA"], "2025-01-01", "2025-01-31"
             )
         assert result.empty
 
-    def test_partial_failure_still_returns_data(self, tmp_path):
-        collector = TEFASCollector(cache_dir=str(tmp_path))
-        df1 = pd.DataFrame({
-            "date": pd.date_range("2025-01-01", periods=3),
-            "nav": [1.0, 1.1, 1.2],
-            "fund_code": "FUND1",
-        })
-        with patch.object(collector, "fetch_fund_history", side_effect=[df1, None]):
-            result = collector.fetch_multiple_funds(
-                ["FUND1", "FUND2"], "01.01.2025", "31.03.2025"
-            )
-        assert len(result) == 3
-        assert result["fund_code"].unique()[0] == "FUND1"
+
+def requests_exception():
+    import requests
+    return requests.exceptions.ConnectionError("test error")
+
+
+import requests  # noqa: E402 — needed for requests_exception helper

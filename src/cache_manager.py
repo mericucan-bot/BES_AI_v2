@@ -77,7 +77,7 @@ class DiskCache:
                 cached = json.load(f)
             cached_at = datetime.fromisoformat(cached["timestamp"])
             age = (datetime.now(TR_TZ) - cached_at).total_seconds()
-            if age > max_age_seconds:
+            if age >= max_age_seconds:
                 logger.info(f"Cache expired: {key} (age={age:.0f}s, max={max_age_seconds}s)")
                 return None
             logger.info(f"Cache HIT: {key} (age={age:.0f}s)")

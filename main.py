@@ -115,6 +115,8 @@ Ornekler:
     parser.add_argument("--backtest",      action="store_true", help="Walk-forward backtest calistir")
     parser.add_argument("--bt-start", default="2024-01-01", help="Backtest baslangic (YYYY-MM-DD)")
     parser.add_argument("--bt-end",   default="2026-04-01", help="Backtest bitis (YYYY-MM-DD)")
+    parser.add_argument("--ml-train",      action="store_true", help="ML model egitimi calistir (TEFAS verisiyle)")
+    parser.add_argument("--ml-funds", type=int, default=None,  help="Kac fon ile egitim (None=tumu, test icin 3-5)")
     args = parser.parse_args()
 
     if args.quiet:
@@ -133,6 +135,59 @@ Ornekler:
 
     logger = get_logger(__name__)
     logger.info(f"main.py basladi (verbose={args.verbose}, json={args.json})")
+
+    if args.ml_train:
+        from src.ml_pipeline import MLPipeline
+        from src.data_collector import POPULAR_BES_FUNDS
+
+        logger.info("ML egitim modu baslatiliyor...")
+        ml = MLPipeline()
+
+        fund_codes = None
+        if args.ml_funds:
+            fund_codes = list(POPULAR_BES_FUNDS.keys())[: args.ml_funds]
+            logger.info(f"Test modu: sadece {len(fund_codes)} fon ({fund_codes})")
+
+        result = ml.run_full_pipeline(fund_codes=fund_codes)
+
+        if args.json:
+            output = {k: v for k, v in result.items() if k != "predictions"}
+            if "predictions" in result and not result["predictions"].empty:
+                output["predictions"] = result["predictions"].to_dict(orient="records")
+            print(json.dumps(output, indent=2, default=str))
+        else:
+            if result.get("status") == "SUCCESS":
+                print()
+                print("=" * 60)
+                print("ML EGITIM SONUCLARI")
+                print("=" * 60)
+                print(f"Fon sayisi      : {result['fund_count']}")
+                print(f"Dataset         : {result['dataset_shape']}")
+                print(f"En iyi model    : {result['best_model']}")
+                print(f"IC              : {result['best_ic']:.3f}")
+                print(f"MAE             : {result['best_mae']:.4f}")
+                print(f"DirAcc          : {result['best_dir_acc']:.1%}")
+                print(f"Sure            : {result['run_time_sec']}s")
+
+                preds = result.get("predictions")
+                if preds is not None and not preds.empty:
+                    pred_col = f"predicted_fwd_return_3m"
+                    print(f"\nTahmin sayisi   : {result['predictions_count']}")
+                    print("\nEn iyi 5 fon (3M tahmini):")
+                    for _, row in preds.head(5).iterrows():
+                        val = row.get(pred_col, 0) * 100
+                        print(f"  {row['fund_code']:8s}: %{val:+.1f}")
+
+                if result.get("top_features"):
+                    print("\nTop 5 Feature:")
+                    for i, (feat, imp) in enumerate(list(result["top_features"].items())[:5]):
+                        print(f"  {i+1}. {feat}: {imp:.4f}")
+
+                print("=" * 60)
+            else:
+                print(f"\nML Pipeline hatasi: {result.get('message', '?')}")
+
+        sys.exit(0 if result.get("status") == "SUCCESS" else 1)
 
     if args.backtest:
         from src.backtest_engine import BacktestEngine, BacktestConfig

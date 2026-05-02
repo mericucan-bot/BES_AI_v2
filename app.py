@@ -4,7 +4,9 @@ import numpy as np
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
 from src.regime_engine import RegimeEngineV2
 from src.learning_engine import LearningEngineV2
@@ -132,6 +134,20 @@ with st.sidebar:
     st.caption(f"Sonraki güncelleme: {get_smart_ttl() // 60} dk")
 
     st.divider()
+    _ml_sidebar_path = Path("data/ml/latest_run_summary.json")
+    if _ml_sidebar_path.exists():
+        with open(_ml_sidebar_path, encoding="utf-8") as _f:
+            _ml_info = json.load(_f)
+        st.write("🤖 **AI Model**")
+        st.caption(
+            f"Son eğitim: {_ml_info.get('run_date', '?')[:10]}\n\n"
+            f"IC: {_ml_info.get('best_ic', 0):.2f} | "
+            f"DirAcc: %{_ml_info.get('best_dir_acc', 0)*100:.0f}"
+        )
+    else:
+        st.caption("🤖 AI model henüz eğitilmemiş")
+
+    st.divider()
     st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
 
 # --- BAŞLIK ---
@@ -139,7 +155,12 @@ st.title("🛡️ BES Akıllı Fon Danışmanı")
 st.caption("Yapay zeka destekli BES portföy yönetim sistemi • Yatırım tavsiyesi değildir")
 
 # --- SEKMELER ---
-tab1, tab2, tab3 = st.tabs(["📊 Piyasa Şu An Nasıl?", "💼 Ne Yapmalıyım?", "📈 Geçmiş Performans"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 Piyasa Şu An Nasıl?",
+    "💼 Ne Yapmalıyım?",
+    "📈 Geçmiş Performans",
+    "🤖 AI Fon Tahminleri",
+])
 
 
 # ══════════════════════════════════════════════════════
@@ -689,3 +710,202 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
 
     elif "bt_result" not in st.session_state:
         st.info("⬆️ Yukarıdaki 'Backtest Çalıştır' butonuna tıkla.")
+
+
+# ══════════════════════════════════════════════════════
+# TAB 4 — AI Fon Tahminleri
+# ══════════════════════════════════════════════════════
+with tab4:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+                padding: 20px; border-radius: 12px;
+                border-left: 5px solid #7c3aed; margin-bottom: 20px;">
+        <h2 style="margin:0;">🤖 AI Fon Tahmin Motoru</h2>
+        <p style="margin: 8px 0 0 0; color: #374151;">
+            Makine öğrenmesi (XGBoost) ile BES fonlarının önümüzdeki 3 aylık
+            tahmini getirilerini hesaplıyoruz. Model, geçmiş performans, volatilite,
+            momentum ve makro verilerden öğreniyor.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    ml_summary_path = Path("data/ml/latest_run_summary.json")
+    ml_predictions_dir = Path("data/ml")
+
+    if not ml_summary_path.exists():
+        st.warning(
+            "⚠️ Henüz AI model eğitilmemiş. Terminalde şu komutu çalıştır:\n\n"
+            "```\npython main.py --ml-train\n```\n\n"
+            "Bu işlem 5-15 dakika sürer ve TEFAS'tan fon verilerini çekerek "
+            "makine öğrenmesi modelini eğitir."
+        )
+    else:
+        with open(ml_summary_path, encoding="utf-8") as _mlf:
+            ml_summary = json.load(_mlf)
+
+        run_date    = ml_summary.get("run_date", "?")[:10]
+        best_model  = ml_summary.get("best_model", "?")
+        best_ic     = ml_summary.get("best_ic", 0)
+        best_dir_acc = ml_summary.get("best_dir_acc", 0)
+        fund_count  = ml_summary.get("fund_count", 0)
+
+        if best_ic >= 0.4:
+            quality_emoji, quality_text = "🟢", "Güçlü sinyal"
+        elif best_ic >= 0.2:
+            quality_emoji, quality_text = "🟡", "Orta sinyal"
+        else:
+            quality_emoji, quality_text = "🔴", "Zayıf sinyal"
+
+        mi1, mi2, mi3, mi4 = st.columns(4)
+        mi1.metric("Model", best_model.upper())
+        mi2.metric("Sinyal Gücü (IC)", f"{best_ic:.2f}", delta=quality_text)
+        mi3.metric("Yön Doğruluğu", f"%{best_dir_acc*100:.0f}")
+        mi4.metric("Analiz Edilen Fon", f"{fund_count}")
+
+        st.caption(f"📅 Son eğitim: {run_date} | {quality_emoji} {quality_text}")
+
+        # === TAHMİNLER TABLOSU ===
+        st.write("### 📋 3 Aylık Getiri Tahminleri")
+
+        pred_files = sorted(ml_predictions_dir.glob("predictions_fwd_return_3m_*.csv"))
+
+        if pred_files:
+            pred_df = pd.read_csv(pred_files[-1])
+
+            if not pred_df.empty and "predicted_fwd_return_3m" in pred_df.columns:
+                from src.data_collector import POPULAR_BES_FUNDS
+                pred_df["fon_adi"] = pred_df["fund_code"].map(
+                    lambda x: POPULAR_BES_FUNDS.get(x, x)
+                )
+
+                col_best, col_worst = st.columns(2)
+
+                with col_best:
+                    st.write("#### 🟢 En Yüksek Tahmini Getiri")
+                    for _, row in pred_df.nlargest(5, "predicted_fwd_return_3m").iterrows():
+                        ret = row["predicted_fwd_return_3m"]
+                        st.success(
+                            f"**{row['fon_adi']}** ({row['fund_code']})\n\n"
+                            f"Tahmini 3M getiri: **%{ret*100:+.1f}**"
+                        )
+
+                with col_worst:
+                    st.write("#### 🔴 En Düşük Tahmini Getiri")
+                    for _, row in pred_df.nsmallest(5, "predicted_fwd_return_3m").iterrows():
+                        ret = row["predicted_fwd_return_3m"]
+                        st.error(
+                            f"**{row['fon_adi']}** ({row['fund_code']})\n\n"
+                            f"Tahmini 3M getiri: **%{ret*100:+.1f}**"
+                        )
+
+                with st.expander("📊 Tüm Fonlar — Tahmin Tablosu"):
+                    display_df = pred_df[["fund_code", "fon_adi", "predicted_fwd_return_3m"]].copy()
+                    display_df.columns = ["Kod", "Fon Adı", "3M Tahmini Getiri"]
+                    display_df["3M Tahmini Getiri"] = display_df["3M Tahmini Getiri"].apply(
+                        lambda x: f"%{x*100:+.1f}"
+                    )
+                    st.dataframe(display_df, hide_index=True, use_container_width=True)
+            else:
+                st.info("Tahmin dosyası boş veya beklenmedik formatta.")
+        else:
+            st.info("Tahmin dosyası bulunamadı. `python main.py --ml-train` çalıştır.")
+
+        # === MODEL KARŞILAŞTIRMA ===
+        with st.expander("🔬 Model Karşılaştırma (Teknik Detay)"):
+            comparison = ml_summary.get("model_comparison", {})
+            if comparison:
+                comp_df = pd.DataFrame.from_dict(comparison, orient="index")
+                comp_df.index.name = "Model"
+                st.markdown("""
+**Metrikler ne anlama geliyor?**
+- **MAE:** Ortalama hata büyüklüğü (düşük = iyi)
+- **RMSE:** Büyük hataları cezalandıran hata ölçüsü (düşük = iyi)
+- **DirAcc:** Yön doğruluğu — fonun yukarı/aşağı gideceğini doğru tahmin etme oranı
+- **IC:** Bilgi katsayısı — tahmin sıralamasının gerçek sıralamayla uyumu (yüksek = iyi, 0.3+ güçlü)
+                """)
+                st.dataframe(
+                    comp_df.style.format({
+                        "mae":     "{:.4f}",
+                        "rmse":    "{:.4f}",
+                        "dir_acc": "{:.0%}",
+                        "ic":      "{:.3f}",
+                    })
+                    .highlight_max(axis=0, subset=["ic", "dir_acc"], color="#dcfce7")
+                    .highlight_min(axis=0, subset=["mae", "rmse"],    color="#dcfce7"),
+                    use_container_width=True,
+                )
+
+        # === FEATURE IMPORTANCE ===
+        with st.expander("📊 Model Neye Bakıyor? (Feature Importance)"):
+            top_features = ml_summary.get("top_features", {})
+            active_features = {k: float(v) for k, v in top_features.items() if float(v) > 0}
+
+            if active_features:
+                feature_explanations = {
+                    "return_1m":        "Son 1 ay getirisi (momentum)",
+                    "return_3m":        "Son 3 ay getirisi",
+                    "return_6m":        "Son 6 ay getirisi",
+                    "return_1y":        "Son 1 yıl getirisi",
+                    "vol_1m":           "Son 1 ay oynaklık",
+                    "vol_3m":           "Son 3 ay oynaklık",
+                    "vol_6m":           "Son 6 ay oynaklık",
+                    "sharpe_3m":        "3 aylık risk-getiri dengesi",
+                    "sharpe_6m":        "6 aylık risk-getiri dengesi",
+                    "momentum_1m_3m":   "Kısa vs orta vade momentum",
+                    "momentum_3m_6m":   "Orta vs uzun vade momentum",
+                    "drawdown":         "Zirveden düşüş",
+                    "drawdown_6m":      "6 aylık max düşüş",
+                    "zscore_1m":        "1 aylık normalize getiri",
+                    "bist_return_1m":   "BIST 100 son 1 ay",
+                    "usdtry_return_1m": "Dolar/TL son 1 ay",
+                    "gold_return_1m":   "Altın son 1 ay",
+                    "beta_bist_63d":    "Fon-BIST ilişkisi",
+                    "cpi_yoy":          "Yıllık enflasyon",
+                    "policy_rate":      "TCMB politika faizi",
+                }
+
+                feat_df = pd.DataFrame([
+                    {
+                        "Gösterge": feature_explanations.get(k, k),
+                        "Önem": v,
+                    }
+                    for k, v in active_features.items()
+                ]).sort_values("Önem", ascending=True)
+
+                fig_feat = px.bar(
+                    feat_df, x="Önem", y="Gösterge",
+                    orientation="h",
+                    color_discrete_sequence=["#7c3aed"],
+                )
+                fig_feat.update_layout(
+                    height=max(200, len(feat_df) * 40),
+                    margin=dict(l=20, r=20, t=10, b=20),
+                    xaxis_title="Önem Skoru",
+                    yaxis_title="",
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_feat, use_container_width=True)
+
+                top_feat_name = next(iter(active_features))
+                top_feat_label = feature_explanations.get(top_feat_name, top_feat_name)
+                st.caption(
+                    f"💡 En önemli gösterge: **{top_feat_label}** — "
+                    "bu, iyi performans gösteren fonların kısa vadede devam etme "
+                    "eğiliminde olduğu anlamına gelir (momentum etkisi)."
+                )
+            else:
+                st.info("Feature importance hesaplanamadı.")
+
+        # === UYARI ===
+        st.divider()
+        st.markdown("""
+        <div style="background: #fff7ed; padding: 15px; border-radius: 10px;
+                    border-left: 5px solid #ea580c;">
+            <p style="margin: 0; color: #9a3412;">
+                ⚠️ <strong>Önemli Uyarı:</strong> Bu tahminler makine öğrenmesi modelinin
+                geçmiş verilerden öğrendiği kalıplara dayanmaktadır. Geçmiş performans
+                gelecek sonuçları garanti etmez. Yatırım kararlarınızı sadece bu tahminlere
+                dayandırmayın. Bu sistem yatırım danışmanlığı değildir.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
