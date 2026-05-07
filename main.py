@@ -120,6 +120,8 @@ Ornekler:
     parser.add_argument("--ml-train",      action="store_true", help="ML model egitimi calistir (TEFAS verisiyle)")
     parser.add_argument("--ml-funds", type=int, default=None,
                         help="Kac fon ile egitim (None=POPULAR_BES_FUNDS, -1=TEFAS'taki tum EMK, sayi=ilk N)")
+    parser.add_argument("--report", action="store_true",
+                        help="Aylik PDF rapor uret")
     args = parser.parse_args()
 
     if args.quiet:
@@ -292,6 +294,39 @@ Ornekler:
         # Normal mod: insan-okunabilir ozet
         print_summary(result)
     # quiet modda: hicbir sey basma, sadece log dosyasina yazildi
+
+    # PDF rapor
+    if args.report and result.get("status") == "SUCCESS":
+        try:
+            from src.report_generator import ReportGenerator
+            import pandas as pd
+            from pathlib import Path
+
+            gen = ReportGenerator()
+
+            ml_summary_path = Path("data/ml/latest_run_summary.json")
+            ml_summary = None
+            if ml_summary_path.exists():
+                with open(ml_summary_path) as f:
+                    ml_summary = json.load(f)
+
+            pred_files = sorted(Path("data/ml").glob("predictions_fwd_return_3m_*.csv"))
+            predictions_df = None
+            if pred_files:
+                predictions_df = pd.read_csv(pred_files[-1])
+
+            pdf_path = gen.generate(
+                pipeline_result=result,
+                ml_summary=ml_summary,
+                predictions_df=predictions_df,
+            )
+
+            if pdf_path:
+                print(f"\nPDF Rapor: {pdf_path}")
+        except ImportError:
+            logger.warning("reportlab yuklu degil, PDF uretilemiyor: pip install reportlab")
+        except Exception as e:
+            logger.error(f"PDF uretim hatasi: {e}")
 
     sys.exit(0 if result.get("status") == "SUCCESS" else 1)
 

@@ -38,3 +38,6 @@ data/learning_history.json
 
 # launchd plist (makineye özgü)
 *.plist
+
+# PDF raporlar (kişisel veri)
+data/reports/

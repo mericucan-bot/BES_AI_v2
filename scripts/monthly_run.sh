@@ -13,8 +13,8 @@ echo "========================================" >> "$LOG"
 echo "$(date): Pipeline başlıyor" >> "$LOG"
 echo "========================================" >> "$LOG"
 
-# 1. Aylık portföy analizi
-$VENV main.py --quiet 2>> "$LOG"
+# 1. Aylık portföy analizi + PDF rapor
+$VENV main.py --quiet --report 2>> "$LOG"
 PIPELINE_EXIT=$?
 
 # 2. ML model yeniden eğitimi (TEFAS cache güncelle + eğit)
