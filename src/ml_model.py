@@ -252,7 +252,6 @@ class BESPredictor:
                 )
             else:
                 model.fit(X_tr_s, y_tr)
-
             y_pred = model.predict(X_te_s)
             mae, rmse, dir_acc, ic = self._evaluate_fold(y_te, y_pred)
 
@@ -359,7 +358,9 @@ class BESPredictor:
         nan_rows = X_clean.isna().any(axis=1)
 
         X_scaled = self.scaler.transform(X_clean.fillna(0).values)
-        preds = self.models[model_name].predict(X_scaled)
+
+        model = self.models[model_name]
+        preds = model.predict(X_scaled)
 
         result = pd.Series(preds, index=X_new.index, name=f"pred_{self.config.target}")
         result[nan_rows] = np.nan
