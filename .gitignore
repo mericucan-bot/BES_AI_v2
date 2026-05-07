@@ -2,6 +2,7 @@
 .env
 *.env
 .env.local
+env
 APIKEY_FOLDER/api_key.txt
 
 # Logs
@@ -16,6 +17,11 @@ data/ml/
 
 # ML model dosyalari (buyuk binary)
 *.pkl
+
+# Virtual environments
+.venv/
+venv/
+env/
 
 # Python
 __pycache__/

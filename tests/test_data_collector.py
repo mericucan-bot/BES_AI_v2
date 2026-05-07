@@ -206,6 +206,43 @@ class TestFetchMultipleFunds:
         assert result.empty
 
 
+class TestDiscoverAllBesFunds:
+    def setup_method(self):
+        with patch.object(TEFASCollector, "_init_session"):
+            self.collector = TEFASCollector(rate_limit_sec=0)
+
+    def test_returns_snapshot_dataframe(self):
+        mock_df = pd.DataFrame({
+            "fund_code": ["AEA", "IPB", "GAE"],
+            "fund_name": ["Fon A", "Fon B", "Fon C"],
+            "return_1m": [2.5, 3.1, 1.8],
+        })
+        with patch.object(self.collector, "fetch_fund_snapshot", return_value=mock_df):
+            result = self.collector.discover_all_bes_funds()
+        assert not result.empty
+        assert len(result) == 3
+        assert "fund_code" in result.columns
+
+    def test_falls_back_to_yesterday_on_empty(self):
+        empty_df = pd.DataFrame()
+        mock_df = pd.DataFrame({"fund_code": ["AEA"], "fund_name": ["Fon A"], "return_1m": [2.5]})
+        call_count = [0]
+
+        def side_effect(date, **kwargs):
+            call_count[0] += 1
+            return mock_df if call_count[0] > 1 else empty_df
+
+        with patch.object(self.collector, "fetch_fund_snapshot", side_effect=side_effect):
+            result = self.collector.discover_all_bes_funds()
+        assert not result.empty
+        assert call_count[0] == 2
+
+    def test_returns_empty_when_all_fail(self):
+        with patch.object(self.collector, "fetch_fund_snapshot", return_value=pd.DataFrame()):
+            result = self.collector.discover_all_bes_funds()
+        assert result.empty
+
+
 def requests_exception():
     import requests
     return requests.exceptions.ConnectionError("test error")

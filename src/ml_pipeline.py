@@ -64,6 +64,7 @@ class MLPipeline:
         self,
         fund_codes: Optional[List[str]] = None,
         lookback_days: int = 730,
+        max_funds: Optional[int] = None,
     ) -> Dict[str, pd.Series]:
         """
         TEFAS'tan BES fon snapshot serisini cek ve aylık NAV olarak dondutur.
@@ -72,10 +73,15 @@ class MLPipeline:
         dondurdugundan, return_1m bileşik buyume ile sentetik NAV olusturulur.
         Ortalama 24 aylık veri noktası (2 yillik lookback).
 
+        max_funds: None ise tum fund_codes islenir, sayi verilirse ilk N fon alinir.
         Returns: {fund_code: Series(index=ay_sonu_tarihi, values=sentetik_nav)}
         """
         if fund_codes is None:
             fund_codes = list(POPULAR_BES_FUNDS.keys())
+
+        if max_funds and len(fund_codes) > max_funds:
+            fund_codes = fund_codes[:max_funds]
+            logger.info(f"Fon sayisi {max_funds} ile sinirlandirildi")
 
         end = datetime.now()
         start = end - timedelta(days=lookback_days)
@@ -422,6 +428,7 @@ class MLPipeline:
         self,
         fund_codes: Optional[List[str]] = None,
         target: str = _TARGET_3M,
+        max_funds: Optional[int] = None,
     ) -> Dict:
         """
         Uctan uca ML pipeline'i calistir.
@@ -433,7 +440,7 @@ class MLPipeline:
         logger.info("ML PIPELINE BASLADI")
         logger.info("=" * 60)
 
-        fund_navs = self.collect_fund_data(fund_codes)
+        fund_navs = self.collect_fund_data(fund_codes, max_funds=max_funds)
         if not fund_navs:
             return {"status": "ERROR", "message": "Hicbir fon verisi cekilemedi"}
 

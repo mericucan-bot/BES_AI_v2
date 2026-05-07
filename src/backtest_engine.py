@@ -87,7 +87,12 @@ class BacktestEngine:
     def __init__(self, config: Optional[BacktestConfig] = None):
         self.config = config or BacktestConfig()
         self.regime_engine = RegimeEngineV2()
-        self.learning_engine = LearningEngineV2()
+        if self.config.use_learning:
+            self.learning_engine = LearningEngineV2(history_path="data/learning_history.json")
+            logger.info("Ogrenilmis agirliklar kullanilacak (use_learning=True)")
+        else:
+            self.learning_engine = LearningEngineV2()
+            logger.info("Statik prior agirliklar kullanilacak (use_learning=False)")
         self.cost_model = TransactionCostModel(self.config.cost_config or CostConfig())
 
     def _generate_rebalance_dates(self) -> List[pd.Timestamp]:
@@ -353,6 +358,54 @@ class BacktestEngine:
         result.avg_turnover = float(np.mean([s.turnover_pct for s in steps]))
 
         return result
+
+    def export_to_learning_history(
+        self,
+        result: BacktestResult,
+        output_path: str = "data/learning_history.json",
+    ) -> int:
+        """
+        Backtest sonuclarini learning_history.json formatina cevir ve kaydet.
+        Returns: yazilan yeni gozlem sayisi.
+        """
+        import json
+        from pathlib import Path
+
+        observations = []
+        for step in result.steps:
+            observations.append({
+                "date": step.date,
+                "regime": step.regime,
+                "weights_used": step.target_weights,
+                "monthly_return": step.portfolio_return,
+                "alpha_vs_benchmark": step.net_alpha,
+            })
+
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        existing = []
+        if path.exists():
+            try:
+                with open(path, encoding="utf-8") as f:
+                    existing = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                existing = []
+
+        existing_dates = {obs["date"] for obs in existing}
+        new_obs = [obs for obs in observations if obs["date"] not in existing_dates]
+
+        combined = existing + new_obs
+        combined.sort(key=lambda x: x["date"])
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(combined, f, ensure_ascii=False, indent=2, default=str)
+
+        logger.info(
+            f"Learning history guncellendi: {len(new_obs)} yeni gozlem eklendi, "
+            f"toplam {len(combined)} gozlem ({path})"
+        )
+        return len(new_obs)
 
     def to_dataframe(self, result: BacktestResult) -> pd.DataFrame:
         """Backtest sonuclarini DataFrame'e cevir."""

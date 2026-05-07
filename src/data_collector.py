@@ -214,6 +214,23 @@ class TEFASCollector:
                     f"{combined['date'].nunique()} tarih")
         return combined
 
+    def discover_all_bes_funds(self) -> pd.DataFrame:
+        """
+        TEFAS'tan tum aktif BES (EMK) fonlarini listele.
+        Tek bir snapshot cekerek tum fon kodlarini ve isimlerini al.
+
+        Returns: DataFrame(date, fund_code, fund_name, category, risk, return_1m, ...)
+        """
+        for days_back in range(0, 5):
+            date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            df = self.fetch_fund_snapshot(date, fund_type="EMK", use_cache=True)
+            if df is not None and not df.empty:
+                logger.info(f"Toplam {len(df)} BES fonu kesfedildi ({date})")
+                return df
+
+        logger.error("Hicbir tarihte BES fonu kesfedilemedi")
+        return pd.DataFrame()
+
     def _generate_month_end_dates(self, start: str, end: str) -> List[str]:
         """Tarih araligindaki ay sonu is gunlerini uret."""
         start_dt = pd.Timestamp(self._normalize_date_iso(start))

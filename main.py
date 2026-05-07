@@ -115,8 +115,11 @@ Ornekler:
     parser.add_argument("--backtest",      action="store_true", help="Walk-forward backtest calistir")
     parser.add_argument("--bt-start", default="2024-01-01", help="Backtest baslangic (YYYY-MM-DD)")
     parser.add_argument("--bt-end",   default="2026-04-01", help="Backtest bitis (YYYY-MM-DD)")
+    parser.add_argument("--learn-from-backtest", action="store_true",
+                        help="Backtest sonuclarini learning history'ye yaz ve ogrenilmis agirliklarla tekrar backtest calistir")
     parser.add_argument("--ml-train",      action="store_true", help="ML model egitimi calistir (TEFAS verisiyle)")
-    parser.add_argument("--ml-funds", type=int, default=None,  help="Kac fon ile egitim (None=tumu, test icin 3-5)")
+    parser.add_argument("--ml-funds", type=int, default=None,
+                        help="Kac fon ile egitim (None=POPULAR_BES_FUNDS, -1=TEFAS'taki tum EMK, sayi=ilk N)")
     args = parser.parse_args()
 
     if args.quiet:
@@ -144,7 +147,15 @@ Ornekler:
         ml = MLPipeline()
 
         fund_codes = None
-        if args.ml_funds:
+        if args.ml_funds == -1:
+            logger.info("Tum BES fonlari kesifediliyor (TEFAS EMK listesi)...")
+            all_funds_df = ml.collector.discover_all_bes_funds()
+            if not all_funds_df.empty:
+                fund_codes = all_funds_df["fund_code"].tolist()
+                logger.info(f"Tum BES fonlari: {len(fund_codes)} fon kesfedildi")
+            else:
+                logger.warning("Fon kesfi basarisiz, POPULAR_BES_FUNDS kullanilacak")
+        elif args.ml_funds:
             fund_codes = list(POPULAR_BES_FUNDS.keys())[: args.ml_funds]
             logger.info(f"Test modu: sadece {len(fund_codes)} fon ({fund_codes})")
 
@@ -222,6 +233,49 @@ Ornekler:
             print(json.dumps(output, indent=2, default=str))
         else:
             print(bt_engine.print_summary(bt_result))
+
+        if args.learn_from_backtest:
+            # Adim 1: Backtest sonuclarini learning history'ye yaz
+            n_new = bt_engine.export_to_learning_history(bt_result)
+            print(f"\n📝 {n_new} gozlem learning_history.json'a yazildi")
+
+            # Adim 2: Ogrenilmis agirliklarla yeniden backtest
+            print("\n🔄 Ogrenilmis agirliklarla yeniden backtest calistiriliyor...\n")
+            bt_config_v2 = BacktestConfig(
+                start_date=args.bt_start,
+                end_date=args.bt_end,
+                use_learning=True,
+            )
+            bt_engine_v2 = BacktestEngine(bt_config_v2)
+            bt_result_v2 = bt_engine_v2.run()
+
+            if not args.json:
+                # Adim 3: Karsilastirma tablosu
+                print("\n" + "=" * 64)
+                print("OGRENME ONCESI vs SONRASI KARSILASTIRMA")
+                print("=" * 64)
+                print(f"{'':25s} {'Statik':>12s} {'Ogrenilmis':>12s} {'Fark':>10s}")
+                print(f"{'-'*25} {'-'*12} {'-'*12} {'-'*10}")
+
+                pct_metrics = [
+                    ("Toplam Getiri", bt_result.total_return, bt_result_v2.total_return),
+                    ("CAGR", bt_result.cagr, bt_result_v2.cagr),
+                    ("Max Drawdown", bt_result.max_drawdown, bt_result_v2.max_drawdown),
+                    ("Win Rate", bt_result.win_rate, bt_result_v2.win_rate),
+                    ("Ort. Alpha", bt_result.avg_alpha, bt_result_v2.avg_alpha),
+                ]
+                for name, before, after in pct_metrics:
+                    diff = after - before
+                    sign = "+" if diff > 0 else ""
+                    print(f"{name:25s} {before:>12.2%} {after:>12.2%} {sign}{diff:>9.2%}")
+
+                s1, s2 = bt_result.sharpe_ratio, bt_result_v2.sharpe_ratio
+                sd = s2 - s1
+                sign = "+" if sd > 0 else ""
+                print(f"{'Sharpe':25s} {s1:>12.2f} {s2:>12.2f} {sign}{sd:>9.2f}")
+
+                print("=" * 64)
+
         sys.exit(0)
 
     try:
