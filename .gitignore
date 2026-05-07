@@ -13,7 +13,8 @@ logs/*.log.*
 # Cache
 data/cache/
 data/tefas_cache/
-data/ml/
+data/ml/*
+!data/ml/latest_run_summary.json
 
 # ML model dosyalari (buyuk binary)
 *.pkl

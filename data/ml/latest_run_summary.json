@@ -1,0 +1,48 @@
+{
+  "status": "SUCCESS",
+  "run_date": "2026-05-07T22:53:10.079614",
+  "run_time_sec": 21.8,
+  "fund_count": 390,
+  "dataset_shape": [
+    9360,
+    20
+  ],
+  "target": "fwd_return_3m",
+  "best_model": "xgboost",
+  "best_ic": 0.7971,
+  "best_mae": 0.00035,
+  "best_dir_acc": 1.0,
+  "model_comparison": {
+    "ridge": {
+      "mae": 9e-05,
+      "rmse": 9.7e-05,
+      "dir_acc": 1.0,
+      "ic": 0.6783
+    },
+    "random_forest": {
+      "mae": 0.000718,
+      "rmse": 0.000917,
+      "dir_acc": 1.0,
+      "ic": 0.7826
+    },
+    "xgboost": {
+      "mae": 0.00035,
+      "rmse": 0.00038,
+      "dir_acc": 1.0,
+      "ic": 0.7971
+    }
+  },
+  "top_features": {
+    "return_1m": 0.6974998116493225,
+    "return_3m": 0.2482410967350006,
+    "return_6m": 0.025227420032024384,
+    "sharpe_6m": 0.013527237810194492,
+    "vol_6m": 0.011835336685180664,
+    "zscore_1m": 0.0014274015557020903,
+    "momentum_3m_6m": 0.0008708182722330093,
+    "bist_return_1m": 0.00034231028985232115,
+    "return_12m": 0.00032656980329193175,
+    "drawdown": 0.0002602522145025432
+  },
+  "predictions_count": 380
+}
