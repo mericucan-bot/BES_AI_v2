@@ -46,7 +46,8 @@ class TestTCMBClient:
         monkeypatch.delenv("TCMB_API_KEY", raising=False)
         with patch("src.macro_engine.load_dotenv"):
             client = TCMBClient(api_key=None, cache_dir=str(tmp_path))
-        assert client.api_key is None
+        # evdspy kendi key yönetimini kullanıyor; api_key artık TCMBClient'ta saklanmıyor
+        assert not hasattr(client, "api_key")
 
     def test_fetch_series_uses_cache(self, tmp_path):
         client = TCMBClient(api_key="dummy", cache_dir=str(tmp_path))

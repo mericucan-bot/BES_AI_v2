@@ -4,7 +4,20 @@
       "Bash(python -c \"import ast, sys; ast.parse\\(open\\('app.py'\\).read\\(\\)\\); print\\('app.py syntax OK'\\)\")",
       "Bash(python *)",
       "Bash(python3 *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(chmod +x /Users/mericucan/Desktop/BES_AI_v2/scripts/monthly_run.sh)",
+      "Bash(bash -n /Users/mericucan/Desktop/BES_AI_v2/scripts/monthly_run.sh)",
+      "Bash(echo \"syntax check: $?\")",
+      "Bash(launchctl load *)",
+      "Bash(echo \"load exit: $?\")",
+      "Bash(launchctl list *)",
+      "Bash(launchctl start *)",
+      "Bash(echo \"start: $?\")",
+      "Bash(xattr -l /Users/mericucan/Desktop/BES_AI_v2/scripts/monthly_run.sh)",
+      "Bash(echo \"Test 1 — syntax check: $?\")"
     ]
   }
 }

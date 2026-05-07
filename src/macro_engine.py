@@ -36,12 +36,7 @@ class TCMBClient:
     }
 
     def __init__(self, api_key: Optional[str] = None, cache_dir: str = "data/cache"):
-        self.api_key = api_key or os.getenv("TCMB_API_KEY")
-        if not self.api_key:
-            logger.warning(
-                "TCMB_API_KEY bulunamadi. .env dosyasinda veya environment'ta tanimi olmali. "
-                "Macro veri cekilemeyecek, fallback degerler kullanilacak."
-            )
+        # evdspy kendi key yönetimini kullanıyor (APIKEY_FOLDER/api_key.txt)
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -107,10 +102,6 @@ class TCMBClient:
             if cached is not None:
                 return cached
 
-        if not self.api_key:
-            stale = self._read_stale_cache(series_code)
-            return stale if stale else []
-
         lookback = lookback_days or 400  # aylik seri icin 13+ ay gerek
         end_date   = datetime.now()
         start_date = end_date - timedelta(days=lookback)
@@ -119,12 +110,13 @@ class TCMBClient:
 
         try:
             from evdspy import get_series
+            from evdspy.EVDSlocal.initial_setup.api_key_save import check_api_key_on_load
+            check_api_key_on_load()
 
             df = get_series(
                 series_code,
                 start_date=start_str,
                 end_date=end_str,
-                api_key=self.api_key,
                 cache=False,
             )
 
