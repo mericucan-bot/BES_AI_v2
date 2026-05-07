@@ -362,6 +362,37 @@ class ReportGenerator:
                             self.styles["SmallText"],
                         ))
 
+        # === 12 AYLIK TAHMİNLER (varsa) ===
+        pred_files_12m = sorted(Path("data/ml").glob("predictions_fwd_return_12m_*.csv"))
+        if pred_files_12m:
+            import pandas as _pd
+            pred_12m = _pd.read_csv(pred_files_12m[-1])
+            if not pred_12m.empty and "predicted_fwd_return_12m" in pred_12m.columns:
+                from src.data_collector import POPULAR_BES_FUNDS as _BES_FUNDS
+                story.append(Spacer(1, 0.5 * cm))
+                story.append(Paragraph("12 Aylik Uzun Vadeli Tahminler (Top 5)", self.styles["SubHeader"]))
+
+                top5_12m = pred_12m.nlargest(5, "predicted_fwd_return_12m")
+                data_12m = [["Fon Kodu", "Fon Adi", "12M Tahmin"]]
+                for _, row in top5_12m.iterrows():
+                    code = row["fund_code"]
+                    name = _BES_FUNDS.get(code, code)
+                    ret  = row["predicted_fwd_return_12m"]
+                    data_12m.append([code, name[:30], f"%{ret * 100:+.1f}"])
+
+                table_12m = Table(data_12m, colWidths=[2.5 * cm, 7 * cm, 3 * cm])
+                table_12m.setStyle(TableStyle([
+                    ("BACKGROUND",    (0, 0), (-1, 0), self.PRIMARY),
+                    ("TEXTCOLOR",     (0, 0), (-1, 0), self.WHITE),
+                    ("FONTSIZE",      (0, 0), (-1, -1), 9),
+                    ("ALIGN",         (2, 0), (2, -1), "RIGHT"),
+                    ("GRID",          (0, 0), (-1, -1), 0.5, self.SECONDARY),
+                    ("ROWBACKGROUNDS",(0, 1), (-1, -1), [self.WHITE, self.LIGHT_BG]),
+                    ("TOPPADDING",    (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ]))
+                story.append(table_12m)
+
         # === YASAL UYARI ===
         story.append(Spacer(1, 1 * cm))
         story.append(HRFlowable(width="100%", thickness=1, color=self.SECONDARY))

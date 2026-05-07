@@ -120,6 +120,8 @@ Ornekler:
     parser.add_argument("--ml-train",      action="store_true", help="ML model egitimi calistir (TEFAS verisiyle)")
     parser.add_argument("--ml-funds", type=int, default=None,
                         help="Kac fon ile egitim (None=POPULAR_BES_FUNDS, -1=TEFAS'taki tum EMK, sayi=ilk N)")
+    parser.add_argument("--ml-12m", action="store_true",
+                        help="12 aylik uzun vadeli model de egit (3M + 12M)")
     parser.add_argument("--report", action="store_true",
                         help="Aylik PDF rapor uret")
     args = parser.parse_args()
@@ -161,7 +163,11 @@ Ornekler:
             fund_codes = list(POPULAR_BES_FUNDS.keys())[: args.ml_funds]
             logger.info(f"Test modu: sadece {len(fund_codes)} fon ({fund_codes})")
 
-        result = ml.run_full_pipeline(fund_codes=fund_codes)
+        targets = ["fwd_return_3m"]
+        if args.ml_12m:
+            targets.append("fwd_return_12m")
+
+        result = ml.run_full_pipeline(fund_codes=fund_codes, targets=targets)
 
         if args.json:
             output = {k: v for k, v in result.items() if k != "predictions"}

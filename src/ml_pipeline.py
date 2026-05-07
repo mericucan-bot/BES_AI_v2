@@ -427,17 +427,24 @@ class MLPipeline:
     def run_full_pipeline(
         self,
         fund_codes: Optional[List[str]] = None,
-        target: str = _TARGET_3M,
+        targets: Optional[List[str]] = None,
         max_funds: Optional[int] = None,
     ) -> Dict:
         """
         Uctan uca ML pipeline'i calistir.
 
+        targets: ["fwd_return_3m"] veya ["fwd_return_3m", "fwd_return_12m"].
+                 None → sadece 3M (mevcut davranis).
+
         Returns: {status, fund_count, dataset_shape, best_model, predictions, ...}
+                 Top-level anahtarlar her zaman birincil (3M) target'i yansitir.
         """
+        if targets is None:
+            targets = [_TARGET_3M]
+
         t0 = time.time()
         logger.info("=" * 60)
-        logger.info("ML PIPELINE BASLADI")
+        logger.info(f"ML PIPELINE BASLADI (targets: {targets})")
         logger.info("=" * 60)
 
         fund_navs = self.collect_fund_data(fund_codes, max_funds=max_funds)
@@ -450,27 +457,77 @@ class MLPipeline:
         if dataset.empty:
             return {"status": "ERROR", "message": "Feature matrisi bos"}
 
-        # Dataset'i kaydet
         dataset_path = self.output_dir / "latest_dataset.parquet"
         dataset.to_parquet(dataset_path)
         logger.info(f"Dataset kaydedildi: {dataset_path}")
 
-        model_results = self.train_models(dataset, target=target)
-        if not model_results:
-            return {"status": "ERROR", "message": "Model egitimi basarisiz"}
+        all_model_results: Dict[str, Dict] = {}
+        all_predictions: Dict[str, pd.DataFrame] = {}
 
-        best_name = max(model_results, key=lambda k: model_results[k].avg_ic)
-        best = model_results[best_name]
+        for target in targets:
+            logger.info(f"\n{'='*40}")
+            logger.info(f"Target: {target}")
+            logger.info(f"{'='*40}")
 
-        predictions = self.generate_predictions(dataset, model_name=best_name, target=target)
+            model_results = self.train_models(dataset, target=target)
+            if not model_results:
+                logger.warning(f"{target} icin model egitimi basarisiz, atlandi")
+                continue
 
-        if not predictions.empty:
-            pred_path = (
-                self.output_dir
-                / f"predictions_{target}_{datetime.now().strftime('%Y%m%d')}.csv"
-            )
-            predictions.to_csv(pred_path, index=False)
-            logger.info(f"Tahminler kaydedildi: {pred_path}")
+            all_model_results[target] = model_results
+
+            best_name = max(model_results, key=lambda k: model_results[k].avg_ic)
+            predictions = self.generate_predictions(dataset, model_name=best_name, target=target)
+            all_predictions[target] = predictions
+
+            if not predictions.empty:
+                pred_path = (
+                    self.output_dir
+                    / f"predictions_{target}_{datetime.now().strftime('%Y%m%d')}.csv"
+                )
+                predictions.to_csv(pred_path, index=False)
+                logger.info(f"Tahminler kaydedildi: {pred_path}")
+
+            # Her target icin ayri summary kaydet
+            best = model_results[best_name]
+            target_summary = {
+                "status": "SUCCESS",
+                "run_date": datetime.now().isoformat(),
+                "target": target,
+                "best_model": best_name,
+                "best_ic": best.avg_ic,
+                "best_mae": best.avg_mae,
+                "best_dir_acc": best.avg_directional_accuracy,
+                "fund_count": len(fund_navs),
+                "model_comparison": {
+                    name: {
+                        "mae": r.avg_mae,
+                        "rmse": r.avg_rmse,
+                        "dir_acc": r.avg_directional_accuracy,
+                        "ic": r.avg_ic,
+                    }
+                    for name, r in model_results.items()
+                },
+                "top_features": (
+                    dict(list(best.feature_importance.items())[:10])
+                    if best.feature_importance
+                    else {}
+                ),
+                "predictions_count": len(predictions),
+            }
+            target_summary_path = self.output_dir / f"latest_run_summary_{target}.json"
+            with open(target_summary_path, "w", encoding="utf-8") as f:
+                json.dump(target_summary, f, indent=2, ensure_ascii=False, default=str)
+
+        if not all_model_results:
+            return {"status": "ERROR", "message": "Hicbir target icin model egitimi basarisiz"}
+
+        # Top-level summary: birincil target (genellikle 3M) yansitir — geri uyumluluk
+        primary = targets[0]
+        primary_results = all_model_results[primary]
+        primary_best_name = max(primary_results, key=lambda k: primary_results[k].avg_ic)
+        primary_best = primary_results[primary_best_name]
+        primary_preds = all_predictions.get(primary, pd.DataFrame())
 
         summary = {
             "status": "SUCCESS",
@@ -478,11 +535,12 @@ class MLPipeline:
             "run_time_sec": round(time.time() - t0, 1),
             "fund_count": len(fund_navs),
             "dataset_shape": list(dataset.shape),
-            "target": target,
-            "best_model": best_name,
-            "best_ic": best.avg_ic,
-            "best_mae": best.avg_mae,
-            "best_dir_acc": best.avg_directional_accuracy,
+            "target": primary,
+            "targets": targets,
+            "best_model": primary_best_name,
+            "best_ic": primary_best.avg_ic,
+            "best_mae": primary_best.avg_mae,
+            "best_dir_acc": primary_best.avg_directional_accuracy,
             "model_comparison": {
                 name: {
                     "mae": r.avg_mae,
@@ -490,14 +548,14 @@ class MLPipeline:
                     "dir_acc": r.avg_directional_accuracy,
                     "ic": r.avg_ic,
                 }
-                for name, r in model_results.items()
+                for name, r in primary_results.items()
             },
             "top_features": (
-                dict(list(best.feature_importance.items())[:10])
-                if best.feature_importance
+                dict(list(primary_best.feature_importance.items())[:10])
+                if primary_best.feature_importance
                 else {}
             ),
-            "predictions_count": len(predictions),
+            "predictions_count": len(primary_preds),
         }
 
         summary_path = self.output_dir / "latest_run_summary.json"
@@ -506,12 +564,13 @@ class MLPipeline:
 
         logger.info("=" * 60)
         logger.info(f"ML PIPELINE TAMAMLANDI ({summary['run_time_sec']}s)")
-        logger.info(
-            f"En iyi: {best_name} | "
-            f"IC={best.avg_ic:.3f} | "
-            f"DirAcc={best.avg_directional_accuracy:.1%}"
-        )
+        for tgt, results in all_model_results.items():
+            bn = max(results, key=lambda k: results[k].avg_ic)
+            b  = results[bn]
+            logger.info(
+                f"  {tgt}: {bn} | IC={b.avg_ic:.3f} | DirAcc={b.avg_directional_accuracy:.1%}"
+            )
         logger.info("=" * 60)
 
-        summary["predictions"] = predictions
+        summary["predictions"] = primary_preds
         return summary

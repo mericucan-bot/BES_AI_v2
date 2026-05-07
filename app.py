@@ -810,6 +810,37 @@ with tab4:
         else:
             st.info("Tahmin dosyası bulunamadı. `python main.py --ml-train` çalıştır.")
 
+        # === 12 AYLIK TAHMİNLER ===
+        pred_files_12m = sorted(ml_predictions_dir.glob("predictions_fwd_return_12m_*.csv"))
+        if pred_files_12m:
+            st.divider()
+            st.write("### 📋 12 Aylık Getiri Tahminleri (Uzun Vade)")
+
+            pred_12m = pd.read_csv(pred_files_12m[-1])
+            if not pred_12m.empty and "predicted_fwd_return_12m" in pred_12m.columns:
+                from src.data_collector import POPULAR_BES_FUNDS as _BES_FUNDS
+                pred_12m["fon_adi"] = pred_12m["fund_code"].map(lambda x: _BES_FUNDS.get(x, x))
+
+                col_12m_best, col_12m_worst = st.columns(2)
+
+                with col_12m_best:
+                    st.write("#### 🟢 En Yüksek (12M)")
+                    for _, row in pred_12m.nlargest(5, "predicted_fwd_return_12m").iterrows():
+                        ret = row["predicted_fwd_return_12m"]
+                        st.success(
+                            f"**{row['fon_adi']}** ({row['fund_code']})\n\n"
+                            f"Tahmini 12M: **%{ret*100:+.1f}**"
+                        )
+
+                with col_12m_worst:
+                    st.write("#### 🔴 En Düşük (12M)")
+                    for _, row in pred_12m.nsmallest(5, "predicted_fwd_return_12m").iterrows():
+                        ret = row["predicted_fwd_return_12m"]
+                        st.error(
+                            f"**{row['fon_adi']}** ({row['fund_code']})\n\n"
+                            f"Tahmini 12M: **%{ret*100:+.1f}**"
+                        )
+
         # === MODEL KARŞILAŞTIRMA ===
         with st.expander("🔬 Model Karşılaştırma (Teknik Detay)"):
             comparison = ml_summary.get("model_comparison", {})

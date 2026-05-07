@@ -144,6 +144,24 @@ class TestFullPipeline:
 
         assert result["status"] == "SUCCESS"
 
+    def test_multi_target_pipeline(self, tmp_path, mock_fund_navs, mock_market_data, macro_patch):
+        """targets listesi verildiginde pipeline basarili olmali."""
+        ml = MLPipeline(
+            output_dir=str(tmp_path / "ml"),
+            cache_dir=str(tmp_path / "cache"),
+        )
+        with (
+            patch.object(ml, "collect_fund_data", return_value=mock_fund_navs),
+            patch.object(ml, "collect_market_data", return_value=mock_market_data),
+            patch.object(ml.macro_engine, "get_macro_snapshot", return_value=macro_patch),
+        ):
+            result = ml.run_full_pipeline(targets=["fwd_return_3m"])
+
+        assert result["status"] == "SUCCESS"
+        assert result["targets"] == ["fwd_return_3m"]
+        assert result["target"] == "fwd_return_3m"
+        assert (tmp_path / "ml" / "latest_run_summary_fwd_return_3m.json").exists()
+
     def test_empty_fund_data_returns_error(self, tmp_path):
         ml = MLPipeline(output_dir=str(tmp_path / "ml"))
         with patch.object(ml, "collect_fund_data", return_value={}):
