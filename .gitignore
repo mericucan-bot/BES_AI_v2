@@ -35,3 +35,6 @@ htmlcov/
 # Snapshots ve learning history (kisisel veri)
 data/history/*.json
 data/learning_history.json
+
+# launchd plist (makineye özgü)
+*.plist
