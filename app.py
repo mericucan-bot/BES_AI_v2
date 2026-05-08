@@ -29,7 +29,110 @@ if "logging_configured" not in st.session_state:
     configure_logging(log_file="streamlit.log", level="INFO")
     st.session_state.logging_configured = True
 
-st.markdown("""<style>.stMetric {background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}</style>""", unsafe_allow_html=True)
+st.markdown("""
+<style>
+/* ========== GENEL DÜZEN ========== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+.stApp { font-family: 'Inter', sans-serif; }
+.block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1200px; }
+
+/* ========== METRİK KARTLARI ========== */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, rgba(30,64,175,0.08) 0%, rgba(30,64,175,0.02) 100%);
+    border: 1px solid rgba(30,64,175,0.15);
+    border-radius: 16px;
+    padding: 20px 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+[data-testid="stMetric"]:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+[data-testid="stMetricLabel"] { font-size: 0.85rem !important; font-weight: 500 !important; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
+[data-testid="stMetricValue"] { font-size: 1.8rem !important; font-weight: 700 !important; }
+[data-testid="stMetricDelta"] { font-size: 0.85rem !important; font-weight: 500 !important; }
+
+/* ========== TAB NAVIGATION ========== */
+.stTabs [data-baseweb="tab-list"] { gap: 8px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 4px; }
+.stTabs [data-baseweb="tab"] { border-radius: 10px; padding: 10px 20px; font-weight: 500; font-size: 0.95rem; transition: all 0.2s ease; }
+.stTabs [data-baseweb="tab"]:hover { background: rgba(30,64,175,0.1); }
+.stTabs [aria-selected="true"] { background: rgba(30,64,175,0.15) !important; font-weight: 600; }
+
+/* ========== EXPANDER ========== */
+.streamlit-expanderHeader { font-weight: 600; font-size: 1rem; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease; }
+.streamlit-expanderHeader:hover { background: rgba(255,255,255,0.06); border-color: rgba(30,64,175,0.3); }
+
+/* ========== BUTONLAR ========== */
+.stButton > button { border-radius: 10px; font-weight: 600; padding: 8px 20px; transition: all 0.2s ease; border: 1px solid rgba(255,255,255,0.1); }
+.stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+.stButton > button[kind="primary"] { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border: none; }
+
+/* ========== ALERT KUTULARI ========== */
+.stAlert { border-radius: 12px; border-left-width: 5px; padding: 16px 20px; }
+[data-testid="stAlert"] > div { font-size: 0.95rem; line-height: 1.6; }
+
+/* ========== PROGRESS BAR ========== */
+.stProgress > div > div > div > div { border-radius: 20px; background: linear-gradient(90deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%); }
+.stProgress > div > div { border-radius: 20px; background: rgba(255,255,255,0.05); }
+
+/* ========== DATA TABLE ========== */
+[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+
+/* ========== SIDEBAR ========== */
+[data-testid="stSidebar"] { background: linear-gradient(180deg, rgba(15,23,42,0.98) 0%, rgba(15,23,42,0.95) 100%); border-right: 1px solid rgba(255,255,255,0.06); }
+[data-testid="stSidebar"] .block-container { padding-top: 2rem; }
+
+/* ========== PLOTLY GRAFİKLER ========== */
+[data-testid="stPlotlyChart"] { border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); padding: 8px; }
+
+/* ========== BAŞLIKLAR ========== */
+h1 { font-weight: 700 !important; letter-spacing: -0.5px; }
+h2, h3 { font-weight: 600 !important; letter-spacing: -0.3px; }
+hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !important; }
+
+/* ========== FORM ELEMANLARI ========== */
+[data-testid="stNumberInput"] { border-radius: 10px; }
+[data-testid="stNumberInput"] input { border-radius: 10px; font-weight: 500; }
+[data-baseweb="select"] { border-radius: 10px; }
+.stCaption { font-size: 0.8rem !important; opacity: 0.6; }
+
+/* ========== REJİM KARTLARI ========== */
+.regime-card { padding: 32px; border-radius: 20px; margin-bottom: 20px; position: relative; overflow: hidden; }
+.regime-card::before { content: ''; position: absolute; top: -50%; right: -50%; width: 100%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%); }
+.regime-card-stable  { background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%); border-left: 6px solid #3b82f6; }
+.regime-card-crisis  { background: linear-gradient(135deg, #5f1e1e 0%, #991b1b 100%); border-left: 6px solid #ef4444; }
+.regime-card-riskon  { background: linear-gradient(135deg, #1e3a2f 0%, #166534 100%); border-left: 6px solid #22c55e; }
+.regime-card-ratehike { background: linear-gradient(135deg, #5f4b1e 0%, #92400e 100%); border-left: 6px solid #f59e0b; }
+.regime-card h1 { font-size: 2.2em; margin: 0 0 8px 0; color: white; }
+.regime-card p { font-size: 1.15em; color: rgba(255,255,255,0.85); margin: 4px 0; line-height: 1.5; }
+.regime-card .recommendation { font-size: 1.05em; color: rgba(255,255,255,0.7); }
+
+/* ========== PORTFÖY BAŞLIK KART ========== */
+.portfolio-header { background: linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%); padding: 24px 32px; border-radius: 16px; margin-bottom: 16px; border-left: 6px solid #38bdf8; }
+.portfolio-header h2 { margin: 0; color: white; font-size: 1.5em; }
+.portfolio-header p { color: rgba(255,255,255,0.8); margin: 8px 0 0 0; font-size: 1.1em; }
+
+/* ========== AI TAHMİN KART ========== */
+.ai-header { background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%); padding: 24px 32px; border-radius: 16px; margin-bottom: 16px; border-left: 6px solid #a78bfa; }
+.ai-header h2 { margin: 0; color: white; font-size: 1.5em; }
+.ai-header p { color: rgba(255,255,255,0.8); margin: 8px 0 0 0; font-size: 1.05em; line-height: 1.5; }
+
+/* ========== BİLGİ KUTULARI ========== */
+.info-box { padding: 16px 20px; border-radius: 12px; margin-bottom: 16px; line-height: 1.6; }
+.info-box-yellow { background: rgba(234,179,8,0.1); border-left: 5px solid #eab308; }
+.info-box-blue   { background: rgba(59,130,246,0.08); border-left: 5px solid #3b82f6; }
+.info-box-orange { background: rgba(234,88,12,0.08); border-left: 5px solid #ea580c; }
+.info-box p { margin: 0; color: rgba(255,255,255,0.85); }
+
+/* ========== SCROLLBAR ========== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* ========== ANİMASYON ========== */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+[data-testid="stMetric"], .stAlert, [data-testid="stPlotlyChart"] { animation: fadeIn 0.4s ease-out; }
+</style>
+""", unsafe_allow_html=True)
 
 
 # --- YARDIMCI FONKSİYONLAR ---
@@ -169,7 +272,17 @@ with st.sidebar:
     st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
 
 # --- BAŞLIK ---
-st.title("🛡️ BES Akıllı Fon Danışmanı")
+st.markdown("""
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: -10px;">
+    <span style="font-size: 2.5rem;">🛡️</span>
+    <div>
+        <h1 style="margin: 0; padding: 0; font-size: 1.8rem;
+            background: linear-gradient(135deg, #3b82f6, #60a5fa);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            BES Akıllı Fon Danışmanı</h1>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 st.caption("Yapay zeka destekli BES portföy yönetim sistemi • Yatırım tavsiyesi değildir")
 
 # --- SEKMELER ---
@@ -189,13 +302,18 @@ with tab1:
     macro = result.get("macro", {})
 
     # === ANA MESAJ ===
+    regime_class = {
+        "STABLE":    "regime-card-stable",
+        "CRISIS":    "regime-card-crisis",
+        "RISK_ON":   "regime-card-riskon",
+        "RATE_HIKE": "regime-card-ratehike",
+    }.get(regime, "regime-card-stable")
+
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                padding: 30px; border-radius: 16px; margin-bottom: 20px;
-                border-left: 6px solid {regime_info['border']};">
-        <h1 style="margin:0; font-size: 2.5em;">{regime_info['emoji']} {regime_info['label']}</h1>
-        <p style="font-size: 1.3em; margin: 10px 0 5px 0; color: #374151;">{regime_info['summary']}</p>
-        <p style="font-size: 1.1em; color: #6b7280;">💡 <strong>Öneri:</strong> {regime_info['action']}</p>
+    <div class="regime-card {regime_class}">
+        <h1>{regime_info['emoji']} {regime_info['label']}</h1>
+        <p>{regime_info['summary']}</p>
+        <p class="recommendation">💡 <strong>Öneri:</strong> {regime_info['action']}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -280,12 +398,9 @@ with tab1:
 # ══════════════════════════════════════════════════════
 with tab2:
     st.markdown("""
-    <div style="background: #f0f9ff; padding: 15px; border-radius: 10px;
-                border-left: 5px solid #3b82f6; margin-bottom: 15px;">
-        <p style="margin: 0; color: #1e40af;">
-            💼 Portföy bilgilerini aşağıdan girebilir veya güncelleyebilirsin.
-            Değişiklikler kaydedilir ve bir sonraki ziyaretinde hatırlanır.
-        </p>
+    <div class="info-box info-box-blue">
+        <p>💼 Portföy bilgilerini aşağıdan girebilir veya güncelleyebilirsin.
+        Değişiklikler kaydedilir ve bir sonraki ziyaretinde hatırlanır.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -446,13 +561,10 @@ with tab2:
 
         # === ANA MESAJ ===
         st.markdown(f"""
-        <div style="background: #f0f9ff; padding: 20px; border-radius: 12px;
-                    border-left: 5px solid #3b82f6; margin-bottom: 20px;">
-            <h2 style="margin:0;">💼 Portföyün: {format_tl(total_value)}</h2>
-            <p style="font-size: 1.1em; margin: 8px 0 0 0; color: #374151;">
-                {regime_info['emoji']} Piyasa <strong>{regime_info['label']}</strong> modunda →
-                {regime_info['action']}
-            </p>
+        <div class="portfolio-header">
+            <h2>💼 Portföyün: {format_tl(total_value)}</h2>
+            <p>{regime_info['emoji']} Piyasa <strong>{regime_info['label']}</strong> modunda →
+            {regime_info['action']}</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -569,13 +681,10 @@ Kendi durumunuza göre değerlendirin.
 with tab3:
     # === SAYFA AÇIKLAMASI ===
     st.markdown("""
-    <div style="background: #fefce8; padding: 15px; border-radius: 10px;
-                border-left: 5px solid #eab308; margin-bottom: 20px;">
-        <p style="margin: 0; color: #854d0e;">
-            📚 <strong>Bu sayfa ne gösteriyor?</strong> Sistemimiz geçmişte nasıl çalışırdı?
-            Gerçek piyasa verisiyle geriye dönük test yaparak, önerilerimizin ne kadar
-            isabetli olduğunu ölçüyoruz.
-        </p>
+    <div class="info-box info-box-yellow">
+        <p>📚 <strong>Bu sayfa ne gösteriyor?</strong> Sistemimiz geçmişte nasıl çalışırdı?
+        Gerçek piyasa verisiyle geriye dönük test yaparak, önerilerimizin ne kadar
+        isabetli olduğunu ölçüyoruz.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -881,15 +990,11 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
 # ══════════════════════════════════════════════════════
 with tab4:
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
-                padding: 20px; border-radius: 12px;
-                border-left: 5px solid #7c3aed; margin-bottom: 20px;">
-        <h2 style="margin:0;">🤖 AI Fon Tahmin Motoru</h2>
-        <p style="margin: 8px 0 0 0; color: #374151;">
-            Makine öğrenmesi (XGBoost) ile BES fonlarının önümüzdeki 3 aylık
-            tahmini getirilerini hesaplıyoruz. Model, geçmiş performans, volatilite,
-            momentum ve makro verilerden öğreniyor.
-        </p>
+    <div class="ai-header">
+        <h2>🤖 AI Fon Tahmin Motoru</h2>
+        <p>Makine öğrenmesi (XGBoost) ile BES fonlarının önümüzdeki 3 aylık
+        tahmini getirilerini hesaplıyoruz. Model, geçmiş performans, volatilite,
+        momentum ve makro verilerden öğreniyor.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1094,13 +1199,10 @@ with tab4:
         # === UYARI ===
         st.divider()
         st.markdown("""
-        <div style="background: #fff7ed; padding: 15px; border-radius: 10px;
-                    border-left: 5px solid #ea580c;">
-            <p style="margin: 0; color: #9a3412;">
-                ⚠️ <strong>Önemli Uyarı:</strong> Bu tahminler makine öğrenmesi modelinin
-                geçmiş verilerden öğrendiği kalıplara dayanmaktadır. Geçmiş performans
-                gelecek sonuçları garanti etmez. Yatırım kararlarınızı sadece bu tahminlere
-                dayandırmayın. Bu sistem yatırım danışmanlığı değildir.
-            </p>
+        <div class="info-box info-box-orange">
+            <p>⚠️ <strong>Önemli Uyarı:</strong> Bu tahminler makine öğrenmesi modelinin
+            geçmiş verilerden öğrendiği kalıplara dayanmaktadır. Geçmiş performans
+            gelecek sonuçları garanti etmez. Yatırım kararlarınızı sadece bu tahminlere
+            dayandırmayın.</p>
         </div>
         """, unsafe_allow_html=True)
