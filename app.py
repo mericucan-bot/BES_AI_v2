@@ -711,6 +711,120 @@ with tab3:
             "confidence": "{:.1%}",
         }, na_rep="—"))
 
+    # === PORTFÖY GEÇMİŞ GRAFİĞİ ===
+    from src.performance_tracker import PerformanceTracker
+    tracker = PerformanceTracker()
+    history_df = tracker.get_portfolio_history()
+
+    if not history_df.empty and len(history_df) >= 2:
+        st.write("### 📈 Portföy Değer Geçmişi")
+
+        fig = make_subplots(
+            rows=2, cols=1,
+            row_heights=[0.75, 0.25],
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=history_df["date"],
+                y=history_df["total_value"],
+                name="Nominal Değer",
+                line=dict(color="#3b82f6", width=2.5),
+                fill="tozeroy",
+                fillcolor="rgba(59,130,246,0.1)",
+                hovertemplate="Tarih: %{x}<br>Değer: %{y:,.0f} TL<extra></extra>",
+            ),
+            row=1, col=1,
+        )
+
+        if history_df["real_value"].notna().any():
+            fig.add_trace(
+                go.Scatter(
+                    x=history_df["date"],
+                    y=history_df["real_value"],
+                    name="Reel Değer (satın alma gücü)",
+                    line=dict(color="#f59e0b", width=2, dash="dash"),
+                    hovertemplate="Tarih: %{x}<br>Reel: %{y:,.0f} TL<extra></extra>",
+                ),
+                row=1, col=1,
+            )
+
+        initial_value = history_df["total_value"].iloc[0]
+        fig.add_hline(
+            y=initial_value,
+            line_dash="dot",
+            line_color="rgba(255,255,255,0.3)",
+            annotation_text=f"Başlangıç: {initial_value:,.0f} TL",
+            row=1, col=1,
+        )
+
+        regime_colors = {
+            "STABLE":    "#3b82f6",
+            "CRISIS":    "#ef4444",
+            "RISK_ON":   "#22c55e",
+            "RATE_HIKE": "#f59e0b",
+        }
+
+        for _, hrow in history_df.iterrows():
+            color = regime_colors.get(hrow["regime"], "#6b7280")
+            fig.add_trace(
+                go.Bar(
+                    x=[hrow["date"]],
+                    y=[1],
+                    marker_color=color,
+                    showlegend=False,
+                    hovertemplate=f"Tarih: {hrow['date'].strftime('%Y-%m')}<br>Rejim: {hrow['regime']}<extra></extra>",
+                ),
+                row=2, col=1,
+            )
+
+        regime_labels = {"STABLE": "Sakin", "CRISIS": "Kriz", "RISK_ON": "Yükseliş", "RATE_HIKE": "Faiz Artışı"}
+        for rg_name, color in regime_colors.items():
+            fig.add_trace(
+                go.Bar(x=[None], y=[None], marker_color=color, name=regime_labels.get(rg_name, rg_name), showlegend=True),
+                row=2, col=1,
+            )
+
+        fig.update_layout(
+            height=500,
+            margin=dict(l=20, r=20, t=30, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            hovermode="x unified",
+        )
+        fig.update_yaxes(title_text="Portföy Değeri (TL)", tickformat=",", row=1, col=1)
+        fig.update_yaxes(visible=False, row=2, col=1)
+        fig.update_xaxes(title_text="", row=2, col=1)
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        first_val    = history_df["total_value"].iloc[0]
+        last_val     = history_df["total_value"].iloc[-1]
+        total_change = last_val - first_val
+        total_return = (last_val / first_val) - 1 if first_val > 0 else 0
+
+        hm1, hm2, hm3, hm4 = st.columns(4)
+        hm1.metric("Başlangıç",     f"{first_val:,.0f} TL")
+        hm2.metric("Şu An",         f"{last_val:,.0f} TL", delta=f"{total_change:+,.0f} TL")
+        hm3.metric("Toplam Getiri", f"%{total_return*100:+.1f}")
+        hm4.metric("Süre",          f"{len(history_df)} ay")
+
+        with st.expander("📋 Aylık Detay"):
+            detail = history_df[["date", "total_value", "regime", "monthly_return"]].copy()
+            detail.columns = ["Tarih", "Değer (TL)", "Rejim", "Aylık Getiri"]
+            detail["Tarih"]       = detail["Tarih"].dt.strftime("%Y-%m")
+            detail["Değer (TL)"]  = detail["Değer (TL)"].apply(lambda x: f"{x:,.0f}")
+            detail["Aylık Getiri"] = detail["Aylık Getiri"].apply(
+                lambda x: f"%{x*100:+.1f}" if pd.notna(x) else "—"
+            )
+            st.dataframe(detail, hide_index=True, use_container_width=True)
+
+    elif not history_df.empty:
+        st.info("📊 Portföy geçmişi için en az 2 aylık snapshot gerekli. Sistem her ay otomatik kaydediyor.")
+    else:
+        st.info("📊 Henüz portföy geçmişi yok. İlk aylık pipeline çalıştığında (`python main.py`) snapshot kaydedilecek.")
+
     # === ENFLASYONs ETKİSİ ===
     st.divider()
     st.write("### 💰 Enflasyon Etkisi")

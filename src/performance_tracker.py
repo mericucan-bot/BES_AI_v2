@@ -111,3 +111,65 @@ class PerformanceTracker:
             result["real_value"] = round(initial_value * (1 + real_calc["real_return"]), 2)
 
         return result
+
+    def get_portfolio_history(self, history_dir: str = "data/history") -> "pd.DataFrame":
+        """
+        Tüm aylık snapshot'lardan portföy değer geçmişini çıkar.
+
+        Returns: DataFrame(date, total_value, regime, confidence,
+                           monthly_return, real_return, real_value, snapshot_file)
+        """
+        import pandas as pd
+        from pathlib import Path
+
+        history_path = Path(history_dir)
+        snapshots = sorted(history_path.glob("*_snapshot.json"))
+
+        if not snapshots:
+            logger.info("Snapshot dosyası yok, boş DataFrame dönüyor")
+            return pd.DataFrame()
+
+        rows = []
+        for snap_path in snapshots:
+            try:
+                with open(snap_path, encoding="utf-8") as f:
+                    data = json.load(f)
+
+                run_date   = data.get("run_date", "")[:10]
+                pv         = data.get("portfolio_value", {})
+                regime_obj = data.get("regime", {})
+                regime     = regime_obj.get("detected", "?")
+                confidence = regime_obj.get("confidence", 0)
+
+                prev_eval    = data.get("previous_evaluation") or {}
+                monthly_return = prev_eval.get("monthly_return")
+
+                real_metrics = prev_eval.get("real_metrics") or {}
+                real_return  = real_metrics.get("real_return")
+
+                real_pf    = data.get("real_portfolio") or {}
+                real_value = real_pf.get("real_value")
+
+                rows.append({
+                    "date":          run_date,
+                    "total_value":   pv.get("total_value", 0),
+                    "regime":        regime,
+                    "confidence":    confidence,
+                    "monthly_return": monthly_return,
+                    "real_return":   real_return,
+                    "real_value":    real_value,
+                    "snapshot_file": snap_path.name,
+                })
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Snapshot okuma hatası ({snap_path.name}): {e}")
+                continue
+
+        if not rows:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(rows)
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").reset_index(drop=True)
+
+        logger.info(f"Portföy geçmişi: {len(df)} snapshot yüklendi")
+        return df

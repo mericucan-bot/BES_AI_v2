@@ -4,6 +4,7 @@ import sys
 
 from src.logging_config import configure_logging, get_logger
 from src.pipeline import MonthlyPipeline
+from src.performance_tracker import PerformanceTracker
 
 
 def print_summary(result: dict) -> None:
@@ -91,6 +92,17 @@ def print_summary(result: dict) -> None:
 
     print()
     print(f"Snapshot     : {result.get('snapshot_path', '?')}")
+
+    tracker = PerformanceTracker()
+    history = tracker.get_portfolio_history()
+    if len(history) >= 2:
+        first = history.iloc[0]
+        last  = history.iloc[-1]
+        ret   = (last["total_value"] / first["total_value"]) - 1
+        print(f"📈 Geçmiş     : {len(history)} ay takip, "
+              f"{first['total_value']:,.0f} → {last['total_value']:,.0f} TL "
+              f"({ret:+.1%})")
+
     print("=" * 64)
     print()
 

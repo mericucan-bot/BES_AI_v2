@@ -122,3 +122,63 @@ class TestRealPortfolioValue:
             cpi_yoy=0.30,
         )
         assert result["nominal_total_return"] is None
+
+
+class TestPortfolioHistory:
+    def test_empty_history(self, tmp_path):
+        tracker = PerformanceTracker()
+        df = tracker.get_portfolio_history(str(tmp_path))
+        assert df.empty
+
+    def test_reads_snapshots(self, tmp_path):
+        import json
+
+        snap1 = {
+            "run_date": "2026-03-01T10:00:00",
+            "portfolio_value": {"total_value": 100000},
+            "regime": {"detected": "STABLE", "confidence": 0.85},
+        }
+        snap2 = {
+            "run_date": "2026-04-01T10:00:00",
+            "portfolio_value": {"total_value": 103000},
+            "regime": {"detected": "RISK_ON", "confidence": 0.7},
+            "previous_evaluation": {"monthly_return": 0.03},
+        }
+        (tmp_path / "2026_03_snapshot.json").write_text(json.dumps(snap1))
+        (tmp_path / "2026_04_snapshot.json").write_text(json.dumps(snap2))
+
+        df = PerformanceTracker().get_portfolio_history(str(tmp_path))
+
+        assert len(df) == 2
+        assert df.iloc[0]["total_value"] == 100000
+        assert df.iloc[1]["total_value"] == 103000
+        assert df.iloc[1]["regime"] == "RISK_ON"
+        assert df.iloc[1]["monthly_return"] == pytest.approx(0.03)
+
+    def test_sorted_by_date(self, tmp_path):
+        import json
+
+        (tmp_path / "2026_04_snapshot.json").write_text(json.dumps({
+            "run_date": "2026-04-01", "portfolio_value": {"total_value": 110000},
+            "regime": {"detected": "STABLE"},
+        }))
+        (tmp_path / "2026_02_snapshot.json").write_text(json.dumps({
+            "run_date": "2026-02-01", "portfolio_value": {"total_value": 100000},
+            "regime": {"detected": "CRISIS"},
+        }))
+
+        df = PerformanceTracker().get_portfolio_history(str(tmp_path))
+
+        assert df.iloc[0]["date"] < df.iloc[1]["date"]
+
+    def test_handles_corrupt_file(self, tmp_path):
+        import json
+
+        (tmp_path / "2026_03_snapshot.json").write_text("corrupt json{{{")
+        (tmp_path / "2026_04_snapshot.json").write_text(json.dumps({
+            "run_date": "2026-04-01", "portfolio_value": {"total_value": 100000},
+            "regime": {"detected": "STABLE"},
+        }))
+
+        df = PerformanceTracker().get_portfolio_history(str(tmp_path))
+        assert len(df) == 1

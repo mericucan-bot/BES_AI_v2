@@ -260,6 +260,40 @@ class ReportGenerator:
                         self.styles["BodyText2"],
                     ))
 
+            # Portföy geçmişi tablosu (varsa)
+            from src.performance_tracker import PerformanceTracker as _PT
+            import pandas as _pd
+            _history = _PT().get_portfolio_history()
+            if len(_history) >= 2:
+                story.append(Paragraph("Portföy Geçmişi", self.styles["SubHeader"]))
+                hist_data = [["Tarih", "Deger (TL)", "Rejim", "Aylik Getiri"]]
+                for _, hrow in _history.iterrows():
+                    ret_str = (
+                        f"%{hrow['monthly_return']*100:+.1f}"
+                        if _pd.notna(hrow.get("monthly_return"))
+                        else "—"
+                    )
+                    hist_data.append([
+                        hrow["date"].strftime("%Y-%m") if hasattr(hrow["date"], "strftime") else str(hrow["date"])[:7],
+                        f"{hrow['total_value']:,.0f}",
+                        hrow["regime"],
+                        ret_str,
+                    ])
+                hist_table = Table(hist_data, colWidths=[3*cm, 4*cm, 3.5*cm, 3.5*cm])
+                hist_table.setStyle(TableStyle([
+                    ("BACKGROUND",    (0, 0), (-1, 0), self.PRIMARY),
+                    ("TEXTCOLOR",     (0, 0), (-1, 0), self.WHITE),
+                    ("FONTNAME",      (0, 0), (-1, -1), self.font_name),
+                    ("FONTSIZE",      (0, 0), (-1, -1), 9),
+                    ("ALIGN",         (1, 0), (-1, -1), "RIGHT"),
+                    ("GRID",          (0, 0), (-1, -1), 0.5, self.SECONDARY),
+                    ("ROWBACKGROUNDS",(0, 1), (-1, -1), [self.WHITE, self.LIGHT_BG]),
+                    ("TOPPADDING",    (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ]))
+                story.append(hist_table)
+                story.append(Spacer(1, 0.3 * cm))
+
             # === 3. REBALANCE ÖNERİLERİ ===
             story.append(Paragraph("3. Bu Ay Yapilmasi Gerekenler", self.styles["SectionHeader"]))
 
