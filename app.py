@@ -13,6 +13,14 @@ from src.learning_engine import LearningEngineV2
 from src.cache_manager import get_smart_ttl, is_market_hours
 from src.logging_config import configure_logging
 
+# Streamlit Cloud secrets desteği
+# Cloud'da st.secrets kullanılır, lokalde .env veya APIKEY_FOLDER
+try:
+    if hasattr(st, "secrets") and "TCMB_API_KEY" in st.secrets:
+        os.environ["TCMB_API_KEY"] = st.secrets["TCMB_API_KEY"]
+except Exception:
+    pass
+
 # --- SAYFA KONFİGÜRASYONU ---
 st.set_page_config(page_title="BES Akıllı Fon Danışmanı", page_icon="🛡️", layout="wide")
 
@@ -99,7 +107,16 @@ def load_my_portfolio():
         with open("data/my_portfolio.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
-        return None
+        # Demo portföy (Cloud veya ilk kurulum için)
+        return {
+            "holdings_tl": {
+                "VEF": 30000,
+                "ALT": 25000,
+                "KTS": 20000,
+                "KCH": 15000,
+                "CASH": 10000,
+            }
+        }
 
 
 result = get_market_analysis()

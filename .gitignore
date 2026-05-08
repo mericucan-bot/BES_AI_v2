@@ -41,3 +41,6 @@ data/learning_history.json
 
 # PDF raporlar (kişisel veri)
 data/reports/
+
+# Streamlit secrets (API anahtarları)
+.streamlit/secrets.toml

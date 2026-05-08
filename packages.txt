@@ -1,0 +1,2 @@
+# Streamlit Cloud sistem paketleri (apt-get)
+# Su an gerekli degil

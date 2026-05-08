@@ -97,6 +97,22 @@ class TCMBClient:
         evdspy ile TCMB serisini cek.
         Donus formati: [{"date": "2024-01-15", "value": 50.0}, ...]
         """
+        # Streamlit Cloud: env var'dan key yükle, dosya yoksa yaz
+        # Lokalde dosya zaten varsa dokunma (evdspy kendi formatını kullanıyor)
+        # evdspy base64-kodlu key bekliyor — raw key'i encode ederek yaz
+        env_key = os.environ.get("TCMB_API_KEY") or os.environ.get("EVDS_API_KEY")
+        if env_key:
+            try:
+                import base64 as _b64
+                apikey_dir = Path("APIKEY_FOLDER")
+                key_file = apikey_dir / "api_key.txt"
+                if not key_file.exists():
+                    apikey_dir.mkdir(exist_ok=True)
+                    key_file.write_text(_b64.b64encode(env_key.encode()).decode())
+                    logger.debug("TCMB API key environment'tan yuklendi")
+            except Exception:
+                pass
+
         if use_cache:
             cached = self._read_cache(series_code)
             if cached is not None:
