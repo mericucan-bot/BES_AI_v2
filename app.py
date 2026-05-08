@@ -12,6 +12,7 @@ from src.regime_engine import RegimeEngineV2
 from src.learning_engine import LearningEngineV2
 from src.cache_manager import get_smart_ttl, is_market_hours
 from src.logging_config import configure_logging
+from src.data_collector import POPULAR_BES_FUNDS
 
 # Streamlit Cloud secrets desteği
 # Cloud'da st.secrets kullanılır, lokalde .env veya APIKEY_FOLDER
@@ -293,58 +294,122 @@ with tab2:
         if loaded:
             st.session_state.portfolio = loaded["holdings_tl"]
         else:
-            st.session_state.portfolio = {
-                "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000
-            }
+            st.session_state.portfolio = {}
 
     with st.expander("✏️ Portföyümü Düzenle", expanded=False):
-        fund_labels = {
-            "VEF":  "🏢 Hisse Senedi Fonu (VEF)",
-            "ALT":  "🥇 Altın Fonu (ALT)",
-            "KTS":  "🏛️ Kamu Borç. Fonu (KTS)",
-            "KCH":  "🔄 Karma/Değişken Fon (KCH)",
-            "CASH": "💵 Para Piyasası (CASH)",
-        }
 
-        edited_portfolio = {}
-        col_left, col_right = st.columns(2)
-        fund_list = list(fund_labels.items())
-        half = (len(fund_list) + 1) // 2
+        from src.data_collector import TEFASCollector
+        collector = TEFASCollector()
+        fund_list_df = collector.get_fund_list()
 
-        with col_left:
-            for code, label in fund_list[:half]:
-                current = st.session_state.portfolio.get(code, 0)
-                edited_portfolio[code] = st.number_input(
-                    label,
-                    min_value=0,
-                    max_value=10_000_000,
-                    value=int(current),
-                    step=1000,
-                    key=f"portfolio_{code}",
+        if not fund_list_df.empty:
+            fund_options = {
+                f"{row['code']} — {row['title']}": row['code']
+                for _, row in fund_list_df.iterrows()
+            }
+        else:
+            fund_options = {f"{k} — {v}": k for k, v in POPULAR_BES_FUNDS.items()}
+
+        # === MEVCUT FONLAR ===
+        if st.session_state.portfolio:
+            st.write("**Mevcut Portföy:**")
+
+            updated_portfolio = {}
+            funds_to_remove = []
+
+            for code, amount in list(st.session_state.portfolio.items()):
+                fund_name = ""
+                if not fund_list_df.empty:
+                    match = fund_list_df[fund_list_df["code"] == code]
+                    if not match.empty:
+                        fund_name = match.iloc[0]["title"]
+                if not fund_name:
+                    fund_name = POPULAR_BES_FUNDS.get(code, code)
+
+                col_name, col_amount, col_remove = st.columns([4, 3, 1])
+
+                with col_name:
+                    st.write(f"**{code}** — {fund_name}")
+
+                with col_amount:
+                    new_amount = st.number_input(
+                        f"{code} tutar",
+                        min_value=0,
+                        max_value=10_000_000,
+                        value=int(amount),
+                        step=1000,
+                        key=f"fund_amount_{code}",
+                        label_visibility="collapsed",
+                    )
+                    updated_portfolio[code] = new_amount
+
+                with col_remove:
+                    if st.button("🗑️", key=f"remove_{code}", help=f"{code} fonunu çıkar"):
+                        funds_to_remove.append(code)
+
+            for code in funds_to_remove:
+                if code in updated_portfolio:
+                    del updated_portfolio[code]
+            if funds_to_remove:
+                st.session_state.portfolio = updated_portfolio
+                st.rerun()
+
+            total_shown = sum(updated_portfolio.values())
+            st.write(f"**Toplam: {total_shown:,.0f} TL**")
+        else:
+            st.info("Henüz fon eklenmemiş. Aşağıdan fon ekleyebilirsin.")
+            updated_portfolio = {}
+
+        # === YENİ FON EKLEME ===
+        st.divider()
+        st.write("**Yeni Fon Ekle:**")
+
+        add_col1, add_col2, add_col3 = st.columns([4, 3, 1.5])
+
+        with add_col1:
+            available_options = {
+                label: code for label, code in fund_options.items()
+                if code not in st.session_state.portfolio
+            }
+            if available_options:
+                selected_label = st.selectbox(
+                    "Fon ara (kod veya isim yaz):",
+                    options=[""] + list(available_options.keys()),
+                    key="fund_search",
                 )
+            else:
+                selected_label = ""
+                st.write("Tüm fonlar portföyde.")
 
-        with col_right:
-            for code, label in fund_list[half:]:
-                current = st.session_state.portfolio.get(code, 0)
-                edited_portfolio[code] = st.number_input(
-                    label,
-                    min_value=0,
-                    max_value=10_000_000,
-                    value=int(current),
-                    step=1000,
-                    key=f"portfolio_{code}",
-                )
+        with add_col2:
+            new_fund_amount = st.number_input(
+                "Tutar (TL)",
+                min_value=0,
+                max_value=10_000_000,
+                value=10000,
+                step=1000,
+                key="new_fund_amount",
+            )
 
-        total_edited = sum(edited_portfolio.values())
-        st.write(f"**Toplam:** {total_edited:,.0f} TL")
+        with add_col3:
+            st.write("")
+            if st.button("➕ Ekle", type="primary", key="add_fund"):
+                if selected_label and selected_label in available_options:
+                    new_code = available_options[selected_label]
+                    st.session_state.portfolio[new_code] = new_fund_amount
+                    st.rerun()
+                elif selected_label:
+                    st.warning("Geçersiz fon seçimi")
 
-        save_col1, save_col2 = st.columns(2)
+        # === KAYDET / SIFIRLA / DEMO ===
+        st.divider()
+        save_col1, save_col2, save_col3 = st.columns(3)
 
         with save_col1:
-            if st.button("💾 Kaydet", type="primary"):
-                st.session_state.portfolio = edited_portfolio
+            if st.button("💾 Kaydet", type="primary", key="save_portfolio"):
+                st.session_state.portfolio = updated_portfolio if updated_portfolio else st.session_state.portfolio
                 try:
-                    save_data = {"holdings_tl": edited_portfolio}
+                    save_data = {"holdings_tl": st.session_state.portfolio}
                     with open("data/my_portfolio.json", "w", encoding="utf-8") as f:
                         json.dump(save_data, f, ensure_ascii=False, indent=2)
                     st.success("✅ Portföy kaydedildi!")
@@ -354,31 +419,30 @@ with tab2:
                     st.error(f"Kaydetme hatası: {e}")
 
         with save_col2:
-            if st.button("🔄 Sıfırla"):
+            if st.button("🔄 Sıfırla", key="reset_portfolio"):
+                st.session_state.portfolio = {}
+                st.rerun()
+
+        with save_col3:
+            if st.button("📋 Demo Portföy", key="demo_portfolio"):
                 st.session_state.portfolio = {
                     "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000
                 }
                 st.rerun()
 
-    holdings    = st.session_state.portfolio
+    holdings    = st.session_state.portfolio if st.session_state.portfolio else {"CASH": 0}
     total_value = sum(holdings.values())
 
     if total_value == 0:
         st.warning("⚠️ Portföy değeri 0 TL. Yukarıdaki formu kullanarak fon tutarlarını gir.")
     else:
-        current_weights = {k: v / total_value for k, v in holdings.items()}
+        current_weights = {k: v / total_value for k, v in holdings.items() if v > 0}
 
         learning       = LearningEngineV2()
         target_weights = learning.get_optimized_weights(regime)
         regime_info    = explain_regime(regime)
 
-        asset_names = {
-            "VEF":  "Hisse Senedi Fonu",
-            "ALT":  "Altın Fonu",
-            "KTS":  "Kamu Borç. Fonu",
-            "KCH":  "Karma/Değişken Fon",
-            "CASH": "Para Piyasası",
-        }
+        asset_names = POPULAR_BES_FUNDS.copy()
 
         # === ANA MESAJ ===
         st.markdown(f"""

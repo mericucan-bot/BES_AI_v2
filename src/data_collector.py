@@ -382,6 +382,34 @@ class TEFASCollector:
         except Exception as e:
             logger.error(f"Cache yazma hatasi ({key}): {e}")
 
+    def get_fund_list(self) -> pd.DataFrame:
+        """
+        Cache'deki TEFAS snapshot'larından fon listesi döndür.
+        API çağrısı yapmaz, sadece cache okur.
+
+        Returns: DataFrame(code, title) alfabetik sıralı
+        """
+        cache_files = sorted(self.cache_dir.glob("snapshot_*.parquet"))
+        if cache_files:
+            try:
+                df = pd.read_parquet(cache_files[-1])
+                if "fund_code" in df.columns and "fund_name" in df.columns:
+                    fund_list = (
+                        df[["fund_code", "fund_name"]]
+                        .rename(columns={"fund_code": "code", "fund_name": "title"})
+                        .drop_duplicates(subset=["code"])
+                        .sort_values("title")
+                        .reset_index(drop=True)
+                    )
+                    logger.debug(f"Fund list cache'den okundu: {len(fund_list)} fon")
+                    return fund_list
+            except Exception as e:
+                logger.warning(f"Fund list cache okuma hatası: {e}")
+
+        return pd.DataFrame([
+            {"code": k, "title": v} for k, v in POPULAR_BES_FUNDS.items()
+        ])
+
 
 # --- HAZIR BES FON LISTESI ---
 # Tum kodlar TEFAS EMK listesinde dogrulanmistir (21 aylik snapshot'ta mevcut).
