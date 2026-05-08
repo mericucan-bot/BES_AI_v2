@@ -104,7 +104,12 @@ class RegimeEngineV2:
                 data[name] = close
 
             except Exception as e:
-                raise RuntimeError(f"{name} ({ticker}) verisi cekilemedi: {e}") from e
+                logger.error(f"{name} ({ticker}) verisi cekilemedi: {e}")
+                continue
+
+        if not data:
+            logger.error("Hiçbir piyasa verisi çekilemedi")
+            return pd.DataFrame(columns=["BIST", "USDTRY", "GOLD"])
 
         result = pd.DataFrame(data).ffill()
 
@@ -141,8 +146,17 @@ class RegimeEngineV2:
 
         market_data = self.fetch_live_data(as_of_date=as_of_date)
 
-        if market_data.empty:
-            raise ValueError("market_data bos, hesaplama yapilamiyor")
+        if market_data.empty or len(market_data) < 5:
+            logger.warning("Yetersiz piyasa verisi, varsayılan sonuç dönülüyor")
+            return {
+                "detected": "STABLE",
+                "confidence": 0.0,
+                "scores": {"CRISIS": 0, "RISK_ON": 0, "RATE_HIKE": 0, "STABLE": 0},
+                "probabilities": {"CRISIS": 0.25, "RISK_ON": 0.25, "RATE_HIKE": 0.25, "STABLE": 0.25},
+                "metrics": {"dd": 0, "vol": 0, "usd_mom": 0, "gold_mom": 0, "bist_60d_return": 0},
+                "data_quality": {"rows_count": 0, "missing_pct": 1.0, "as_of": "N/A"},
+                "macro": macro_data if macro_data else {},
+            }
 
         # --- Ham metrikler ---
 
