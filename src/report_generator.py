@@ -15,6 +15,8 @@ try:
         HRFlowable
     )
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
     HAS_REPORTLAB = True
 except ImportError:
     HAS_REPORTLAB = False
@@ -41,20 +43,63 @@ class ReportGenerator:
     def __init__(self):
         if not HAS_REPORTLAB:
             raise ImportError("reportlab gerekli: pip install reportlab")
+
+        self._register_turkish_font()
+
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
+
+    def _register_turkish_font(self):
+        """Türkçe karakterleri destekleyen font kaydet."""
+        import os
+
+        font_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "/Library/Fonts/Arial Unicode.ttf",
+        ]
+
+        project_font      = os.path.join(os.path.dirname(__file__), "..", "data", "fonts", "DejaVuSans.ttf")
+        project_font_bold = os.path.join(os.path.dirname(__file__), "..", "data", "fonts", "DejaVuSans-Bold.ttf")
+
+        self.font_name      = "Helvetica"
+        self.font_name_bold = "Helvetica-Bold"
+
+        try:
+            if os.path.exists(project_font):
+                pdfmetrics.registerFont(TTFont("DejaVuSans", project_font))
+                if os.path.exists(project_font_bold):
+                    pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", project_font_bold))
+                self.font_name      = "DejaVuSans"
+                self.font_name_bold = "DejaVuSans-Bold" if os.path.exists(project_font_bold) else "DejaVuSans"
+                logger.info("Türkçe font yüklendi: DejaVuSans (proje)")
+                return
+
+            for path in font_paths:
+                if os.path.exists(path):
+                    pdfmetrics.registerFont(TTFont("TurkishFont", path))
+                    self.font_name      = "TurkishFont"
+                    self.font_name_bold = "TurkishFont"
+                    logger.info(f"Türkçe font yüklendi: {path}")
+                    return
+
+            logger.warning("Türkçe font bulunamadı, Helvetica kullanılacak (bazı karakterler bozuk görünebilir)")
+
+        except Exception as e:
+            logger.warning(f"Font kayıt hatası: {e}")
 
     def _setup_custom_styles(self):
         self.styles.add(ParagraphStyle(
             name="ReportTitle",
-            parent=self.styles["Title"],
+            fontName=self.font_name_bold,
             fontSize=22,
             textColor=self.PRIMARY,
             spaceAfter=6,
         ))
         self.styles.add(ParagraphStyle(
             name="SectionHeader",
-            parent=self.styles["Heading2"],
+            fontName=self.font_name_bold,
             fontSize=14,
             textColor=self.PRIMARY,
             spaceBefore=16,
@@ -62,7 +107,7 @@ class ReportGenerator:
         ))
         self.styles.add(ParagraphStyle(
             name="SubHeader",
-            parent=self.styles["Heading3"],
+            fontName=self.font_name_bold,
             fontSize=11,
             textColor=self.SECONDARY,
             spaceBefore=8,
@@ -70,14 +115,14 @@ class ReportGenerator:
         ))
         self.styles.add(ParagraphStyle(
             name="BodyText2",
-            parent=self.styles["BodyText"],
+            fontName=self.font_name,
             fontSize=10,
             leading=14,
             spaceAfter=6,
         ))
         self.styles.add(ParagraphStyle(
             name="SmallText",
-            parent=self.styles["BodyText"],
+            fontName=self.font_name,
             fontSize=8,
             textColor=self.SECONDARY,
         ))
@@ -180,6 +225,7 @@ class ReportGenerator:
             metrics_table.setStyle(TableStyle([
                 ("BACKGROUND",   (0, 0), (-1, 0), self.PRIMARY),
                 ("TEXTCOLOR",    (0, 0), (-1, 0), self.WHITE),
+                ("FONTNAME",     (0, 0), (-1, -1), self.font_name),
                 ("FONTSIZE",     (0, 0), (-1, -1), 10),
                 ("ALIGN",        (1, 0), (1, -1), "RIGHT"),
                 ("GRID",         (0, 0), (-1, -1), 0.5, self.SECONDARY),
@@ -255,6 +301,7 @@ class ReportGenerator:
                 action_table.setStyle(TableStyle([
                     ("BACKGROUND",    (0, 0), (-1, 0), self.PRIMARY),
                     ("TEXTCOLOR",     (0, 0), (-1, 0), self.WHITE),
+                    ("FONTNAME",      (0, 0), (-1, -1), self.font_name),
                     ("FONTSIZE",      (0, 0), (-1, -1), 9),
                     ("ALIGN",         (1, 0), (-1, -1), "CENTER"),
                     ("GRID",          (0, 0), (-1, -1), 0.5, self.SECONDARY),
@@ -305,6 +352,7 @@ class ReportGenerator:
                     top_table.setStyle(TableStyle([
                         ("BACKGROUND",    (0, 0), (-1, 0), self.SUCCESS),
                         ("TEXTCOLOR",     (0, 0), (-1, 0), self.WHITE),
+                        ("FONTNAME",      (0, 0), (-1, -1), self.font_name),
                         ("FONTSIZE",      (0, 0), (-1, -1), 9),
                         ("ALIGN",         (0, 0), (0, -1), "CENTER"),
                         ("ALIGN",         (3, 0), (3, -1), "RIGHT"),
@@ -330,6 +378,7 @@ class ReportGenerator:
                     bot_table.setStyle(TableStyle([
                         ("BACKGROUND",    (0, 0), (-1, 0), self.DANGER),
                         ("TEXTCOLOR",     (0, 0), (-1, 0), self.WHITE),
+                        ("FONTNAME",      (0, 0), (-1, -1), self.font_name),
                         ("FONTSIZE",      (0, 0), (-1, -1), 9),
                         ("ALIGN",         (2, 0), (2, -1), "RIGHT"),
                         ("GRID",          (0, 0), (-1, -1), 0.5, self.SECONDARY),
@@ -384,6 +433,7 @@ class ReportGenerator:
                 table_12m.setStyle(TableStyle([
                     ("BACKGROUND",    (0, 0), (-1, 0), self.PRIMARY),
                     ("TEXTCOLOR",     (0, 0), (-1, 0), self.WHITE),
+                    ("FONTNAME",      (0, 0), (-1, -1), self.font_name),
                     ("FONTSIZE",      (0, 0), (-1, -1), 9),
                     ("ALIGN",         (2, 0), (2, -1), "RIGHT"),
                     ("GRID",          (0, 0), (-1, -1), 0.5, self.SECONDARY),

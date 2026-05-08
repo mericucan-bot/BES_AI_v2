@@ -127,7 +127,7 @@ my_data = load_my_portfolio()
 # --- SIDEBAR ---
 with st.sidebar:
     st.write("### 🛡️ BES Akıllı Fon Danışmanı")
-    st.caption("v2.0 • 119 test ile doğrulanmış")
+    st.caption("v2.0 • 200 test ile doğrulanmış")
 
     st.divider()
 
@@ -278,11 +278,94 @@ with tab1:
 # TAB 2 — Ne Yapmalıyım?
 # ══════════════════════════════════════════════════════
 with tab2:
-    if not my_data:
-        st.warning("⚠️ Portföy dosyası bulunamadı. 'data/my_portfolio.json' dosyasını kontrol et.")
+    st.markdown("""
+    <div style="background: #f0f9ff; padding: 15px; border-radius: 10px;
+                border-left: 5px solid #3b82f6; margin-bottom: 15px;">
+        <p style="margin: 0; color: #1e40af;">
+            💼 Portföy bilgilerini aşağıdan girebilir veya güncelleyebilirsin.
+            Değişiklikler kaydedilir ve bir sonraki ziyaretinde hatırlanır.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if "portfolio" not in st.session_state:
+        loaded = load_my_portfolio()
+        if loaded:
+            st.session_state.portfolio = loaded["holdings_tl"]
+        else:
+            st.session_state.portfolio = {
+                "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000
+            }
+
+    with st.expander("✏️ Portföyümü Düzenle", expanded=False):
+        fund_labels = {
+            "VEF":  "🏢 Hisse Senedi Fonu (VEF)",
+            "ALT":  "🥇 Altın Fonu (ALT)",
+            "KTS":  "🏛️ Kamu Borç. Fonu (KTS)",
+            "KCH":  "🔄 Karma/Değişken Fon (KCH)",
+            "CASH": "💵 Para Piyasası (CASH)",
+        }
+
+        edited_portfolio = {}
+        col_left, col_right = st.columns(2)
+        fund_list = list(fund_labels.items())
+        half = (len(fund_list) + 1) // 2
+
+        with col_left:
+            for code, label in fund_list[:half]:
+                current = st.session_state.portfolio.get(code, 0)
+                edited_portfolio[code] = st.number_input(
+                    label,
+                    min_value=0,
+                    max_value=10_000_000,
+                    value=int(current),
+                    step=1000,
+                    key=f"portfolio_{code}",
+                )
+
+        with col_right:
+            for code, label in fund_list[half:]:
+                current = st.session_state.portfolio.get(code, 0)
+                edited_portfolio[code] = st.number_input(
+                    label,
+                    min_value=0,
+                    max_value=10_000_000,
+                    value=int(current),
+                    step=1000,
+                    key=f"portfolio_{code}",
+                )
+
+        total_edited = sum(edited_portfolio.values())
+        st.write(f"**Toplam:** {total_edited:,.0f} TL")
+
+        save_col1, save_col2 = st.columns(2)
+
+        with save_col1:
+            if st.button("💾 Kaydet", type="primary"):
+                st.session_state.portfolio = edited_portfolio
+                try:
+                    save_data = {"holdings_tl": edited_portfolio}
+                    with open("data/my_portfolio.json", "w", encoding="utf-8") as f:
+                        json.dump(save_data, f, ensure_ascii=False, indent=2)
+                    st.success("✅ Portföy kaydedildi!")
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Kaydetme hatası: {e}")
+
+        with save_col2:
+            if st.button("🔄 Sıfırla"):
+                st.session_state.portfolio = {
+                    "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000
+                }
+                st.rerun()
+
+    holdings    = st.session_state.portfolio
+    total_value = sum(holdings.values())
+
+    if total_value == 0:
+        st.warning("⚠️ Portföy değeri 0 TL. Yukarıdaki formu kullanarak fon tutarlarını gir.")
     else:
-        holdings     = my_data["holdings_tl"]
-        total_value  = sum(holdings.values())
         current_weights = {k: v / total_value for k, v in holdings.items()}
 
         learning       = LearningEngineV2()
