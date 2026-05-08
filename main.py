@@ -134,6 +134,10 @@ Ornekler:
                         help="Kac fon ile egitim (None=POPULAR_BES_FUNDS, -1=TEFAS'taki tum EMK, sayi=ilk N)")
     parser.add_argument("--ml-12m", action="store_true",
                         help="12 aylik uzun vadeli model de egit (3M + 12M)")
+    parser.add_argument("--email", action="store_true",
+                        help="Sonuçları e-posta ile gönder")
+    parser.add_argument("--test-email", action="store_true",
+                        help="Test e-postası gönder (yapılandırma kontrolü)")
     parser.add_argument("--report", action="store_true",
                         help="Aylik PDF rapor uret")
     args = parser.parse_args()
@@ -298,6 +302,15 @@ Ornekler:
 
         sys.exit(0)
 
+    if args.test_email:
+        from src.email_notifier import EmailNotifier
+        notifier = EmailNotifier()
+        if notifier.send_test_email():
+            print("✅ Test e-postası gönderildi!")
+        else:
+            print("❌ Test e-postası gönderilemedi. .env ayarlarını kontrol et.")
+        sys.exit(0)
+
     try:
         pipeline = MonthlyPipeline(portfolio_path=args.portfolio)
         result = pipeline.run()
@@ -345,6 +358,27 @@ Ornekler:
             logger.warning("reportlab yuklu degil, PDF uretilemiyor: pip install reportlab")
         except Exception as e:
             logger.error(f"PDF uretim hatasi: {e}")
+
+    if args.email and result.get("status") == "SUCCESS":
+        try:
+            from src.email_notifier import EmailNotifier
+
+            notifier   = EmailNotifier()
+            ml_summary = None
+            ml_path    = Path("data/ml/latest_run_summary.json")
+            if ml_path.exists():
+                with open(ml_path) as f:
+                    ml_summary = json.load(f)
+
+            pdf_files = sorted(Path("data/reports").glob("BES_AI_Rapor_*.pdf"))
+            pdf_path  = str(pdf_files[-1]) if pdf_files else None
+
+            if notifier.send_monthly_report(result, pdf_path, ml_summary):
+                print(f"\n📧 E-posta gönderildi: {', '.join(notifier.recipients)}")
+            else:
+                print("\n⚠️ E-posta gönderilemedi. Logs'a bak.")
+        except Exception as e:
+            logger.error(f"E-posta hatası: {e}")
 
     sys.exit(0 if result.get("status") == "SUCCESS" else 1)
 
