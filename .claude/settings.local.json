@@ -17,7 +17,14 @@
       "Bash(launchctl start *)",
       "Bash(echo \"start: $?\")",
       "Bash(xattr -l /Users/mericucan/Desktop/BES_AI_v2/scripts/monthly_run.sh)",
-      "Bash(echo \"Test 1 — syntax check: $?\")"
+      "Bash(echo \"Test 1 — syntax check: $?\")",
+      "Bash(streamlit run *)",
+      "Bash(pip install *)",
+      "Bash(xxd)",
+      "Bash(printenv TCMB_API_KEY)",
+      "Bash(pytest tests/ --tb=short -q)",
+      "Bash(open *)",
+      "Bash(git rm *)"
     ]
   }
 }
