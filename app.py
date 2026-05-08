@@ -207,18 +207,25 @@ def get_market_analysis():
 
 
 def load_my_portfolio():
+    """Geriye uyumlu portföy yükleme. Önce PortfolioManager, yoksa eski dosya."""
+    try:
+        from src.portfolio_manager import PortfolioManager
+        pm = PortfolioManager()
+        portfolios = pm.list_portfolios()
+        if portfolios:
+            pf = pm.get_portfolio(portfolios[0]["slug"])
+            if pf:
+                return pf
+    except Exception:
+        pass
+
     try:
         with open("data/my_portfolio.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
-        # Demo portföy (Cloud veya ilk kurulum için)
         return {
             "holdings_tl": {
-                "VEF": 30000,
-                "ALT": 25000,
-                "KTS": 20000,
-                "KCH": 15000,
-                "CASH": 10000,
+                "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000,
             }
         }
 
@@ -242,6 +249,65 @@ with st.sidebar:
     3. ⚖️ Optimal fon dağılımı önerir
     4. 📈 Performansını ölçer ve öğrenir
     """)
+
+    st.divider()
+    st.write("**💼 Portföy Seçimi**")
+
+    from src.portfolio_manager import PortfolioManager as _PM
+    _pm = _PM()
+    _portfolios = _pm.list_portfolios()
+
+    if not _portfolios:
+        _pm.save_portfolio("varsayilan", "Varsayılan Portföy", {
+            "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000,
+        })
+        _portfolios = _pm.list_portfolios()
+
+    _pf_options = {
+        f"{p['name']} ({p['total_tl']:,.0f} TL)": p["slug"] for p in _portfolios
+    }
+
+    if "active_portfolio" not in st.session_state:
+        st.session_state.active_portfolio = _portfolios[0]["slug"] if _portfolios else "varsayilan"
+
+    _current_slug = st.session_state.active_portfolio
+    _current_idx  = (
+        list(_pf_options.values()).index(_current_slug)
+        if _current_slug in _pf_options.values() else 0
+    )
+
+    _selected_label = st.selectbox(
+        "Aktif portföy:",
+        options=list(_pf_options.keys()),
+        index=_current_idx,
+        key="portfolio_selector",
+    )
+
+    if _selected_label in _pf_options:
+        _new_slug = _pf_options[_selected_label]
+        if _new_slug != st.session_state.active_portfolio:
+            st.session_state.active_portfolio = _new_slug
+            _new_pf = _pm.get_portfolio(_new_slug)
+            if _new_pf:
+                st.session_state.portfolio = _new_pf.get("holdings_tl", {})
+            st.rerun()
+
+    with st.expander("➕ Yeni Portföy", expanded=False):
+        _new_name = st.text_input("Portföy adı:", placeholder="Eşimin BES'i", key="new_pf_name")
+        if st.button("Oluştur", key="create_pf") and _new_name:
+            _slug = _pm.create_slug(_new_name)
+            _pm.save_portfolio(_slug, _new_name, {})
+            st.session_state.active_portfolio = _slug
+            st.session_state.portfolio = {}
+            st.rerun()
+
+    if st.session_state.active_portfolio != "varsayilan" and len(_portfolios) > 1:
+        if st.button("🗑️ Bu Portföyü Sil", key="delete_pf"):
+            _pm.delete_portfolio(st.session_state.active_portfolio)
+            st.session_state.active_portfolio = _portfolios[0]["slug"]
+            _fallback = _pm.get_portfolio(_portfolios[0]["slug"])
+            st.session_state.portfolio = _fallback.get("holdings_tl", {}) if _fallback else {}
+            st.rerun()
 
     st.divider()
 
@@ -405,11 +471,11 @@ with tab2:
     """, unsafe_allow_html=True)
 
     if "portfolio" not in st.session_state:
-        loaded = load_my_portfolio()
-        if loaded:
-            st.session_state.portfolio = loaded["holdings_tl"]
-        else:
-            st.session_state.portfolio = {}
+        from src.portfolio_manager import PortfolioManager as _PM2
+        _pm2       = _PM2()
+        _slug2     = st.session_state.get("active_portfolio", "varsayilan")
+        _pf_data   = _pm2.get_portfolio(_slug2)
+        st.session_state.portfolio = _pf_data.get("holdings_tl", {}) if _pf_data else {}
 
     with st.expander("✏️ Portföyümü Düzenle", expanded=False):
 
@@ -524,9 +590,12 @@ with tab2:
             if st.button("💾 Kaydet", type="primary", key="save_portfolio"):
                 st.session_state.portfolio = updated_portfolio if updated_portfolio else st.session_state.portfolio
                 try:
-                    save_data = {"holdings_tl": st.session_state.portfolio}
-                    with open("data/my_portfolio.json", "w", encoding="utf-8") as f:
-                        json.dump(save_data, f, ensure_ascii=False, indent=2)
+                    from src.portfolio_manager import PortfolioManager as _PM3
+                    _pm3        = _PM3()
+                    _active     = st.session_state.get("active_portfolio", "varsayilan")
+                    _active_pf  = _pm3.get_portfolio(_active)
+                    _pf_name    = _active_pf.get("name", "Portföy") if _active_pf else "Portföy"
+                    _pm3.save_portfolio(_active, _pf_name, st.session_state.portfolio)
                     st.success("✅ Portföy kaydedildi!")
                     st.cache_data.clear()
                     st.rerun()

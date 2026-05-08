@@ -48,3 +48,6 @@ data/reports/
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Portföyler (kişisel veri)
+data/portfolios/
