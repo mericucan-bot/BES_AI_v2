@@ -87,7 +87,13 @@ class PortfolioManager:
             logger.error(f"Portföy yükleme hatası ({slug}): {e}")
             return None
 
-    def save_portfolio(self, slug: str, name: str, holdings_tl: Dict[str, int]) -> bool:
+    def save_portfolio(
+        self,
+        slug: str,
+        name: str,
+        holdings_tl: Dict[str, int],
+        notes: str = "",
+    ) -> bool:
         """Portföy kaydet (yeni veya güncelleme)."""
         path = self.portfolios_dir / f"{slug}.json"
 
@@ -100,9 +106,10 @@ class PortfolioManager:
                 pass
 
         data = {
-            "name":       name,
-            "created_at": existing.get("created_at", datetime.now().strftime("%Y-%m-%d")),
-            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "name":        name,
+            "created_at":  existing.get("created_at", datetime.now().strftime("%Y-%m-%d")),
+            "updated_at":  datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "notes":       notes if notes else existing.get("notes", ""),
             "holdings_tl": holdings_tl,
         }
 

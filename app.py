@@ -301,7 +301,7 @@ my_data = load_my_portfolio()
 # --- SIDEBAR ---
 with st.sidebar:
     st.write("### 🛡️ BES Akıllı Fon Danışmanı")
-    st.caption("v2.0 • 200 test ile doğrulanmış")
+    st.caption("v2.0 • Kapsamlı test suite ile doğrulanmış")
 
     st.divider()
 
@@ -735,6 +735,17 @@ with tab2:
                 elif selected_label:
                     st.warning("Geçersiz fon seçimi")
 
+        # === NOTLAR ===
+        st.divider()
+        _existing_notes = _active_data_t2.get("notes", "") if _active_data_t2 else ""
+        _pf_notes = st.text_area(
+            "📝 Notlar:",
+            value=_existing_notes,
+            placeholder="Bu portföy hakkında notlar… (ör. yatırım amacı, risk tercihi)",
+            key="pf_notes",
+            height=80,
+        )
+
         # === KAYDET / SIFIRLA / DEMO ===
         st.divider()
         save_col1, save_col2, save_col3 = st.columns(3)
@@ -742,7 +753,7 @@ with tab2:
         with save_col1:
             if st.button("💾 Kaydet", type="primary", key="save_portfolio"):
                 st.session_state.portfolio = updated_portfolio if updated_portfolio else st.session_state.portfolio
-                if _pm_t2.save_portfolio(active_slug, active_pf_name, st.session_state.portfolio):
+                if _pm_t2.save_portfolio(active_slug, active_pf_name, st.session_state.portfolio, notes=_pf_notes):
                     st.success(f"✅ {active_pf_name} kaydedildi!")
                     st.cache_data.clear()
                     st.rerun()
