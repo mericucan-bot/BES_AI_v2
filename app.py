@@ -1537,6 +1537,141 @@ with tab4:
             else:
                 st.info("Feature importance hesaplanamadı.")
 
+        # === FON KARŞILAŞTIRMA ===
+        st.divider()
+        st.write("### 🔍 Fon Karşılaştırma")
+
+        from src.data_collector import TEFASCollector as _TC_CMP
+        _cmp_tc   = _TC_CMP()
+        _cmp_df   = _cmp_tc.get_fund_list()
+        _cmp_opts = {f"{r['code']} — {r['title']}": r['code'] for _, r in _cmp_df.iterrows()}
+
+        _sel_labels = st.multiselect(
+            "Karşılaştırılacak fonları seç (en fazla 5):",
+            options=list(_cmp_opts.keys()),
+            max_selections=5,
+            key="cmp_funds",
+            placeholder="Fon kodu veya adı yaz…",
+        )
+
+        if _sel_labels:
+            _sel_codes = [_cmp_opts[l] for l in _sel_labels]
+
+            # Tahmin verileri
+            _cmp_3m  = {}
+            _cmp_12m = {}
+            if pred_files:
+                _p3 = pd.read_csv(pred_files[-1])
+                if "predicted_fwd_return_3m" in _p3.columns:
+                    for _c in _sel_codes:
+                        _r = _p3[_p3["fund_code"] == _c]
+                        if not _r.empty:
+                            _cmp_3m[_c] = _r.iloc[0]["predicted_fwd_return_3m"]
+            if pred_files_12m:
+                _p12 = pd.read_csv(pred_files_12m[-1])
+                if "predicted_fwd_return_12m" in _p12.columns:
+                    for _c in _sel_codes:
+                        _r = _p12[_p12["fund_code"] == _c]
+                        if not _r.empty:
+                            _cmp_12m[_c] = _r.iloc[0]["predicted_fwd_return_12m"]
+
+            # Son snapshot verileri (gerçek getiri + risk)
+            _snap_rows = {}
+            _snap_files_cmp = sorted(_cmp_tc.cache_dir.glob("snapshot_*.parquet"))
+            if _snap_files_cmp:
+                _snap = pd.read_parquet(_snap_files_cmp[-1])
+                for _c in _sel_codes:
+                    _r = _snap[_snap["fund_code"] == _c]
+                    if not _r.empty:
+                        _snap_rows[_c] = _r.iloc[0]
+
+            # Yan yana metrik kartları
+            _n = len(_sel_codes)
+            _cmp_cols = st.columns(_n)
+            for _i, _c in enumerate(_sel_codes):
+                with _cmp_cols[_i]:
+                    _fl = _cmp_df[_cmp_df["code"] == _c]
+                    _fname = _fl.iloc[0]["title"] if not _fl.empty else _c
+                    _short = (_fname[:38] + "…") if len(_fname) > 38 else _fname
+                    st.write(f"**{_c}**")
+                    st.caption(_short)
+
+                    if _c in _cmp_3m:
+                        _v = _cmp_3m[_c]
+                        st.metric("3M Tahmin", f"%{_v*100:+.1f}",
+                                  delta="↑ Pozitif" if _v > 0 else "↓ Negatif",
+                                  delta_color="normal")
+                    else:
+                        st.metric("3M Tahmin", "—")
+
+                    if _c in _cmp_12m:
+                        st.metric("12M Tahmin", f"%{_cmp_12m[_c]*100:+.1f}")
+
+                    if _c in _snap_rows:
+                        _s = _snap_rows[_c]
+                        _r1m = _s.get("return_1m")
+                        _r3m = _s.get("return_3m")
+                        if pd.notna(_r1m):
+                            st.metric("1M Getiri", f"%{_r1m:+.1f}")
+                        if pd.notna(_r3m):
+                            st.metric("3M Getiri", f"%{_r3m:+.1f}")
+                        _risk = _s.get("risk")
+                        if pd.notna(_risk):
+                            st.metric("Risk Skoru", f"{_risk}")
+
+            # Bar chart
+            st.write("#### 📊 Getiri Karşılaştırması")
+            _chart_rows = []
+            for _c in _sel_codes:
+                _s = _snap_rows.get(_c)
+                _chart_rows.append({
+                    "Fon":          _c,
+                    "3M Tahmin %":  _cmp_3m.get(_c, float("nan")) * 100 if _c in _cmp_3m else float("nan"),
+                    "3M Gerçek %":  float(_s["return_3m"]) if _s is not None and pd.notna(_s.get("return_3m")) else float("nan"),
+                    "1M Gerçek %":  float(_s["return_1m"]) if _s is not None and pd.notna(_s.get("return_1m")) else float("nan"),
+                })
+            _chart_df = pd.DataFrame(_chart_rows)
+
+            _series = [
+                ("3M Tahmin %",  "3M Tahmini Getiri",  "#7c3aed"),
+                ("3M Gerçek %",  "3M Gerçek Getiri",   "#0ea5e9"),
+                ("1M Gerçek %",  "1M Gerçek Getiri",   "#10b981"),
+            ]
+            _fig_cmp = go.Figure()
+            _any_data = False
+            for _col, _label, _clr in _series:
+                _vals = _chart_df[_col].tolist()
+                if any(not (v != v) for v in _vals):   # herhangi bir non-NaN varsa
+                    _any_data = True
+                    _bar_clr = ["#16a34a" if (v == v and v >= 0) else "#dc2626" for v in _vals]
+                    _fig_cmp.add_trace(go.Bar(
+                        name=_label,
+                        x=_chart_df["Fon"].tolist(),
+                        y=[v if v == v else 0 for v in _vals],
+                        marker_color=_bar_clr if len([s for s in _series if _chart_df[s[0]].notna().any()]) == 1 else _clr,
+                        text=[f"%{v:+.1f}" if v == v else "" for v in _vals],
+                        textposition="outside",
+                    ))
+
+            if _any_data:
+                _fig_cmp.add_hline(y=0, line_dash="dot", line_color="rgba(255,255,255,0.3)")
+                _fig_cmp.update_layout(
+                    barmode="group",
+                    height=380,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    yaxis_title="Getiri (%)",
+                    xaxis_title="",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="white"),
+                )
+                st.plotly_chart(_fig_cmp, use_container_width=True)
+            else:
+                st.info("Seçilen fonlar için tahmin/getiri verisi bulunamadı.")
+        else:
+            st.info("👆 Yukarıdan 2-5 fon seçerek getiri ve tahmin karşılaştırması yap.")
+
         # === UYARI ===
         st.divider()
         st.markdown("""
