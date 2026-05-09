@@ -29,6 +29,8 @@ if "logging_configured" not in st.session_state:
     configure_logging(log_file="streamlit.log", level="INFO")
     st.session_state.logging_configured = True
 
+st.markdown('<meta name="viewport" content="width=device-width, initial-scale=1.0">', unsafe_allow_html=True)
+
 st.markdown("""
 <style>
 /* ========== GENEL DÜZEN ========== */
@@ -131,6 +133,67 @@ hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !importan
 /* ========== ANİMASYON ========== */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 [data-testid="stMetric"], .stAlert, [data-testid="stPlotlyChart"] { animation: fadeIn 0.4s ease-out; }
+
+/* ========== MOBILE RESPONSIVE ========== */
+@media screen and (max-width: 768px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 1rem !important;
+    }
+    .block-container h1 { font-size: 1.3rem !important; }
+    h2, h3 { font-size: 1.1rem !important; }
+
+    [data-testid="stMetric"] { padding: 12px 14px; border-radius: 12px; }
+    [data-testid="stMetricLabel"] { font-size: 0.7rem !important; letter-spacing: 0.3px; }
+    [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
+    [data-testid="stMetricDelta"] { font-size: 0.7rem !important; }
+
+    .regime-card { padding: 20px; border-radius: 14px; }
+    .regime-card h1 { font-size: 1.5em !important; }
+    .regime-card p { font-size: 0.95em; }
+
+    .portfolio-header, .ai-header { padding: 16px 20px; border-radius: 12px; }
+    .portfolio-header h2, .ai-header h2 { font-size: 1.2em !important; }
+    .portfolio-header p, .ai-header p { font-size: 0.9em; }
+
+    .info-box { padding: 12px 14px; font-size: 0.9em; }
+
+    .stTabs [data-baseweb="tab"] { padding: 8px 12px; font-size: 0.8rem; }
+    .stTabs [data-baseweb="tab-list"] { gap: 4px; flex-wrap: wrap; }
+
+    .stButton > button { padding: 10px 16px; font-size: 0.9rem; min-height: 44px; }
+    [data-testid="stNumberInput"] input { font-size: 1rem; min-height: 44px; }
+    [data-baseweb="select"] { min-height: 44px; }
+
+    .stAlert { padding: 12px 14px; border-radius: 10px; }
+    [data-testid="stAlert"] > div { font-size: 0.85rem; }
+
+    [data-testid="stPlotlyChart"] { padding: 4px; border-radius: 10px; }
+    [data-testid="stDataFrame"] { font-size: 0.8rem; }
+
+    .streamlit-expanderHeader { font-size: 0.9rem; padding: 10px 14px; }
+    [data-testid="stSidebar"] .stSelectbox { font-size: 0.85rem; }
+    .stCaption { font-size: 0.7rem !important; }
+    .block-container > div > div > div > div > div > h1 { font-size: 1.4rem !important; }
+}
+
+@media screen and (max-width: 400px) {
+    .block-container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.65rem !important; }
+    .regime-card h1 { font-size: 1.2em !important; }
+    .regime-card p { font-size: 0.85em; }
+    .stTabs [data-baseweb="tab"] { padding: 6px 8px; font-size: 0.75rem; }
+    .portfolio-header h2, .ai-header h2 { font-size: 1em !important; }
+    .info-box { padding: 10px 12px; font-size: 0.8em; }
+}
+
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+    [data-testid="stMetric"] { padding: 16px 18px; }
+    [data-testid="stMetricValue"] { font-size: 1.5rem !important; }
+    .regime-card { padding: 24px; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -263,8 +326,15 @@ with st.sidebar:
         })
         _portfolios = _pm.list_portfolios()
 
+    def _fmt_tl_short(val):
+        if val >= 1_000_000:
+            return f"{val/1_000_000:.1f}M"
+        elif val >= 1000:
+            return f"{val/1000:.0f}K"
+        return f"{val:.0f}"
+
     _pf_options = {
-        f"{p['name']} ({p['total_tl']:,.0f} TL)": p["slug"] for p in _portfolios
+        f"{p['name']} ({_fmt_tl_short(p['total_tl'])} TL)": p["slug"] for p in _portfolios
     }
 
     if "active_portfolio" not in st.session_state:
@@ -353,10 +423,10 @@ st.caption("Yapay zeka destekli BES portföy yönetim sistemi • Yatırım tavs
 
 # --- SEKMELER ---
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Piyasa Şu An Nasıl?",
-    "💼 Ne Yapmalıyım?",
-    "📈 Geçmiş Performans",
-    "🤖 AI Fon Tahminleri",
+    "📊 Piyasa",
+    "💼 Portföy",
+    "📈 Geçmiş",
+    "🤖 AI Tahmin",
 ])
 
 
