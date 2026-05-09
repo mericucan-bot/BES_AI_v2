@@ -36,7 +36,9 @@ class TEFASCollector:
         "Content-Type": "application/json",
     }
 
-    def __init__(self, cache_dir: str = "data/tefas_cache", rate_limit_sec: float = 1.5):
+    def __init__(self, cache_dir: str = None, rate_limit_sec: float = 1.5):
+        if cache_dir is None:
+            cache_dir = Path(__file__).resolve().parent.parent / "data" / "tefas_cache"
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.rate_limit_sec = rate_limit_sec
@@ -384,8 +386,10 @@ class TEFASCollector:
 
     def get_fund_list(self) -> pd.DataFrame:
         """
-        Cache'deki TEFAS snapshot'larından fon listesi döndür.
-        API çağrısı yapmaz, sadece cache okur.
+        TEFAS fon listesini döndür. Öncelik sırası:
+        1. data/tefas_cache/ içindeki en son snapshot (local cache)
+        2. data/fund_list.json (commit'lenmiş statik liste, Cloud için)
+        3. POPULAR_BES_FUNDS fallback (24 fon)
 
         Returns: DataFrame(code, title) alfabetik sıralı
         """
@@ -405,6 +409,19 @@ class TEFASCollector:
                     return fund_list
             except Exception as e:
                 logger.warning(f"Fund list cache okuma hatası: {e}")
+
+        # Statik fallback: commit'lenmiş fund_list.json (Streamlit Cloud için)
+        static_path = Path(__file__).resolve().parent.parent / "data" / "fund_list.json"
+        if static_path.exists():
+            try:
+                import json
+                with open(static_path, encoding="utf-8") as f:
+                    records = json.load(f)
+                fund_list = pd.DataFrame(records).sort_values("title").reset_index(drop=True)
+                logger.debug(f"Fund list statik dosyadan okundu: {len(fund_list)} fon")
+                return fund_list
+            except Exception as e:
+                logger.warning(f"Fund list statik dosya okuma hatası: {e}")
 
         return pd.DataFrame([
             {"code": k, "title": v} for k, v in POPULAR_BES_FUNDS.items()
