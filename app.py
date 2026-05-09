@@ -339,17 +339,27 @@ with st.sidebar:
 
     if "active_portfolio" not in st.session_state:
         st.session_state.active_portfolio = _portfolios[0]["slug"] if _portfolios else "varsayilan"
+    if "pf_change_source" not in st.session_state:
+        st.session_state.pf_change_source = None
 
-    _current_slug = st.session_state.active_portfolio
-    _current_idx  = (
-        list(_pf_options.values()).index(_current_slug)
-        if _current_slug in _pf_options.values() else 0
-    )
+    # Slug → label ters haritası
+    _sb_label_by_slug = {v: k for k, v in _pf_options.items()}
+
+    # İlk yüklemede doğru portföyü göster
+    if "portfolio_selector" not in st.session_state:
+        _init_sb = _sb_label_by_slug.get(st.session_state.active_portfolio, list(_pf_options.keys())[0])
+        st.session_state["portfolio_selector"] = _init_sb
+
+    # Tab 2'den değişiklik geldiyse sidebar'ı senkronize et
+    if st.session_state.pf_change_source == "tab2":
+        _sync_sb = _sb_label_by_slug.get(st.session_state.active_portfolio)
+        if _sync_sb:
+            st.session_state["portfolio_selector"] = _sync_sb
+        st.session_state.pf_change_source = None
 
     _selected_label = st.selectbox(
         "Aktif portföy:",
         options=list(_pf_options.keys()),
-        index=_current_idx,
         key="portfolio_selector",
     )
 
@@ -360,6 +370,7 @@ with st.sidebar:
             _new_pf = _pm.get_portfolio(_new_slug)
             if _new_pf:
                 st.session_state.portfolio = _new_pf.get("holdings_tl", {})
+            st.session_state.pf_change_source = "sidebar"
             st.rerun()
 
     with st.expander("➕ Yeni Portföy", expanded=False):
@@ -542,62 +553,84 @@ with tab2:
 
     if "portfolio" not in st.session_state:
         from src.portfolio_manager import PortfolioManager as _PM2
-        _pm2       = _PM2()
-        _slug2     = st.session_state.get("active_portfolio", "varsayilan")
-        _pf_data   = _pm2.get_portfolio(_slug2)
+        _pm2     = _PM2()
+        _slug2   = st.session_state.get("active_portfolio", "varsayilan")
+        _pf_data = _pm2.get_portfolio(_slug2)
         st.session_state.portfolio = _pf_data.get("holdings_tl", {}) if _pf_data else {}
 
-    # Portföy seçici — mobilde sidebar görünmediği için Tab 2 içinde de göster
     from src.portfolio_manager import PortfolioManager as _PM_T2
     _pm_t2 = _PM_T2()
     _portfolios_t2 = _pm_t2.list_portfolios()
 
-    if len(_portfolios_t2) > 1:
-        def _fmt_short_t2(val):
-            if val >= 1_000_000:
-                return f"{val/1_000_000:.1f}M"
-            elif val >= 1000:
-                return f"{val/1000:.0f}K"
-            return f"{val:.0f}"
+    if not _portfolios_t2:
+        _pm_t2.save_portfolio("varsayilan", "Varsayılan Portföy", {
+            "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000,
+        })
+        _portfolios_t2 = _pm_t2.list_portfolios()
 
-        _pf_opts_t2 = {
-            f"{p['name']} ({_fmt_short_t2(p['total_tl'])} TL)": p["slug"]
-            for p in _portfolios_t2
-        }
-        _pf_col1, _pf_col2 = st.columns([3, 1])
-        with _pf_col1:
-            _cur_slug_t2 = st.session_state.get("active_portfolio", "varsayilan")
-            _slug_list_t2 = list(_pf_opts_t2.values())
-            _cur_idx_t2 = _slug_list_t2.index(_cur_slug_t2) if _cur_slug_t2 in _slug_list_t2 else 0
+    if "active_portfolio" not in st.session_state:
+        st.session_state.active_portfolio = _portfolios_t2[0]["slug"]
+    if "pf_change_source" not in st.session_state:
+        st.session_state.pf_change_source = None
+
+    def _fmt_t2(val):
+        if val >= 1_000_000:
+            return f"{val/1_000_000:.1f}M"
+        elif val >= 1000:
+            return f"{val/1000:.0f}K"
+        return f"{val:.0f}"
+
+    _slug_to_label_t2 = {p["slug"]: f"{p['name']} ({_fmt_t2(p['total_tl'])} TL)" for p in _portfolios_t2}
+    _label_to_slug_t2 = {v: k for k, v in _slug_to_label_t2.items()}
+    _labels_t2 = list(_slug_to_label_t2.values())
+
+    if len(_portfolios_t2) >= 1:
+        # İlk yüklemede doğru portföyü göster
+        if "pf_select_tab2" not in st.session_state:
+            _init_t2 = _slug_to_label_t2.get(st.session_state.active_portfolio, _labels_t2[0])
+            st.session_state["pf_select_tab2"] = _init_t2
+
+        # Sidebar'dan değişiklik geldiyse Tab 2'yi senkronize et
+        if st.session_state.pf_change_source == "sidebar":
+            _sync_t2 = _slug_to_label_t2.get(st.session_state.active_portfolio)
+            if _sync_t2:
+                st.session_state["pf_select_tab2"] = _sync_t2
+            st.session_state.pf_change_source = None
+
+        _t2_col1, _t2_col2 = st.columns([4, 1])
+        with _t2_col1:
+            _cur_label_t2 = _slug_to_label_t2.get(st.session_state.active_portfolio, _labels_t2[0])
+            _cur_idx_t2 = _labels_t2.index(_cur_label_t2) if _cur_label_t2 in _labels_t2 else 0
             _sel_t2 = st.selectbox(
                 "📂 Aktif Portföy:",
-                options=list(_pf_opts_t2.keys()),
+                options=_labels_t2,
                 index=_cur_idx_t2,
-                key="portfolio_selector_tab2",
+                key="pf_select_tab2",
             )
-            if _sel_t2 in _pf_opts_t2:
-                _new_slug_t2 = _pf_opts_t2[_sel_t2]
-                if _new_slug_t2 != st.session_state.get("active_portfolio"):
-                    st.session_state.active_portfolio = _new_slug_t2
-                    _loaded_t2 = _pm_t2.get_portfolio(_new_slug_t2)
-                    if _loaded_t2:
-                        st.session_state.portfolio = _loaded_t2.get("holdings_tl", {})
-                    st.rerun()
-        with _pf_col2:
+            _sel_slug_t2 = _label_to_slug_t2.get(_sel_t2)
+            if _sel_slug_t2 and _sel_slug_t2 != st.session_state.active_portfolio:
+                st.session_state.active_portfolio = _sel_slug_t2
+                _loaded = _pm_t2.get_portfolio(_sel_slug_t2)
+                st.session_state.portfolio = _loaded.get("holdings_tl", {}) if _loaded else {}
+                st.session_state.pf_change_source = "tab2"
+                st.rerun()
+        with _t2_col2:
             st.write("")
             with st.popover("➕ Yeni"):
-                _new_name_t2 = st.text_input("Portföy adı:", key="new_pf_name_tab2")
-                if st.button("Oluştur", key="create_pf_tab2") and _new_name_t2:
-                    _new_slug_create = _pm_t2.create_slug(_new_name_t2)
-                    _pm_t2.save_portfolio(_new_slug_create, _new_name_t2, {})
-                    st.session_state.active_portfolio = _new_slug_create
+                _new_name_t2 = st.text_input("Ad:", key="new_pf_inline")
+                if st.button("Oluştur", key="create_pf_inline") and _new_name_t2:
+                    _new_slug_t2 = _pm_t2.create_slug(_new_name_t2)
+                    _pm_t2.save_portfolio(_new_slug_t2, _new_name_t2, {})
+                    st.session_state.active_portfolio = _new_slug_t2
                     st.session_state.portfolio = {}
+                    st.session_state.pf_change_source = "tab2"
                     st.rerun()
 
-    _active_pf_data_t2 = _pm_t2.get_portfolio(st.session_state.get("active_portfolio", "varsayilan"))
-    _active_pf_name_t2 = _active_pf_data_t2.get("name", "Portföy") if _active_pf_data_t2 else "Portföy"
+    active_slug = st.session_state.active_portfolio
+    _active_data_t2 = _pm_t2.get_portfolio(active_slug)
+    active_pf_name = _active_data_t2.get("name", "Portföy") if _active_data_t2 else "Portföy"
 
-    with st.expander(f"✏️ {_active_pf_name_t2} — Düzenle", expanded=False):
+    with st.expander(f"✏️ {active_pf_name} — Düzenle", expanded=False):
 
         from src.data_collector import TEFASCollector
         collector = TEFASCollector()
@@ -709,18 +742,12 @@ with tab2:
         with save_col1:
             if st.button("💾 Kaydet", type="primary", key="save_portfolio"):
                 st.session_state.portfolio = updated_portfolio if updated_portfolio else st.session_state.portfolio
-                try:
-                    from src.portfolio_manager import PortfolioManager as _PM3
-                    _pm3        = _PM3()
-                    _active     = st.session_state.get("active_portfolio", "varsayilan")
-                    _active_pf  = _pm3.get_portfolio(_active)
-                    _pf_name    = _active_pf.get("name", "Portföy") if _active_pf else "Portföy"
-                    _pm3.save_portfolio(_active, _pf_name, st.session_state.portfolio)
-                    st.success("✅ Portföy kaydedildi!")
+                if _pm_t2.save_portfolio(active_slug, active_pf_name, st.session_state.portfolio):
+                    st.success(f"✅ {active_pf_name} kaydedildi!")
                     st.cache_data.clear()
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Kaydetme hatası: {e}")
+                else:
+                    st.error("Kaydetme hatası.")
 
         with save_col2:
             if st.button("🔄 Sıfırla", key="reset_portfolio"):
@@ -751,7 +778,7 @@ with tab2:
         # === ANA MESAJ ===
         st.markdown(f"""
         <div class="portfolio-header">
-            <h2>💼 {_active_pf_name_t2}: {format_tl(total_value)}</h2>
+            <h2>💼 {active_pf_name}: {format_tl(total_value)}</h2>
             <p>{regime_info['emoji']} Piyasa <strong>{regime_info['label']}</strong> modunda →
             {regime_info['action']}</p>
         </div>
