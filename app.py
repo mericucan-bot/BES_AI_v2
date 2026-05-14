@@ -1304,6 +1304,66 @@ with tab2:
                 }
                 st.rerun()
 
+    # === PORTFÖY ÇEŞİTLENDİRME ANALİZİ ===
+    _pf_codes = [k for k, v in (st.session_state.portfolio or {}).items() if v > 0]
+    if len(_pf_codes) >= 2:
+        st.write("### 📐 Portföy Çeşitlendirme Analizi")
+        _corr_snaps = sorted(Path("data/tefas_cache").glob("snapshot_*.parquet"))
+        if len(_corr_snaps) >= 3:
+            # Her snapshot'tan portföy fonlarının 1M getirisini topla
+            _corr_rows = []
+            for _csf in _corr_snaps:
+                try:
+                    _csdf = pd.read_parquet(_csf)
+                    _row = {"Tarih": pd.to_datetime(_csdf["date"].iloc[0])}
+                    for _fc in _pf_codes:
+                        _fr = _csdf[_csdf["fund_code"] == _fc]
+                        _row[_fc] = _fr.iloc[0]["return_1m"] if not _fr.empty and pd.notna(_fr.iloc[0]["return_1m"]) else None
+                    _corr_rows.append(_row)
+                except Exception:
+                    continue
+
+            _corr_df = pd.DataFrame(_corr_rows).set_index("Tarih").dropna(how="all")
+            # Yalnızca en az 3 geçerli gözlemi olan sütunları kullan
+            _valid_cols = [c for c in _pf_codes if _corr_df[c].notna().sum() >= 3]
+
+            if len(_valid_cols) >= 2:
+                _corr_matrix = _corr_df[_valid_cols].corr()
+                _avg_corr = (_corr_matrix.values.sum() - len(_valid_cols)) / max(1, len(_valid_cols) * (len(_valid_cols) - 1))
+
+                _hmap = go.Figure(go.Heatmap(
+                    z=_corr_matrix.values,
+                    x=_valid_cols,
+                    y=_valid_cols,
+                    zmin=-1, zmax=1,
+                    colorscale=[[0, "#16a34a"], [0.5, "#f8fafc"], [1, "#dc2626"]],
+                    text=[[f"{v:.2f}" for v in row] for row in _corr_matrix.values],
+                    texttemplate="%{text}",
+                    textfont=dict(size=13),
+                    showscale=True,
+                    colorbar=dict(title="Korelasyon"),
+                ))
+                _hmap.update_layout(
+                    height=max(300, 80 * len(_valid_cols)),
+                    margin=dict(l=10, r=10, t=20, b=10),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e8e8e8"),
+                )
+                st.plotly_chart(_hmap, use_container_width=True)
+
+                if _avg_corr > 0.7:
+                    st.warning("⚠️ Portföyün çeşitlendirmesi zayıf — fonların çoğu benzer hareket ediyor.")
+                elif _avg_corr > 0.3:
+                    st.success("✅ Portföyün makul çeşitlendirilmiş.")
+                else:
+                    st.success("🎯 Mükemmel çeşitlendirme — fonlar birbirinden bağımsız hareket ediyor.")
+                st.caption(f"Ortalama korelasyon: {_avg_corr:.2f} | {len(_corr_snaps)} snapshot kullanıldı")
+            else:
+                st.info("Portföy fonları için yeterli veri bulunamadı (en az 3 snapshot gerekli).")
+        else:
+            st.info("Korelasyon analizi için en az 3 snapshot gerekli.")
+
     holdings    = st.session_state.portfolio if st.session_state.portfolio else {"CASH": 0}
     total_value = sum(holdings.values())
 
