@@ -2242,6 +2242,129 @@ with tab4:
         else:
             st.info("👆 Yukarıdan 2-5 fon seçerek getiri ve tahmin karşılaştırması yap.")
 
+        # === FON DETAY ===
+        st.divider()
+        st.write("### 🔎 Fon Detay")
+
+        _snap_files_det = sorted(Path("data/tefas_cache").glob("snapshot_*.parquet"))
+        if _snap_files_det:
+            _latest_snap = pd.read_parquet(_snap_files_det[-1])
+            _all_codes   = sorted(_latest_snap["fund_code"].dropna().unique().tolist())
+            _code_to_name = dict(zip(_latest_snap["fund_code"], _latest_snap["fund_name"]))
+            _det_options  = [f"{c} — {_code_to_name.get(c, '')[:55]}" for c in _all_codes]
+
+            _det_sel = st.selectbox(
+                "Fon seç:",
+                options=_det_options,
+                index=None,
+                placeholder="Fon kodu veya isim ara…",
+                key="fund_detail_select",
+            )
+
+            if _det_sel:
+                _det_code = _det_sel.split(" — ")[0].strip()
+                _det_row  = _latest_snap[_latest_snap["fund_code"] == _det_code]
+
+                if not _det_row.empty:
+                    _dr = _det_row.iloc[0]
+
+                    # Bilgi kartı
+                    _dc1, _dc2, _dc3 = st.columns([1, 3, 2])
+                    _dc1.metric("Kod", _det_code)
+                    _dc2.metric("Kategori", _dr.get("category", "—"))
+                    _risk_val = _dr.get("risk")
+                    _dc3.metric("Risk Seviyesi", f"{int(_risk_val)}/7" if pd.notna(_risk_val) else "—")
+
+                    st.caption(f"**{_dr.get('fund_name', '')}**")
+                    st.divider()
+
+                    # Getiri tablosu
+                    _ret_cols = [
+                        ("return_1m",  "1 Ay"),
+                        ("return_3m",  "3 Ay"),
+                        ("return_6m",  "6 Ay"),
+                        ("return_1y",  "12 Ay"),
+                        ("return_3y",  "3 Yıl"),
+                        ("return_5y",  "5 Yıl"),
+                    ]
+                    _ret_data = {
+                        label: (f"%{_dr[col]:+.2f}" if col in _dr and pd.notna(_dr[col]) else "—")
+                        for col, label in _ret_cols
+                    }
+                    _ret_df = pd.DataFrame([_ret_data])
+                    st.write("**📈 Getiri Özeti**")
+                    st.dataframe(
+                        _ret_df,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+                    # Zaman serisi: tüm snapshot'lardan bu fon
+                    _ts_rows = []
+                    for _sf in _snap_files_det[-24:]:
+                        try:
+                            _sdf = pd.read_parquet(_sf)
+                            _fund_row = _sdf[_sdf["fund_code"] == _det_code]
+                            if not _fund_row.empty:
+                                _fr = _fund_row.iloc[0]
+                                _ts_rows.append({
+                                    "Tarih":   pd.to_datetime(_fr["date"]),
+                                    "1M":      _fr.get("return_1m"),
+                                    "3M":      _fr.get("return_3m"),
+                                    "6M":      _fr.get("return_6m"),
+                                    "12M":     _fr.get("return_1y"),
+                                })
+                        except Exception:
+                            continue
+
+                    if len(_ts_rows) >= 2:
+                        _ts_df = pd.DataFrame(_ts_rows).sort_values("Tarih").dropna(subset=["1M"])
+                        st.write("**📊 Aylık Getiri Trendi (son snapshot'lardan)**")
+                        _det_fig = go.Figure()
+                        for _col, _clr in [("1M", "#4ade80"), ("3M", "#60a5fa"), ("6M", "#f59e0b"), ("12M", "#a78bfa")]:
+                            _valid = _ts_df[["Tarih", _col]].dropna()
+                            if not _valid.empty:
+                                _det_fig.add_trace(go.Scatter(
+                                    x=_valid["Tarih"], y=_valid[_col],
+                                    name=f"{_col} Getiri (%)",
+                                    mode="lines+markers",
+                                    line=dict(color=_clr, width=2),
+                                    marker=dict(size=5),
+                                ))
+                        _det_fig.update_layout(
+                            height=360,
+                            margin=dict(l=10, r=10, t=30, b=30),
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color="#e8e8e8"),
+                            xaxis=dict(gridcolor="rgba(255,255,255,0.08)"),
+                            yaxis=dict(gridcolor="rgba(255,255,255,0.08)", ticksuffix="%"),
+                            legend=dict(orientation="h", y=1.08),
+                        )
+                        st.plotly_chart(_det_fig, use_container_width=True)
+                    else:
+                        st.info("Bu fon için yeterli geçmiş veri yok.")
+
+                    # ML tahmini
+                    _pred_files_det = sorted(Path("data/ml").glob("predictions_fwd_return_3m_*.csv"))
+                    if _pred_files_det:
+                        try:
+                            _pred_det = pd.read_csv(_pred_files_det[-1])
+                            _pred_row = _pred_det[_pred_det["fund_code"] == _det_code]
+                            if not _pred_row.empty:
+                                _pred_val = _pred_row.iloc[0]["predicted_fwd_return_3m"]
+                                _clr_p = "#4ade80" if _pred_val >= 0 else "#ef4444"
+                                st.markdown(
+                                    f"**🤖 AI 3M Tahmini:** "
+                                    f"<span style='color:{_clr_p}; font-size:1.2rem; font-weight:700'>"
+                                    f"%{_pred_val*100:+.1f}</span>",
+                                    unsafe_allow_html=True,
+                                )
+                        except Exception:
+                            pass
+        else:
+            st.info("📂 TEFAS cache bulunamadı — `python main.py --collect` çalıştır.")
+
         # === UYARI ===
         st.divider()
         st.markdown("""
