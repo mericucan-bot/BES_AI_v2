@@ -520,6 +520,7 @@ with st.sidebar:
 
     st.divider()
     _ml_sidebar_path = Path("data/ml/latest_run_summary.json")
+    _ml_info = {}
     if _ml_sidebar_path.exists():
         with open(_ml_sidebar_path, encoding="utf-8") as _f:
             _ml_info = json.load(_f)
@@ -531,6 +532,68 @@ with st.sidebar:
         )
     else:
         st.caption("🤖 AI model henüz eğitilmemiş")
+
+    # === PROFİL SKORU ===
+    _ps = 0
+
+    # 1. Çeşitlilik (20 puan)
+    _ps_holdings = st.session_state.get("portfolio", {})
+    _ps_n = len([v for v in _ps_holdings.values() if v > 0])
+    _ps += 20 if _ps_n >= 5 else (15 if _ps_n >= 3 else 5)
+
+    # 2. Rejim uyumu (30 puan)
+    try:
+        from src.learning_engine import LearningEngineV2 as _LE_ps
+        _ps_target = _LE_ps().get_optimized_weights(regime)
+        _ps_total = sum(_ps_holdings.values())
+        if _ps_total > 0:
+            _ps_curr_w = {k: v / _ps_total for k, v in _ps_holdings.items()}
+            _ps_diff = sum(abs(_ps_target.get(k, 0) - _ps_curr_w.get(k, 0))
+                          for k in set(list(_ps_target) + list(_ps_curr_w)))
+            _ps += 30 if _ps_diff < 0.10 else (20 if _ps_diff < 0.25 else (10 if _ps_diff < 0.40 else 5))
+        else:
+            _ps += 5
+    except Exception:
+        _ps += 10
+
+    # 3. ML sinyal gücü (20 puan)
+    _ps_ic = _ml_info.get("best_ic", 0)
+    _ps += 20 if _ps_ic >= 0.5 else (15 if _ps_ic >= 0.3 else (5 if _ps_ic == 0 and not _ml_info else 5))
+
+    # 4. Veri güncelliği (15 puan)
+    try:
+        _ps_as_of = result.get("data_quality", {}).get("as_of", "")
+        _ps_days = (datetime.now() - datetime.strptime(_ps_as_of[:10], "%Y-%m-%d")).days
+        _ps += 15 if _ps_days <= 7 else (10 if _ps_days <= 30 else 5)
+    except Exception:
+        _ps += 5
+
+    # 5. Öğrenme geçmişi (15 puan)
+    try:
+        _ps_lh_path = Path("data/learning_history.json")
+        if _ps_lh_path.exists():
+            _ps_lh = json.loads(_ps_lh_path.read_text(encoding="utf-8"))
+            _ps_obs = len(_ps_lh) if isinstance(_ps_lh, list) else len(_ps_lh.get("history", []))
+            _ps += 15 if _ps_obs >= 10 else (10 if _ps_obs >= 6 else 5)
+        else:
+            _ps += 5
+    except Exception:
+        _ps += 5
+
+    _ps_label = "Mükemmel" if _ps >= 90 else ("Yüksek" if _ps >= 70 else ("Orta" if _ps >= 50 else "Düşük"))
+    _ps_color = "#4ade80" if _ps >= 70 else ("#c5a23e" if _ps >= 50 else "#ef4444")
+
+    st.markdown(f"""
+<div style="background: linear-gradient(135deg, rgba(26,92,46,0.18) 0%, rgba(197,162,62,0.08) 100%);
+    border: 1px solid {_ps_color}55; border-radius: 12px; padding: 14px 16px;
+    text-align: center; margin: 10px 0;">
+  <div style="font-size:0.68rem; color:rgba(232,232,232,0.5); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px;">Profil Skoru</div>
+  <div style="font-size:1.9rem; font-weight:700; color:{_ps_color}; line-height:1.1;">
+    {_ps}<span style="font-size:0.9rem; color:rgba(232,232,232,0.35);">/100</span>
+  </div>
+  <div style="font-size:0.75rem; color:{_ps_color}; font-weight:600; margin-top:2px;">{_ps_label}</div>
+</div>
+""", unsafe_allow_html=True)
 
     st.divider()
 
@@ -711,6 +774,88 @@ with tab1:
         st.caption(f"📅 TCMB verisi: {as_of}")
     else:
         st.info("⚠️ TCMB verisi yok — .env dosyasında TCMB_API_KEY tanımlı mı?")
+
+    # === AI İÇGÖRÜLERİ ===
+    st.write("### 🧠 AI İçgörüleri")
+
+    _insights = {
+        "STABLE": {
+            "firsat": ("🟢 Piyasa Fırsatı", "Dengeli dağılım fırsatı, düşük maliyetle rebalance zamanı.", "#4ade80"),
+            "risk":   ("🟡 Risk Uyarısı",   "Ani rejim değişikliği riski düşük ama takipte kal.", "#c5a23e"),
+            "oneri":  ("💡 Öneri",           "Katkı payını artırarak devlet katkısından faydalanabilirsin.", "#60a5fa"),
+        },
+        "CRISIS": {
+            "firsat": ("🟢 Piyasa Fırsatı", "Düşük fiyatlardan alım fırsatı, uzun vadeli düşün.", "#4ade80"),
+            "risk":   ("🔴 Risk Uyarısı",   "Yüksek volatilite, kısa vadeli kayıp riski yüksek.", "#ef4444"),
+            "oneri":  ("💡 Öneri",           "Altın ve kamu borçlanma fonlarına ağırlık ver.", "#c5a23e"),
+        },
+        "RISK_ON": {
+            "firsat": ("🟢 Piyasa Fırsatı", "Yükseliş trendi devam ediyor, hisse fonları öne çıkıyor.", "#4ade80"),
+            "risk":   ("🟡 Risk Uyarısı",   "Aşırı ısınma sinyalleri takip edilmeli.", "#c5a23e"),
+            "oneri":  ("💡 Öneri",           "Hisse ağırlığını artır ama stop-loss seviyelerini belirle.", "#60a5fa"),
+        },
+        "RATE_HIKE": {
+            "firsat": ("🟢 Piyasa Fırsatı", "Yüksek faizli sabit getirili fonlar cazip.", "#4ade80"),
+            "risk":   ("🟡 Risk Uyarısı",   "Faiz artışı hisse ve altın fonlarını baskılayabilir.", "#c5a23e"),
+            "oneri":  ("💡 Öneri",           "Kısa vadeli kira sertifikaları ve para piyasası fonlarını değerlendir.", "#c5a23e"),
+        },
+    }
+    _ig = _insights.get(regime, _insights["STABLE"])
+
+    _ig_c1, _ig_c2, _ig_c3 = st.columns(3)
+    for _col, _key in [(_ig_c1, "firsat"), (_ig_c2, "risk"), (_ig_c3, "oneri")]:
+        _title, _text, _clr = _ig[_key]
+        _col.markdown(f"""
+<div style="background: rgba(26,92,46,0.10); border-left: 4px solid {_clr};
+    border-radius: 10px; padding: 14px 16px; height: 100%; min-height: 110px;">
+  <div style="font-size:0.8rem; font-weight:700; color:{_clr}; margin-bottom:6px;">{_title}</div>
+  <div style="font-size:0.88rem; color:rgba(232,232,232,0.85); line-height:1.5;">{_text}</div>
+  <div style="text-align:right; margin-top:8px; color:{_clr}; font-size:0.8rem;">›</div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.write("")  # boşluk
+
+    # === ÖNE ÇIKAN FONLAR ===
+    st.write("### ⭐ Öne Çıkan Fonlar")
+
+    _pred_dir = Path("data/ml")
+    _pred_files_t1 = sorted(_pred_dir.glob("predictions_fwd_return_3m_*.csv"))
+
+    if _pred_files_t1:
+        try:
+            _pred_df_t1 = pd.read_csv(_pred_files_t1[-1])
+            if not _pred_df_t1.empty and "predicted_fwd_return_3m" in _pred_df_t1.columns:
+                _top4 = _pred_df_t1.nlargest(4, "predicted_fwd_return_3m")
+                for _, _row in _top4.iterrows():
+                    _fc = _row["fund_code"]
+                    _fn = POPULAR_BES_FUNDS.get(_fc, _fc)
+                    _ret = _row["predicted_fwd_return_3m"]
+                    _ret_str = f"%{_ret*100:+.1f}"
+                    _arrow = "▲" if _ret >= 0 else "▼"
+                    _ret_clr = "#4ade80" if _ret >= 0 else "#ef4444"
+                    st.markdown(f"""
+<div style="display:flex; align-items:center; justify-content:space-between;
+    background:rgba(26,92,46,0.08); border:1px solid rgba(197,162,62,0.15);
+    border-radius:8px; padding:10px 14px; margin-bottom:6px;">
+  <div>
+    <span style="font-weight:700; color:#e8e8e8;">{_fc}</span>
+    <span style="font-size:0.82rem; color:rgba(232,232,232,0.55); margin-left:8px;">{_fn}</span>
+  </div>
+  <div style="font-weight:700; color:{_ret_clr};">{_arrow} {_ret_str} (3M tahmini)</div>
+</div>
+""", unsafe_allow_html=True)
+            else:
+                st.info("📊 Tahmin verisi henüz işlenmemiş.")
+        except Exception:
+            st.info("📊 ML tahmin dosyası okunamadı.")
+    else:
+        st.info("🤖 Model henüz eğitilmemiş — `python main.py --ml-train` çalıştır.")
+
+    if st.button("Tüm Fonları Gör →", key="goto_tab4_btn"):
+        st.info("💡 AI Tahmin sekmesinden tüm fon tahminlerini görebilirsin.")
+
+    st.divider()
 
     # === TEKNİK DETAYLAR (gizli) ===
     with st.expander("🔧 Teknik Detaylar (ileri düzey)"):
@@ -985,6 +1130,44 @@ with tab2:
             {regime_info['action']}</p>
         </div>
         """, unsafe_allow_html=True)
+
+        # === DONUT CHART — FON DAĞILIMI ===
+        _donut_col, _donut_spacer = st.columns([3, 1])
+        with _donut_col:
+            _donut_labels = [f"{k} ({POPULAR_BES_FUNDS.get(k, k)[:12]})" for k, v in holdings.items() if v > 0]
+            _donut_values = [v for v in holdings.values() if v > 0]
+            _donut_codes  = [k for k, v in holdings.items() if v > 0]
+            _donut_pcts   = [v / total_value * 100 for v in _donut_values]
+            _donut_colors = ["#1a5c2e", "#4ade80", "#c5a23e", "#2d8a4e", "#86efac",
+                             "#166534", "#bbf7d0", "#a16207", "#fbbf24", "#6ee7b7"][:len(_donut_values)]
+
+            _donut_text = [f"{_donut_codes[i]}<br>%{_donut_pcts[i]:.1f}" for i in range(len(_donut_codes))]
+
+            _fig_donut = go.Figure(go.Pie(
+                labels=_donut_labels,
+                values=_donut_values,
+                hole=0.58,
+                textinfo="none",
+                hovertemplate="<b>%{label}</b><br>%{value:,.0f} TL<br>%{percent}<extra></extra>",
+                marker=dict(colors=_donut_colors, line=dict(color="rgba(0,0,0,0.3)", width=1.5)),
+            ))
+            _fig_donut.update_layout(
+                showlegend=True,
+                legend=dict(
+                    orientation="v", x=1.02, y=0.5, xanchor="left",
+                    font=dict(size=11, color="#e8e8e8"),
+                ),
+                annotations=[dict(
+                    text=f"<b>{len(_donut_values)} Fon</b><br>%100",
+                    x=0.5, y=0.5, font_size=14, showarrow=False,
+                    font=dict(color="#e8e8e8"),
+                )],
+                margin=dict(l=0, r=140, t=10, b=10),
+                height=260,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(_fig_donut, use_container_width=True)
 
         # === AKSİYONLAR + MALİYET HESABI ===
         from src.cost_model import TransactionCostModel
