@@ -788,6 +788,7 @@ if not st.session_state.onboarding_complete:
                 ("💼 Portföy",   "Portföy yönetimi, rebalance önerileri, çeşitlendirme analizi"),
                 ("📈 Geçmiş",    "Portföy geçmişi, performans takibi, backtest"),
                 ("🤖 AI Tahmin", "ML fon tahminleri, model karşılaştırma, fon detay"),
+                ("📚 Eğitim",   "BES, fon tipleri, stratejiler, SSS ve terimler sözlüğü"),
             ]:
                 st.markdown(f"- **{_ti[0]}** — {_ti[1]}")
             st.markdown(" ")
@@ -801,11 +802,12 @@ if not st.session_state.onboarding_complete:
     st.stop()
 
 # --- SEKMELER ---
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Piyasa",
     "💼 Portföy",
     "📈 Geçmiş",
     "🤖 AI Tahmin",
+    "📚 Eğitim",
 ])
 
 
@@ -2761,3 +2763,133 @@ with tab4:
             dayandırmayın.</p>
         </div>
         """, unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════
+# TAB 5 — Eğitim
+# ══════════════════════════════════════════════════════
+with tab5:
+    st.markdown("""
+    <div class="info-box info-box-blue">
+        <p>📚 BES ve yatırım hakkında temel bilgiler.
+        Bu bölüm <strong>eğitim amaçlıdır</strong>, yatırım tavsiyesi değildir.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.expander("🏦 BES Nedir?", expanded=True):
+        st.markdown("""
+**Bireysel Emeklilik Sistemi (BES)**, Türkiye'de devlet destekli gönüllü bir emeklilik tasarruf sistemidir.
+
+#### Temel Avantajlar
+- **%30 Devlet Katkısı:** Yatırdığın her 100 TL için devlet 30 TL ekler (yıllık brüt asgari ücretin %30'una kadar).
+- **Vergi Avantajı:** Katkı payları gelir vergisi matrahından düşülebilir (çalışanlar için).
+- **Uzun Vadeli Birikim:** Piyasa dalgalanmalarına karşın bileşik büyüme.
+
+#### Kimler Katılabilir?
+18 yaşını doldurmuş herkes BES'e katılabilir. Şirket çalışanları, serbest meslek sahipleri ve işverenler dahil.
+
+#### Hak Kazanma Koşulları
+- **Sistemde en az 10 yıl** kalınmalı **ve** emeklilik yaşına (56) ulaşılmalıdır.
+- Her iki koşul sağlandığında birikimin **tamamı + devlet katkısının tamamı** alınır.
+
+#### Devlet Katkısı Nasıl Hesaplanır?
+| Aylık Katkı | Devlet Katkısı (%30) |
+|-------------|----------------------|
+| 1.000 TL | 300 TL |
+| 3.000 TL | 900 TL |
+| 5.000 TL | 1.500 TL (tavan yakını) |
+
+Devlet katkısının tavanı: **yıllık brüt asgari ücretin %30'u**.
+
+#### Erken Çıkış Durumunda Ne Olur?
+- **10 yıldan önce çıkarsan:** Devlet katkısının tamamını kaybedersin. Kendi katkıların üzerinden vergi kesintisi uygulanır.
+- **10 yıl dolduktan sonra ama 56 yaşından önce:** Devlet katkısının yarısını alabilirsin.
+- **Her iki koşul sağlandıktan sonra:** Tam hak, sıfır kesinti.
+        """)
+
+    with st.expander("📊 Fon Tipleri"):
+        _fund_types = [
+            ("🔴 Hisse Senedi Fonları", "**Yüksek risk, yüksek getiri potansiyeli.** BIST (Borsa İstanbul) hisse senetlerine yatırım yapar. Uzun vadede enflasyonu en çok aşma potansiyeline sahip fondur. Kısa vadede sert dalgalanabilir. Genç yatırımcılar ve uzun vadeli planlar için uygundur."),
+            ("🟢 Kamu Borçlanma Fonları", "**Düşük-orta risk.** Devlet tahvili ve Hazine bonosu gibi devlet borçlanma araçlarına yatırım yapar. Faiz artış dönemlerinde güçlü performans gösterir. Sermaye koruması ön planda tutulur."),
+            ("🟡 Altın Fonları", "**Orta risk, enflasyon koruması.** Fiziksel altın veya altına dayalı araçlara yatırım yapar. Kriz dönemlerinde 'güvenli liman' görevi görür. TL değer kaybından korunma sağlar."),
+            ("🟠 Karma / Değişken Fonlar", "**Orta risk.** Hisse senedi, tahvil, altın ve para piyasası araçlarını karışık tutar. Fon yöneticisi piyasa koşullarına göre dağılımı değiştirir. Tek fonda çeşitlendirme arayan yatırımcılar için."),
+            ("⚪ Para Piyasası Fonları", "**En düşük risk.** Kısa vadeli devlet kağıtları ve repo gibi likit araçlara yatırım yapar. Mevduat hesabına benzer ama daha düşük getiri. Piyasa belirsizliğinde nakde yakın durmak için."),
+            ("🔵 Katılım Fonları", "**Faizsiz finans prensiplerine uygun.** Kira sertifikaları, sukuk ve faiz içermeyen araçlara yatırım yapar. Risk profili türüne göre değişir (katılım hisse, katılım kamu borçlanma vb.)."),
+        ]
+        for _title, _desc in _fund_types:
+            st.markdown(f"**{_title}**")
+            st.markdown(_desc)
+            st.markdown("---")
+
+    with st.expander("🎯 Yatırım Stratejileri"):
+        st.markdown("""
+#### Yaşa Göre Strateji
+Emekliliğe ne kadar uzaksın, o kadar fazla risk taşıyabilirsin:
+
+| Yaş Grubu | Önerilen Yaklaşım | Hisse | Tahvil/Altın | Para Piy. |
+|-----------|-------------------|-------|--------------|-----------|
+| 20–35 | Agresif büyüme | %50–60 | %30–40 | %10 |
+| 35–50 | Dengeli | %30–40 | %40–50 | %10–20 |
+| 50+ | Muhafazakar | %10–20 | %50–60 | %20–30 |
+
+#### Piyasa Döngüsüne Göre Strateji
+- **Kriz dönemi:** Altın ve kamu borçlanma fonlarına ağırlık ver. Hisse satma acelesi yapma.
+- **Faiz artış dönemi:** Kamu borçlanma fonları öne çıkar. Değişken faizli araçlar avantajlı.
+- **Yükseliş trendi:** Hisse ve karma fonlara ağırlık ver.
+- **Sakin piyasa:** Dengeli dağılım — fırsat kollarken maliyet ortalaması yap.
+
+#### Düzenli Katkının Gücü (Maliyet Ortalaması)
+Her ay sabit tutarda katkı yaparak piyasa zamanlamasına gerek kalmaz:
+- Piyasa düşükken daha çok pay alırsın.
+- Piyasa yüksekken daha az pay alırsın.
+- Uzun vadede ortalama maliyetin düşer.
+
+#### Rebalancing (Yeniden Dengeleme) Neden Önemli?
+Zaman içinde bazı fonlar diğerlerinden daha hızlı büyür ve hedef dağılımından sapar.
+Örneğin: Hisse %30 hedefliyken piyasa rallisiyle %50'ye çıkarsa, %20'yi sat ve dengeyi koru.
+**Bu sistem tam da bunu otomatik hesaplayıp sana öneriyor.**
+
+#### "Zamanlamaya Çalışma, Zamanda Kal"
+Piyasanın dibini ve tepesini yakalamaya çalışmak istatistiksel olarak başarısız:
+- En iyi 10 günü kaçıran bir yatırımcı, 10 yıllık getirisinin yarısından fazlasını kaybeder.
+- Yıllık kontrol ve düzeltme, günlük panik kararlarından çok daha karlıdır.
+        """)
+
+    with st.expander("💡 Sıkça Sorulan Sorular"):
+        _faqs = [
+            ("Fon değiştirmek ücretli mi?",
+             "**Hayır.** BES'te ayda **6 kez** fon değişikliği ücretsizdir. 6'yı aşan değişimlerde küçük bir işlem ücreti uygulanabilir (şirkete göre değişir). Bu sistem aylık 1 değişiklik önerir — limitin çok altında."),
+            ("BES'ten erken çıkarsam ne olur?",
+             "10 yılı doldurmadan çıkarsan devlet katkısının **tamamını** kaybedersin. Kendi birikiminden ise gelir vergisi stopajı (%15–25 arası) ve varsa fon gider kesintisi uygulanır. Acil durum yoksa sabırlı olmak finansal açıdan çok daha karlı."),
+            ("Hangi fon en iyi?",
+             "**Tek bir cevap yok.** En iyi fon; risk toleransına, yatırım süresine ve piyasa koşullarına göre değişir. Bu uygulamanın yaptığı da tam bu: piyasa durumunu analiz edip **sana özel** öneri sunmak."),
+            ("Ne sıklıkla fon değiştirmeliyim?",
+             "**Ayda 1 kontrol yeterli.** Piyasa panikinde anlık karar verme. Bu sistem aylık otomatik analiz yapıp değişiklik gerekip gerekmediğini söylüyor. Gereksiz değişiklikler maliyet yaratır ve uzun vadeli stratejiyi bozar."),
+            ("Devlet katkısı ne kadar?",
+             "Ödediğin katkı payının **%30'u**, devlet tarafından BES hesabına eklenir. Tavan: yıllık brüt asgari ücretin %30'u. 2025 için bu rakam yaklaşık **yıllık 20.000–25.000 TL** civarındadır (asgari ücrete göre değişir)."),
+            ("BES ile OKS arasındaki fark nedir?",
+             "**OKS (Otomatik Katılım Sistemi)** çalışanları işveren aracılığıyla otomatik kaydeder ama çıkış serbesttir. **BES** ise gönüllüdür, devlet katkısı daha yüksek (%30 vs %0) ve vergi avantajı sunar. İkisi birbirini tamamlayabilir."),
+        ]
+        for _q, _a in _faqs:
+            st.markdown(f"**❓ {_q}**")
+            st.info(_a)
+            st.markdown(" ")
+
+    with st.expander("📖 Terimler Sözlüğü"):
+        _terms = [
+            ("NAV (Net Aktif Değer)", "Bir yatırım fonunun toplam varlıklarının, toplam yükümlülüklerinden çıkarılmasıyla bulunan değer. Fon fiyatı = NAV / pay sayısı. BES'te her işlem günü hesaplanır."),
+            ("Volatilite (Oynaklık)", "Bir varlığın fiyatının ne kadar dalgalandığının ölçüsü. Yüksek volatilite = yüksek risk ve fırsat. Genellikle yıllık standart sapma olarak ifade edilir (%15 düşük, %30+ yüksek)."),
+            ("Sharpe Oranı", "Risk-getiri dengesi ölçüsü. Formül: (Getiri − Risksiz Faiz) / Volatilite. 1'in üzerindeki değerler iyi kabul edilir. Yüksek Sharpe = aynı riskle daha fazla getiri."),
+            ("Drawdown (Düşüş)", "Bir varlığın fiyatının son zirvesinden ne kadar düştüğünün yüzdesi. Örneğin: 1.000 TL'den 800 TL'ye düşüş = %20 drawdown. Maximum drawdown, tarihsel en kötü senaryoyu gösterir."),
+            ("Rebalancing (Yeniden Dengeleme)", "Portföyün hedef dağılımından sapan fonlarını tekrar dengeleme işlemi. Örneğin hisse %30'dan %40'a çıktıysa %10'u sat, tahvile ekle. Bu sistem her ay bunu otomatik hesaplar."),
+            ("BIST 100", "Borsa İstanbul'da işlem gören en büyük 100 şirketin hisse senetlerini içeren ana endeks. Türkiye borsasının termometresi. BES hisse fonları genellikle bu endeksi referans alır."),
+            ("TÜFE / CPI", "Tüketici Fiyat Endeksi — enflasyonun resmi ölçütü. Türkiye İstatistik Kurumu (TÜİK) tarafından aylık yayınlanır. Yatırım getirisinin TÜFE'nin üzerinde olması 'reel kazanç' anlamına gelir."),
+            ("Benchmark", "Karşılaştırma ölçütü. Bu sistemde benchmark, tüm varlıklara eşit dağılım yapılması durumundaki getiriyi temsil eder. AI portföyünün benchmark'ı ne kadar geçtiği ölçülür."),
+            ("Alpha", "Benchmark'ın üzerinde elde edilen getiri. Alpha = Portföy getirisi − Benchmark getirisi. Pozitif alpha = sistematik üstün performans."),
+            ("Rejim", "Piyasanın genel durumu: Sakin, Yükseliş, Kriz veya Faiz Artışı. Bu sistem her ay rejimi tespit edip o rejime uygun fon dağılımı önerir."),
+        ]
+        _g1, _g2 = st.columns(2)
+        for _i, (_term, _def) in enumerate(_terms):
+            with (_g1 if _i % 2 == 0 else _g2):
+                st.markdown(f"**{_term}**")
+                st.caption(_def)
+                st.markdown(" ")
