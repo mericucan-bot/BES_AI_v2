@@ -17,19 +17,19 @@ class TCMBClient:
     TCMB EVDS API istemcisi — evdspy kutuphanesi uzerinden.
 
     Seri kodu kurali:
-    - API isteginde NOKTA: TP.AOFOD
-    - API response kolonu ALT CIZGI: TP_AOFOD
-    - Cache dosya adinda ALT CIZGI: macro_TP_AOFOD.json
+    - API isteginde NOKTA: TP.TRY.MT01
+    - API response kolonu ALT CIZGI: TP_TRY_MT01
+    - Cache dosya adinda ALT CIZGI: macro_TP_TRY_MT01.json
 
     Cekilen seriler:
-    - TP.AOFOD:        Politika faizi (1 hafta repo, gunluk) — erisilebilirse
+    - TP.TRY.MT01:     Politika faizi (TCMB gecelik faiz, aylik) — aktif seri
     - TP.FG.J0:        TUFE indeksi (aylik, yoy hesaplanir)
     - TP.DK.USD.A.YTL: USD/TRY alis kuru (gunluk)
     - TP.AKM.B070:     2Y devlet tahvili faizi (gunluk) — erisilebilirse
     """
 
     SERIES = {
-        "policy_rate":     "TP.AOFOD",
+        "policy_rate":     "TP.TRY.MT01",
         "cpi_yoy":         "TP.FG.J0",
         "usdtry_official": "TP.DK.USD.A.YTL",
         "bond_2y":         "TP.AKM.B070",
@@ -102,14 +102,17 @@ class TCMBClient:
         # evdspy base64-kodlu key bekliyor — raw key'i encode ederek yaz
         env_key = os.environ.get("TCMB_API_KEY") or os.environ.get("EVDS_API_KEY")
         if env_key:
+            # evdspy EVDS_API_KEY env var'ını okur — ham key olarak set et
+            os.environ["EVDS_API_KEY"] = env_key
             try:
                 import base64 as _b64
                 apikey_dir = Path("APIKEY_FOLDER")
                 key_file = apikey_dir / "api_key.txt"
-                if not key_file.exists():
-                    apikey_dir.mkdir(exist_ok=True)
-                    key_file.write_text(_b64.b64encode(env_key.encode()).decode())
-                    logger.debug("TCMB API key environment'tan yuklendi")
+                # Her zaman yaz: evdspy WriteBytes gibi binary mod + base64-encoded bytes
+                # (var olan bozuk dosyayı da düzeltir)
+                apikey_dir.mkdir(exist_ok=True)
+                key_file.write_bytes(_b64.b64encode(env_key.encode()))
+                logger.debug("TCMB API key environment'tan yuklendi (binary format)")
             except Exception:
                 pass
 
