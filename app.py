@@ -29,6 +29,9 @@ if "logging_configured" not in st.session_state:
     configure_logging(log_file="streamlit.log", level="INFO")
     st.session_state.logging_configured = True
 
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
+
 st.markdown('<meta name="viewport" content="width=device-width, initial-scale=1.0">', unsafe_allow_html=True)
 
 st.markdown("""
@@ -197,8 +200,112 @@ hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !importan
 </style>
 """, unsafe_allow_html=True)
 
+# --- LIGHT MODE CSS OVERRIDE ---
+if st.session_state.get("theme") == "light":
+    st.markdown("""
+<style>
+/* ========== LIGHT MODE ========== */
+.stApp, [data-testid="stAppViewContainer"] {
+    background-color: #f8fafc !important;
+}
+[data-testid="stHeader"] { background-color: #f8fafc !important; }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+    border-right: 1px solid rgba(0,0,0,0.10) !important;
+}
+
+/* Metin renkleri */
+.stApp p, .stApp span, .stApp label, .stApp div,
+.stMarkdown, .stCaption { color: #334155 !important; }
+h1, h2, h3, h4 { color: #0f172a !important; }
+
+/* Metrik kartları */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, rgba(30,64,175,0.06) 0%, rgba(59,130,246,0.03) 100%) !important;
+    border: 1px solid rgba(30,64,175,0.2) !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+}
+[data-testid="stMetricLabel"] { color: #64748b !important; opacity: 1 !important; }
+[data-testid="stMetricValue"] { color: #0f172a !important; }
+[data-testid="stMetricDelta"] { opacity: 1 !important; }
+
+/* Tab navigation */
+.stTabs [data-baseweb="tab-list"] {
+    background: rgba(0,0,0,0.04) !important;
+}
+.stTabs [data-baseweb="tab"] { color: #475569 !important; }
+.stTabs [aria-selected="true"] {
+    background: rgba(30,64,175,0.12) !important;
+    color: #1e40af !important;
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    background: rgba(0,0,0,0.03) !important;
+    border: 1px solid rgba(0,0,0,0.08) !important;
+    color: #1e293b !important;
+}
+
+/* Butonlar */
+.stButton > button { color: #1e293b !important; border: 1px solid rgba(0,0,0,0.15) !important; }
+
+/* Bilgi kutuları */
+.info-box p { color: #374151 !important; }
+.info-box-yellow { background: rgba(234,179,8,0.12) !important; }
+.info-box-blue   { background: rgba(59,130,246,0.10) !important; }
+.info-box-orange { background: rgba(234,88,12,0.10) !important; }
+
+/* Plotly grafik wrapper */
+[data-testid="stPlotlyChart"] {
+    border: 1px solid rgba(0,0,0,0.08) !important;
+    background: white !important;
+}
+
+/* Data tablo */
+[data-testid="stDataFrame"] { border: 1px solid rgba(0,0,0,0.10) !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15) !important; }
+
+/* Alert kutuları */
+.stAlert { background: rgba(0,0,0,0.03) !important; }
+
+/* HR */
+hr { border-color: rgba(0,0,0,0.08) !important; }
+</style>
+""", unsafe_allow_html=True)
+
 
 # --- YARDIMCI FONKSİYONLAR ---
+
+_NOTIF_PREFS_PATH = Path("data/notification_prefs.json")
+
+def load_notification_prefs() -> dict:
+    defaults = {
+        "email_enabled": False,
+        "email_address": "",
+        "on_regime_change": True,
+        "weekly_summary": False,
+        "critical_signal": True,
+    }
+    try:
+        if _NOTIF_PREFS_PATH.exists():
+            saved = json.loads(_NOTIF_PREFS_PATH.read_text(encoding="utf-8"))
+            defaults.update(saved)
+    except Exception:
+        pass
+    return defaults
+
+def save_notification_prefs(prefs: dict) -> bool:
+    try:
+        _NOTIF_PREFS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _NOTIF_PREFS_PATH.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
 
 def explain_regime(regime: str) -> dict:
     explanations = {
@@ -414,6 +521,76 @@ with st.sidebar:
         )
     else:
         st.caption("🤖 AI model henüz eğitilmemiş")
+
+    st.divider()
+
+    # ─── AYARLAR (Tema + Bildirimler) ───
+    with st.expander("⚙️ Ayarlar", expanded=False):
+
+        # -- Tema Geçişi --
+        st.write("**🎨 Görünüm**")
+        _current_theme = st.session_state.get("theme", "dark")
+        _theme_label = "☀️ Açık Tema" if _current_theme == "dark" else "🌙 Koyu Tema"
+        if st.button(_theme_label, key="theme_toggle", use_container_width=True):
+            st.session_state.theme = "light" if _current_theme == "dark" else "dark"
+            st.rerun()
+        st.caption(f"Şu an: {'🌙 Koyu' if _current_theme == 'dark' else '☀️ Açık'} mod")
+
+        st.divider()
+
+        # -- Bildirim Tercihleri --
+        st.write("**🔔 Bildirim Tercihleri**")
+        _prefs = load_notification_prefs()
+
+        _email_on = st.toggle(
+            "E-posta bildirimleri",
+            value=_prefs["email_enabled"],
+            key="notif_email_enabled",
+        )
+
+        if _email_on:
+            _email_addr = st.text_input(
+                "E-posta adresi:",
+                value=_prefs["email_address"],
+                placeholder="ornek@gmail.com",
+                key="notif_email_addr",
+            )
+            st.write("**Bildirim türleri:**")
+            _on_regime = st.checkbox(
+                "📊 Reji değişikliği",
+                value=_prefs["on_regime_change"],
+                key="notif_regime",
+                help="Piyasa rejimi değiştiğinde bildirim al",
+            )
+            _weekly = st.checkbox(
+                "📅 Haftalık özet",
+                value=_prefs["weekly_summary"],
+                key="notif_weekly",
+                help="Her pazartesi portföy özeti",
+            )
+            _critical = st.checkbox(
+                "🚨 Kritik sinyal",
+                value=_prefs["critical_signal"],
+                key="notif_critical",
+                help="Kriz veya ani sinyal değişimi",
+            )
+
+            if st.button("💾 Tercihleri Kaydet", key="save_notif_prefs", use_container_width=True):
+                _new_prefs = {
+                    "email_enabled": _email_on,
+                    "email_address": _email_addr,
+                    "on_regime_change": _on_regime,
+                    "weekly_summary": _weekly,
+                    "critical_signal": _critical,
+                }
+                if save_notification_prefs(_new_prefs):
+                    st.success("Tercihler kaydedildi!")
+                else:
+                    st.error("Kayıt başarısız.")
+        else:
+            if _prefs["email_enabled"]:
+                # Kapatıldıysa kaydet
+                save_notification_prefs({**_prefs, "email_enabled": False})
 
     st.divider()
     st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
