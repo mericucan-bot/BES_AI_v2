@@ -237,6 +237,75 @@ class RegimeEngineV2:
             "macro": macro_data,
         }
 
+    def detect_regime_change_risk(self, result: Dict, history_dir: str = "data/history") -> Dict:
+        """
+        Mevcut rejim skorlarından rejim degisikligi riskini hesapla.
+
+        Returns:
+            risk_level:     "low" | "medium" | "high"
+            risk_score:     0-100 (100 = en yuksek risk)
+            potential_next: ikinci en yuksek skorlu rejim
+            message:        kullaniciya gosterilecek metin
+            recent_regimes: son 3 ayin rejim listesi (varsa)
+        """
+        scores = result.get("scores", {})
+        detected = result.get("detected", "STABLE")
+
+        if len(scores) < 2:
+            return {"risk_level": "low", "risk_score": 0, "potential_next": None, "message": "", "recent_regimes": []}
+
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        top_score     = sorted_scores[0][1]
+        second_regime = sorted_scores[1][0]
+        second_score  = sorted_scores[1][1]
+        gap = top_score - second_score
+
+        risk_score = int(max(0, min(100, 100 - gap * 200)))
+
+        if gap < 0.10:
+            risk_level = "high"
+        elif gap < 0.25:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+
+        # Son 3 ayin rejim gecmisini oku
+        recent_regimes: list = []
+        try:
+            import json as _j
+            from pathlib import Path as _P
+            snap_files = sorted(_P(history_dir).glob("*.json"))[-3:]
+            for sf in snap_files:
+                d = _j.loads(sf.read_text(encoding="utf-8"))
+                reg = d.get("regime", {})
+                det = reg.get("detected") if isinstance(reg, dict) else None
+                date_str = d.get("run_date", sf.stem)[:7]
+                if det:
+                    recent_regimes.append(f"{date_str}:{det}")
+        except Exception:
+            pass
+
+        regime_tr = {"CRISIS": "Kriz", "RISK_ON": "Yükseliş", "RATE_HIKE": "Faiz Artışı", "STABLE": "Sakin"}
+        next_tr   = regime_tr.get(second_regime, second_regime)
+
+        if risk_level == "high":
+            message = (
+                f"⚠️ Rejim Değişikliği Riski Yüksek — **{next_tr}** rejimine geçiş olasılığı artıyor. "
+                "Portföyünü gözden geçir."
+            )
+        elif risk_level == "medium":
+            message = f"🔔 Rejim geçiş sinyalleri var — **{next_tr}** olasılığı yükseliyor."
+        else:
+            message = ""
+
+        return {
+            "risk_level":     risk_level,
+            "risk_score":     risk_score,
+            "potential_next": second_regime,
+            "message":        message,
+            "recent_regimes": recent_regimes,
+        }
+
 
 if __name__ == "__main__":
     from src.logging_config import configure_logging

@@ -724,6 +724,24 @@ with tab1:
     conf = result.get("confidence", 0)
     st.progress(conf, text=f"Sinyal Güveni: %{conf*100:.0f} — {confidence_to_text(conf)}")
 
+    # === REJİM DEĞİŞİKLİĞİ ERKEN UYARI ===
+    try:
+        from src.regime_engine import RegimeEngineV2 as _REV2_warn
+        _warn = _REV2_warn().detect_regime_change_risk(result)
+        if _warn["risk_level"] == "high":
+            st.error(_warn["message"])
+        elif _warn["risk_level"] == "medium":
+            st.warning(_warn["message"])
+
+        if _warn["recent_regimes"] and len(_warn["recent_regimes"]) >= 2:
+            _reg_seq  = " → ".join(r.split(":")[1] for r in _warn["recent_regimes"])
+            _dates    = [r.split(":")[0] for r in _warn["recent_regimes"]]
+            _unique_r = set(r.split(":")[1] for r in _warn["recent_regimes"])
+            _suffix   = "dalgalı — dikkatli ol" if len(_unique_r) > 1 else "kararlı seyir"
+            st.caption(f"Son {len(_warn['recent_regimes'])} ay: {_reg_seq} ({_suffix})")
+    except Exception:
+        pass
+
     # === PİYASA ÖZETİ ===
     st.write("### 📊 Piyasa Özeti")
     m1, m2, m3, m4 = st.columns(4)
