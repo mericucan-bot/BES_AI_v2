@@ -69,10 +69,18 @@ class LearningEngineV2:
             json.dump(self.history, f, ensure_ascii=False, indent=2)
         logger.info(f"Gozlem kaydedildi: {date} / {regime} / alpha={alpha_vs_benchmark:.4f}")
 
-    def get_optimized_weights(self, regime: str) -> Dict[str, float]:
+    # Risk profiline göre varlık ağırlığı çarpanları
+    _RISK_MULTIPLIERS = {
+        "muhafazakar": {"VEF": 0.50, "KCH": 0.70, "ALT": 1.00, "KTS": 1.40, "CASH": 1.50},
+        "dengeli":     {"VEF": 1.00, "KCH": 1.00, "ALT": 1.00, "KTS": 1.00, "CASH": 1.00},
+        "agresif":     {"VEF": 1.30, "KCH": 1.30, "ALT": 1.00, "KTS": 0.70, "CASH": 0.50},
+    }
+
+    def get_optimized_weights(self, regime: str, risk_profile: Optional[str] = None) -> Dict[str, float]:
         """
         Eger regime icin yeterli gecmis gozlem varsa alpha-agirlikli ortalama don.
         Yoksa STATIC_PRIORS fallback.
+        risk_profile: "muhafazakar" | "dengeli" | "agresif" | None
         """
         regime_obs = [h for h in self.history if h["regime"] == regime]
 
@@ -81,30 +89,41 @@ class LearningEngineV2:
                 f"{regime} icin yetersiz gozlem ({len(regime_obs)}/{self.MIN_OBSERVATIONS}), "
                 f"static prior kullaniliyor"
             )
-            return self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
+            base = self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
+        else:
+            positive_obs = [h for h in regime_obs if h["alpha_vs_benchmark"] > 0]
 
-        positive_obs = [h for h in regime_obs if h["alpha_vs_benchmark"] > 0]
+            if not positive_obs:
+                logger.warning(f"{regime} icin pozitif alpha gozlem yok, static prior kullaniliyor")
+                base = self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
+            else:
+                # Alpha-weighted ortalama: daha yuksek alpha ureten agirlik setlerine daha fazla pay
+                total_alpha = sum(h["alpha_vs_benchmark"] for h in positive_obs)
+                learned_weights: Dict[str, float] = {}
 
-        if not positive_obs:
-            logger.warning(f"{regime} icin pozitif alpha gozlem yok, static prior kullaniliyor")
-            return self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
+                for obs in positive_obs:
+                    weight_factor = obs["alpha_vs_benchmark"] / total_alpha
+                    for asset, w in obs["weights_used"].items():
+                        learned_weights[asset] = learned_weights.get(asset, 0) + weight_factor * w
 
-        # Alpha-weighted ortalama: daha yuksek alpha ureten agirlik setlerine daha fazla pay
-        total_alpha = sum(h["alpha_vs_benchmark"] for h in positive_obs)
-        learned_weights: Dict[str, float] = {}
+                total_w = sum(learned_weights.values())
+                if total_w > 0:
+                    learned_weights = {k: v / total_w for k, v in learned_weights.items()}
 
-        for obs in positive_obs:
-            weight_factor = obs["alpha_vs_benchmark"] / total_alpha
-            for asset, w in obs["weights_used"].items():
-                learned_weights[asset] = learned_weights.get(asset, 0) + weight_factor * w
+                logger.info(f"{regime} icin ogrenilmis agirliklar kullaniliyor (n={len(positive_obs)})")
+                base = learned_weights
 
-        # Toplam 1 olacak sekilde normalize et
-        total_w = sum(learned_weights.values())
-        if total_w > 0:
-            learned_weights = {k: v / total_w for k, v in learned_weights.items()}
+        # Risk profiline göre çarpan uygula ve yeniden normalize et
+        if risk_profile and risk_profile in self._RISK_MULTIPLIERS:
+            multipliers = self._RISK_MULTIPLIERS[risk_profile]
+            adjusted = {k: v * multipliers.get(k, 1.0) for k, v in base.items()}
+            total_adj = sum(adjusted.values())
+            if total_adj > 0:
+                adjusted = {k: v / total_adj for k, v in adjusted.items()}
+            logger.info(f"Risk profili '{risk_profile}' uygulandı")
+            return adjusted
 
-        logger.info(f"{regime} icin ogrenilmis agirliklar kullaniliyor (n={len(positive_obs)})")
-        return learned_weights
+        return base
 
     def calculate_confidence_score(self, regime: str) -> float:
         """

@@ -1373,7 +1373,8 @@ with tab2:
         current_weights = {k: v / total_value for k, v in holdings.items() if v > 0}
 
         learning       = LearningEngineV2()
-        target_weights = learning.get_optimized_weights(regime)
+        _user_rp       = st.session_state.get("risk_profile")
+        target_weights = learning.get_optimized_weights(regime, risk_profile=_user_rp)
         regime_info    = explain_regime(regime)
 
         asset_names = POPULAR_BES_FUNDS.copy()
@@ -1457,6 +1458,15 @@ with tab2:
             recommendations.append({"asset": asset, "action": action, "diff_tl": diff_tl})
 
         # === YAPMAN GEREKENLER ===
+        _rp_display = {
+            "muhafazakar": "🛡️ Muhafazakar",
+            "dengeli":     "⚖️ Dengeli",
+            "agresif":     "🚀 Agresif",
+        }
+        if _user_rp:
+            st.info(f"🎯 Risk profilin: **{_rp_display[_user_rp]}** — Öneriler buna göre kişiselleştirildi.")
+        else:
+            st.caption("💡 Risk profilini belirleyerek kişiselleştirilmiş öneriler alabilirsin. ↑ Yukarıdaki anketi doldur.")
         st.write("### 📋 Bu Ay Yapman Gerekenler")
 
         has_action = False
@@ -2166,6 +2176,61 @@ with tab4:
                 )
             else:
                 st.info("Feature importance hesaplanamadı.")
+
+        # === SANA ÖZEL FON ÖNERİLERİ ===
+        _t4_rp = st.session_state.get("risk_profile")
+        if _t4_rp:
+            _pred_files_rp = sorted(Path("data/ml").glob("predictions_fwd_return_3m_*.csv"))
+            _snap_files_rp = sorted(Path("data/tefas_cache").glob("snapshot_*.parquet"))
+            if _pred_files_rp and _snap_files_rp:
+                try:
+                    _pred_rp = pd.read_csv(_pred_files_rp[-1])
+                    _snap_rp = pd.read_parquet(_snap_files_rp[-1])[["fund_code", "fund_name", "category"]]
+                    _merged_rp = _pred_rp.merge(_snap_rp, on="fund_code", how="left")
+
+                    # Profil bazlı kategori filtresi
+                    _rp_cat_filter = {
+                        "muhafazakar": ["Debt Instruments Fund", "Money Market Fund", "Standard Fund",
+                                        "Initial Participation Fund", "Participation Fund",
+                                        "AES Standard Fund", "Participation Standard Fund",
+                                        "AES Participation Standard Fund", "State Contribution Fund",
+                                        "Govt. Bonds and Bills Fund", "Government Bonds and Bills in Foreign Currencies (FX)"],
+                        "dengeli":     None,  # tüm kategoriler
+                        "agresif":     ["Stock Fund", "Variable Fund", "Participation Variable Fund",
+                                        "Mixed Fund", "Participation Equity Fund"],
+                    }
+                    _cat_filter = _rp_cat_filter[_t4_rp]
+                    if _cat_filter:
+                        _filtered_rp = _merged_rp[_merged_rp["category"].isin(_cat_filter)]
+                    else:
+                        _filtered_rp = _merged_rp.copy()
+
+                    _top_rp = _filtered_rp.nlargest(5, "predicted_fwd_return_3m") if not _filtered_rp.empty else pd.DataFrame()
+
+                    if not _top_rp.empty:
+                        _rp_labels_t4 = {"muhafazakar": "🛡️ Muhafazakar", "dengeli": "⚖️ Dengeli", "agresif": "🚀 Agresif"}
+                        st.divider()
+                        st.write(f"### 🎯 Sana Özel Fon Önerileri — {_rp_labels_t4[_t4_rp]}")
+                        st.caption("Risk profiline göre filtrelenmiş en yüksek AI 3M tahminli fonlar")
+                        for _, _rp_row in _top_rp.iterrows():
+                            _rp_ret = _rp_row["predicted_fwd_return_3m"]
+                            _rp_clr = "#4ade80" if _rp_ret >= 0 else "#ef4444"
+                            _rp_arr = "▲" if _rp_ret >= 0 else "▼"
+                            _rp_name = str(_rp_row.get("fund_name", _rp_row["fund_code"]))[:60]
+                            _rp_cat  = str(_rp_row.get("category", ""))
+                            st.markdown(f"""
+<div style="display:flex; align-items:center; justify-content:space-between;
+    background:rgba(26,92,46,0.08); border:1px solid rgba(197,162,62,0.15);
+    border-radius:8px; padding:10px 14px; margin-bottom:6px;">
+  <div>
+    <span style="font-weight:700; color:#e8e8e8;">{_rp_row['fund_code']}</span>
+    <span style="font-size:0.78rem; color:rgba(232,232,232,0.55); margin-left:8px;">{_rp_name}</span>
+    <br><span style="font-size:0.74rem; color:rgba(197,162,62,0.8);">{_rp_cat}</span>
+  </div>
+  <div style="font-weight:700; color:{_rp_clr}; font-size:1.05rem;">{_rp_arr} %{_rp_ret*100:+.1f}</div>
+</div>""", unsafe_allow_html=True)
+                except Exception:
+                    pass
 
         # === FON KARŞILAŞTIRMA ===
         st.divider()
