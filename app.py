@@ -860,6 +860,88 @@ with tab1:
 
     st.divider()
 
+    # === FON KATEGORİ ANALİZİ ===
+    _tefas_snapshots = sorted(Path("data/tefas_cache").glob("snapshot_*.parquet"))
+    if _tefas_snapshots:
+        try:
+            _snap_df = pd.read_parquet(_tefas_snapshots[-1])
+            if "category" in _snap_df.columns and "return_1m" in _snap_df.columns:
+                _cat_map = {
+                    "Stock Fund":                                           "Hisse",
+                    "Participation Equity Fund":                            "Hisse",
+                    "Variable Fund":                                        "Karma/Değişken",
+                    "Participation Variable Fund":                          "Karma/Değişken",
+                    "Mixed Fund":                                           "Karma/Değişken",
+                    "Gold Fund":                                            "Altın",
+                    "Gold Participation Fund":                              "Altın",
+                    "Precious Metals":                                      "Altın",
+                    "Debt Instruments Fund":                                "Kamu Borçlanma",
+                    "Government Bonds and Bills in Foreign Currencies (FX)":"Kamu Borçlanma",
+                    "Govt. Bonds and Bills Fund":                           "Kamu Borçlanma",
+                    "Foreign Debt Securities Fund":                         "Kamu Borçlanma",
+                    "Private Sector Bonds Fund":                            "Kamu Borçlanma",
+                    "Money Market Fund":                                    "Para Piyasası",
+                    "Standard Fund":                                        "Para Piyasası",
+                    "AES Standard Fund":                                    "Para Piyasası",
+                    "Initial Fund":                                         "Para Piyasası",
+                    "Initial Participation Fund":                           "Katılım",
+                    "Participation Fund":                                   "Katılım",
+                    "Participation Standard Fund":                          "Katılım",
+                    "AES Participation Standard Fund":                      "Katılım",
+                    "Participation Contribution Fund":                      "Katılım",
+                    "Lease Certificate Participation Fund":                  "Katılım",
+                    "State Contribution Fund":                              "Katılım",
+                    "Fund of Funds":                                        "Diğer",
+                    "Index Fund":                                           "Diğer",
+                    "Life Cycle/Target Fund":                               "Diğer",
+                    "Central Transfor of Claim Assigmnet Fund":             "Diğer",
+                }
+                _snap_df["_kategori"] = _snap_df["category"].map(_cat_map).fillna("Diğer")
+                _cat_perf = (
+                    _snap_df.dropna(subset=["return_1m"])
+                    .groupby("_kategori")["return_1m"]
+                    .agg(["mean", "count"])
+                    .reset_index()
+                    .rename(columns={"mean": "ort_getiri", "count": "fon_sayisi"})
+                    .sort_values("ort_getiri", ascending=True)
+                )
+                _total_funds = int(_cat_perf["fon_sayisi"].sum())
+
+                _cat_fig = go.Figure(go.Bar(
+                    x=_cat_perf["ort_getiri"],
+                    y=_cat_perf["_kategori"],
+                    orientation="h",
+                    marker_color=[
+                        "#4ade80" if v >= 0 else "#ef4444"
+                        for v in _cat_perf["ort_getiri"]
+                    ],
+                    text=[f"%{v:+.2f}" for v in _cat_perf["ort_getiri"]],
+                    textposition="outside",
+                    hovertemplate="<b>%{y}</b><br>Ort. Getiri: %{x:.2f}%<extra></extra>",
+                ))
+                _cat_fig.update_layout(
+                    title="📊 Fon Kategorileri — Aylık Ortalama Performans",
+                    xaxis_title="Ortalama 1 Aylık Getiri (%)",
+                    yaxis_title=None,
+                    height=420,
+                    margin=dict(l=10, r=60, t=50, b=40),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e8e8e8"),
+                    xaxis=dict(gridcolor="rgba(255,255,255,0.08)", zerolinecolor="rgba(255,255,255,0.2)"),
+                    yaxis=dict(gridcolor="rgba(0,0,0,0)"),
+                )
+                st.plotly_chart(_cat_fig, use_container_width=True)
+                st.caption(f"Son 1 aylık ortalama getiriler. {_total_funds} fon analiz edildi.")
+            else:
+                st.info("📂 Snapshot'ta kategori/getiri verisi bulunamadı.")
+        except Exception as _e:
+            st.info(f"📂 Kategori analizi yüklenemedi: {_e}")
+    else:
+        st.info("📂 TEFAS cache bulunamadı — `python main.py --collect` çalıştır.")
+
+    st.divider()
+
     # === TEKNİK DETAYLAR (gizli) ===
     with st.expander("🔧 Teknik Detaylar (ileri düzey)"):
         st.write("**Rejim Skorları** — Her piyasa durumunun olasılık puanı (0–1 arası):")
