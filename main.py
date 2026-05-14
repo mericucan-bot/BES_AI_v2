@@ -1,6 +1,14 @@
 import argparse
 import json
+import os
 import sys
+
+from dotenv import load_dotenv
+load_dotenv()
+
+# EVDS_API_KEY → TCMB_API_KEY'den fallback (evdspy için)
+if not os.environ.get("EVDS_API_KEY") and os.environ.get("TCMB_API_KEY"):
+    os.environ["EVDS_API_KEY"] = os.environ["TCMB_API_KEY"]
 
 from src.logging_config import configure_logging, get_logger
 from src.pipeline import MonthlyPipeline

@@ -14,11 +14,14 @@ from src.cache_manager import get_smart_ttl, is_market_hours
 from src.logging_config import configure_logging
 from src.data_collector import POPULAR_BES_FUNDS
 
-# Streamlit Cloud secrets desteği
-# Cloud'da st.secrets kullanılır, lokalde .env veya APIKEY_FOLDER
+# Streamlit Cloud secrets → env vars (TCMB_API_KEY ve EVDS_API_KEY)
 try:
-    if hasattr(st, "secrets") and "TCMB_API_KEY" in st.secrets:
-        os.environ["TCMB_API_KEY"] = st.secrets["TCMB_API_KEY"]
+    if hasattr(st, "secrets"):
+        for _sk in ["EVDS_API_KEY", "TCMB_API_KEY"]:
+            if _sk in st.secrets:
+                os.environ["EVDS_API_KEY"] = st.secrets[_sk]
+                os.environ["TCMB_API_KEY"] = st.secrets[_sk]
+                break
 except Exception:
     pass
 

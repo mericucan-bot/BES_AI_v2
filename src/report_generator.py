@@ -47,6 +47,14 @@ class ReportGenerator:
         self._register_turkish_font()
 
         self.styles = getSampleStyleSheet()
+        # Varsayılan stilleri Türkçe fontla güncelle
+        # (custom style kullanmayan Paragraph'lar da doğru font alır)
+        self.styles["Normal"].fontName   = self.font_name
+        self.styles["BodyText"].fontName = self.font_name
+        self.styles["Title"].fontName    = self.font_name_bold
+        self.styles["Heading1"].fontName = self.font_name_bold
+        self.styles["Heading2"].fontName = self.font_name_bold
+        self.styles["Heading3"].fontName = self.font_name_bold
         self._setup_custom_styles()
 
     def _register_turkish_font(self):
