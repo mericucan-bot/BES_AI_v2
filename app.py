@@ -773,6 +773,15 @@ with tab1:
         "Yıllık" if cpi else None,
     )
 
+    # === ANOMALİ UYARILARI ===
+    _anomalies = result.get("anomalies", [])
+    for _an in _anomalies:
+        if _an["severity"] == "high":
+            st.error(_an["message"])
+        elif _an["severity"] == "medium":
+            st.warning(_an["message"])
+        # low severity (ardışık yükseliş vb.) sessiz geç
+
     # === EKONOMİK GÖSTERGELER ===
     if macro and macro.get("usdtry_official"):
         st.write("### 🏛️ Ekonomik Göstergeler")

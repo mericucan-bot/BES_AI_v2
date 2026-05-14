@@ -221,6 +221,8 @@ class RegimeEngineV2:
             "as_of": str(market_data.index[-1].date()),
         }
 
+        anomalies = self.detect_anomalies(market_data)
+
         return {
             "detected": detected,
             "confidence": confidence,
@@ -235,7 +237,105 @@ class RegimeEngineV2:
             },
             "data_quality": data_quality,
             "macro": macro_data,
+            "anomalies": anomalies,
         }
+
+    def detect_anomalies(self, market_data: "pd.DataFrame") -> list:
+        """
+        Z-score tabanli anomali tespiti: BIST, USD/TRY, Altin icin.
+        Ayrica BIST'te ardisik yukselis/dusus kontrolu yapar.
+
+        Returns: list of dicts with keys type, asset, severity, message
+        """
+        anomalies = []
+        if market_data is None or len(market_data) < 10:
+            return anomalies
+
+        asset_tr = {"BIST": "BIST 100", "USDTRY": "USD/TRY", "GOLD": "Altın"}
+
+        for col in ["BIST", "USDTRY", "GOLD"]:
+            if col not in market_data.columns:
+                continue
+            returns = market_data[col].pct_change().dropna()
+            if len(returns) < 10:
+                continue
+
+            window = min(60, len(returns) - 1)
+            hist   = returns.iloc[-window - 1:-1]
+            last_r = float(returns.iloc[-1])
+            mu     = float(hist.mean())
+            sigma  = float(hist.std())
+
+            if sigma < 1e-8:
+                continue
+
+            z = (last_r - mu) / sigma
+            name = asset_tr.get(col, col)
+            normal_range = sigma * 2 * 100  # ±% cinsinden
+
+            if abs(z) > 3:
+                anomalies.append({
+                    "type":     "spike",
+                    "asset":    col,
+                    "severity": "high",
+                    "z_score":  round(z, 2),
+                    "message":  (
+                        f"🚨 {name}'te olağandışı hareket: "
+                        f"Günlük %{last_r*100:+.2f} değişim "
+                        f"(normal aralık: ±%{normal_range:.2f})"
+                    ),
+                })
+            elif abs(z) > 2:
+                anomalies.append({
+                    "type":     "spike",
+                    "asset":    col,
+                    "severity": "medium",
+                    "z_score":  round(z, 2),
+                    "message":  (
+                        f"⚡ {name}'te sert hareket: "
+                        f"%{last_r*100:+.2f} (normalin {abs(z):.1f}× üzerinde)"
+                    ),
+                })
+
+        # BIST ardisik hareket kontrolu (5+ gun)
+        if "BIST" in market_data.columns:
+            bist_ret = market_data["BIST"].pct_change().dropna()
+            if len(bist_ret) >= 5:
+                last5 = bist_ret.iloc[-5:]
+                if (last5 < 0).all():
+                    anomalies.append({
+                        "type":     "streak",
+                        "asset":    "BIST",
+                        "severity": "medium",
+                        "message":  "📉 BIST 5 gündür art arda düşüyor",
+                    })
+                elif (last5 > 0).all():
+                    anomalies.append({
+                        "type":     "streak",
+                        "asset":    "BIST",
+                        "severity": "low",
+                        "message":  "📈 BIST 5 gündür art arda yükseliyor",
+                    })
+
+        # Volatilite ani artisi kontrolu
+        if "BIST" in market_data.columns:
+            bist_ret = market_data["BIST"].pct_change().dropna()
+            if len(bist_ret) >= 10:
+                vol_5d  = float(bist_ret.iloc[-5:].std())
+                vol_60d = float(bist_ret.iloc[-60:].std()) if len(bist_ret) >= 60 else float(bist_ret.std())
+                if vol_60d > 1e-8 and vol_5d > vol_60d * 2:
+                    anomalies.append({
+                        "type":     "vol_spike",
+                        "asset":    "BIST",
+                        "severity": "medium",
+                        "message":  (
+                            f"⚡ Volatilite ani artışı: Son 5 gün oynaklığı "
+                            f"(%{vol_5d*100:.2f}) uzun dönem ortalamasının "
+                            f"{vol_5d/vol_60d:.1f}× katı"
+                        ),
+                    })
+
+        return anomalies
 
     def detect_regime_change_risk(self, result: Dict, history_dir: str = "data/history") -> Dict:
         """
