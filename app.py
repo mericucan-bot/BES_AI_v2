@@ -972,6 +972,116 @@ with tab2:
     </div>
     """, unsafe_allow_html=True)
 
+    # === RİSK PROFİLİ ANKETİ ===
+    _risk_labels = {
+        "muhafazakar": "🛡️ Muhafazakar",
+        "dengeli":     "⚖️ Dengeli",
+        "agresif":     "🚀 Agresif",
+    }
+    _risk_desc = {
+        "muhafazakar": "Düşük risk, sermaye koruma öncelikli",
+        "dengeli":     "Orta risk, büyüme + koruma dengesi",
+        "agresif":     "Yüksek risk, maksimum büyüme hedefi",
+    }
+    _risk_alloc = {
+        "muhafazakar": {"KTS": 40, "ALT": 25, "CASH": 20, "VEF": 10, "KCH": 5},
+        "dengeli":     {"VEF": 30, "KTS": 25, "ALT": 20, "KCH": 15, "CASH": 10},
+        "agresif":     {"VEF": 45, "KCH": 25, "ALT": 15, "KTS": 10, "CASH": 5},
+    }
+    _asset_labels = {"VEF": "Hisse Senedi", "ALT": "Altın", "KTS": "Kamu Borç.", "KCH": "Karma/Değişken", "CASH": "Para Piyasası"}
+
+    # session_state'e kayıtlı profil yoksa my_portfolio.json'dan yükle
+    if "risk_profile" not in st.session_state:
+        try:
+            import json as _json_rp
+            with open("data/my_portfolio.json", "r", encoding="utf-8") as _frp:
+                _rp_json = _json_rp.load(_frp)
+            if "risk_profile" in _rp_json:
+                st.session_state.risk_profile = _rp_json["risk_profile"]
+        except Exception:
+            pass
+
+    _existing_profile = st.session_state.get("risk_profile")
+    _expander_label = (
+        f"🎯 Risk Profilin: {_risk_labels.get(_existing_profile, '')} — güncelle"
+        if _existing_profile else "🎯 Risk Profilini Belirle"
+    )
+
+    with st.expander(_expander_label, expanded=not bool(_existing_profile)):
+        if _existing_profile:
+            st.success(f"**Senin profilin: {_risk_labels[_existing_profile]}** — {_risk_desc[_existing_profile]}")
+            _cur_alloc = _risk_alloc[_existing_profile]
+            _alloc_str = "  |  ".join(f"**{_asset_labels[k]}** %{v}" for k, v in _cur_alloc.items())
+            st.caption(f"Önerilen dağılım: {_alloc_str}")
+            st.write("---")
+            st.write("Profili güncellemek için soruları tekrar yanıtla:")
+
+        _q1 = st.radio(
+            "**S1: Yatırım süren ne kadar?**",
+            ["1-3 yıl (Kısa vade)", "3-7 yıl (Orta vade)", "7+ yıl (Uzun vade)"],
+            key="rp_q1", index=None,
+        )
+        _q2 = st.radio(
+            "**S2: Portföyün %20 değer kaybetse ne yaparsın?**",
+            ["Hepsini satarım", "Beklerim", "Daha fazla alırım"],
+            key="rp_q2", index=None,
+        )
+        _q3 = st.radio(
+            "**S3: Yatırım deneyimin?**",
+            ["Yeni başlıyorum", "Biraz bilgim var", "Deneyimliyim"],
+            key="rp_q3", index=None,
+        )
+        _q4 = st.radio(
+            "**S4: Aylık gelirine göre BES katkın?**",
+            ["Gelirimin %5'inden az", "%5-10 arası", "%10'dan fazla"],
+            key="rp_q4", index=None,
+        )
+        _q5 = st.radio(
+            "**S5: Getiri beklentin?**",
+            ["Enflasyon kadar koruma yeterli", "Enflasyonun biraz üstü", "Maksimum getiri istiyorum"],
+            key="rp_q5", index=None,
+        )
+
+        if st.button("🎯 Profilimi Belirle", key="rp_submit", type="primary"):
+            if None in [_q1, _q2, _q3, _q4, _q5]:
+                st.warning("⚠️ Lütfen tüm soruları yanıtla.")
+            else:
+                _score_map = {
+                    "1-3 yıl (Kısa vade)": 1, "3-7 yıl (Orta vade)": 2, "7+ yıl (Uzun vade)": 3,
+                    "Hepsini satarım": 1, "Beklerim": 2, "Daha fazla alırım": 3,
+                    "Yeni başlıyorum": 1, "Biraz bilgim var": 2, "Deneyimliyim": 3,
+                    "Gelirimin %5'inden az": 1, "%5-10 arası": 2, "%10'dan fazla": 3,
+                    "Enflasyon kadar koruma yeterli": 1, "Enflasyonun biraz üstü": 2, "Maksimum getiri istiyorum": 3,
+                }
+                _total_score = sum(_score_map[a] for a in [_q1, _q2, _q3, _q4, _q5])
+                if _total_score <= 8:
+                    _new_profile = "muhafazakar"
+                elif _total_score <= 12:
+                    _new_profile = "dengeli"
+                else:
+                    _new_profile = "agresif"
+
+                st.session_state.risk_profile = _new_profile
+                try:
+                    import json as _json_rp2
+                    _pf_path_rp = "data/my_portfolio.json"
+                    with open(_pf_path_rp, "r", encoding="utf-8") as _f_rp:
+                        _pf_json_rp = _json_rp2.load(_f_rp)
+                    _pf_json_rp["risk_profile"] = _new_profile
+                    with open(_pf_path_rp, "w", encoding="utf-8") as _f_rp:
+                        _json_rp2.dump(_pf_json_rp, _f_rp, ensure_ascii=False, indent=4)
+                except Exception:
+                    pass
+
+                st.success(f"**{_risk_labels[_new_profile]}** — {_risk_desc[_new_profile]}")
+                _alloc_res = _risk_alloc[_new_profile]
+                st.write("**Önerilen portföy dağılımı:**")
+                _rp_cols = st.columns(len(_alloc_res))
+                for _ci, (_ast, _pct) in enumerate(_alloc_res.items()):
+                    _rp_cols[_ci].metric(_asset_labels[_ast], f"%{_pct}")
+                st.rerun()
+
+    # === PORTFÖY YÜKLEMESİ ===
     if "portfolio" not in st.session_state:
         from src.portfolio_manager import PortfolioManager as _PM2
         _pm2     = _PM2()
@@ -1004,98 +1114,6 @@ with tab2:
     _slug_to_label_t2 = {p["slug"]: f"{p['name']} ({_fmt_t2(p['total_tl'])} TL)" for p in _portfolios_t2}
     _label_to_slug_t2 = {v: k for k, v in _slug_to_label_t2.items()}
     _labels_t2 = list(_slug_to_label_t2.values())
-
-    # === RİSK PROFİLİ ANKETİ ===
-    _rp_labels = {
-        "muhafazakar": "🛡️ Muhafazakar",
-        "dengeli":     "⚖️ Dengeli",
-        "agresif":     "🚀 Agresif",
-    }
-    _existing_profile = st.session_state.get("risk_profile")
-
-    with st.expander(
-        "🎯 Risk Profilini Belirle" + (
-            f"  —  Senin profilin: {_rp_labels.get(_existing_profile, '')}" if _existing_profile else ""
-        ),
-        expanded=not bool(_existing_profile),
-    ):
-        if _existing_profile:
-            st.success(f"Mevcut profilin: **{_rp_labels[_existing_profile]}**")
-            st.caption("Profili yeniden belirlemek için aşağıdaki soruları yanıtla.")
-
-        _q1 = st.radio(
-            "S1: Yatırım süren ne kadar?",
-            ["1-3 yıl (Kısa vade)", "3-7 yıl (Orta vade)", "7+ yıl (Uzun vade)"],
-            key="rp_q1", horizontal=True,
-        )
-        _q2 = st.radio(
-            "S2: Portföyün %20 değer kaybetse ne yaparsın?",
-            ["Hepsini satarım", "Beklerim", "Daha fazla alırım"],
-            key="rp_q2", horizontal=True,
-        )
-        _q3 = st.radio(
-            "S3: Yatırım deneyimin?",
-            ["Yeni başlıyorum", "Biraz bilgim var", "Deneyimliyim"],
-            key="rp_q3", horizontal=True,
-        )
-        _q4 = st.radio(
-            "S4: Aylık gelirine göre BES katkın?",
-            ["Gelirimin %5'inden az", "%5-10 arası", "%10'dan fazla"],
-            key="rp_q4", horizontal=True,
-        )
-        _q5 = st.radio(
-            "S5: Getiri beklentin?",
-            ["Enflasyon kadar koruma yeterli", "Enflasyonun biraz üstü", "Maksimum getiri istiyorum"],
-            key="rp_q5", horizontal=True,
-        )
-
-        if st.button("Profilimi Belirle", key="rp_submit", type="primary"):
-            _score_map = {
-                "1-3 yıl (Kısa vade)": 1, "3-7 yıl (Orta vade)": 2, "7+ yıl (Uzun vade)": 3,
-                "Hepsini satarım": 1, "Beklerim": 2, "Daha fazla alırım": 3,
-                "Yeni başlıyorum": 1, "Biraz bilgim var": 2, "Deneyimliyim": 3,
-                "Gelirimin %5'inden az": 1, "%5-10 arası": 2, "%10'dan fazla": 3,
-                "Enflasyon kadar koruma yeterli": 1, "Enflasyonun biraz üstü": 2, "Maksimum getiri istiyorum": 3,
-            }
-            _total = sum(_score_map.get(q, 1) for q in [_q1, _q2, _q3, _q4, _q5])
-            if _total <= 8:
-                _profile_key = "muhafazakar"
-                _profile_desc = "Düşük risk, sermaye koruma öncelikli."
-            elif _total <= 12:
-                _profile_key = "dengeli"
-                _profile_desc = "Orta risk, büyüme + koruma dengesi."
-            else:
-                _profile_key = "agresif"
-                _profile_desc = "Yüksek risk, maksimum büyüme hedefi."
-
-            st.session_state.risk_profile = _profile_key
-
-            # Portföy JSON'ına kaydet
-            try:
-                _pf_path = Path("data/my_portfolio.json")
-                _pf_raw = json.loads(_pf_path.read_text(encoding="utf-8")) if _pf_path.exists() else {}
-                _pf_raw["risk_profile"] = _profile_key
-                _pf_path.write_text(json.dumps(_pf_raw, ensure_ascii=False, indent=2), encoding="utf-8")
-            except Exception:
-                pass
-
-            st.success(f"**{_rp_labels[_profile_key]}** ({_total} puan) — {_profile_desc}")
-
-        # Önerilen dağılım
-        _show_profile = st.session_state.get("risk_profile")
-        if _show_profile:
-            _allocations = {
-                "muhafazakar": {"KTS": 40, "ALT": 25, "CASH": 20, "VEF": 10, "KCH": 5},
-                "dengeli":     {"VEF": 30, "KTS": 25, "ALT": 20, "KCH": 15, "CASH": 10},
-                "agresif":     {"VEF": 45, "KCH": 25, "ALT": 15, "KTS": 10, "CASH": 5},
-            }
-            _alloc = _allocations[_show_profile]
-            _asset_labels = {"VEF": "Hisse", "ALT": "Altın", "KTS": "Kamu Borç.", "KCH": "Karma", "CASH": "Para Piy."}
-            st.markdown("**Önerilen Dağılım:**")
-            _alloc_cols = st.columns(len(_alloc))
-            for _ci, (_asset, _pct) in enumerate(_alloc.items()):
-                with _alloc_cols[_ci]:
-                    st.metric(_asset_labels.get(_asset, _asset), f"%{_pct}")
 
     # === PORTFÖY SEÇİCİ ===
     if len(_portfolios_t2) >= 1:
