@@ -23,7 +23,7 @@ except Exception:
     pass
 
 # --- SAYFA KONFİGÜRASYONU ---
-st.set_page_config(page_title="BES Akıllı Fon Danışmanı", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="BES Fon Önerisi", page_icon="🛡️", layout="wide")
 
 if "logging_configured" not in st.session_state:
     configure_logging(log_file="streamlit.log", level="INFO")
@@ -43,14 +43,14 @@ st.markdown("""
 
 /* ========== METRİK KARTLARI ========== */
 [data-testid="stMetric"] {
-    background: linear-gradient(135deg, rgba(30,64,175,0.08) 0%, rgba(30,64,175,0.02) 100%);
-    border: 1px solid rgba(30,64,175,0.15);
+    background: linear-gradient(135deg, rgba(26,92,46,0.14) 0%, rgba(197,162,62,0.06) 100%);
+    border: 1px solid rgba(197,162,62,0.22);
     border-radius: 16px;
     padding: 20px 24px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-[data-testid="stMetric"]:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+[data-testid="stMetric"]:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(197,162,62,0.15); }
 [data-testid="stMetricLabel"] { font-size: 0.85rem !important; font-weight: 500 !important; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
 [data-testid="stMetricValue"] { font-size: 1.8rem !important; font-weight: 700 !important; }
 [data-testid="stMetricDelta"] { font-size: 0.85rem !important; font-weight: 500 !important; }
@@ -58,40 +58,40 @@ st.markdown("""
 /* ========== TAB NAVIGATION ========== */
 .stTabs [data-baseweb="tab-list"] { gap: 8px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 4px; }
 .stTabs [data-baseweb="tab"] { border-radius: 10px; padding: 10px 20px; font-weight: 500; font-size: 0.95rem; transition: all 0.2s ease; }
-.stTabs [data-baseweb="tab"]:hover { background: rgba(30,64,175,0.1); }
-.stTabs [aria-selected="true"] { background: rgba(30,64,175,0.15) !important; font-weight: 600; }
+.stTabs [data-baseweb="tab"]:hover { background: rgba(197,162,62,0.12); }
+.stTabs [aria-selected="true"] { background: rgba(26,92,46,0.22) !important; font-weight: 600; border-bottom: 2px solid #c5a23e !important; }
 
 /* ========== EXPANDER ========== */
 .streamlit-expanderHeader { font-weight: 600; font-size: 1rem; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease; }
-.streamlit-expanderHeader:hover { background: rgba(255,255,255,0.06); border-color: rgba(30,64,175,0.3); }
+.streamlit-expanderHeader:hover { background: rgba(255,255,255,0.06); border-color: rgba(197,162,62,0.40); }
 
 /* ========== BUTONLAR ========== */
 .stButton > button { border-radius: 10px; font-weight: 600; padding: 8px 20px; transition: all 0.2s ease; border: 1px solid rgba(255,255,255,0.1); }
-.stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-.stButton > button[kind="primary"] { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border: none; }
+.stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(197,162,62,0.25); }
+.stButton > button[kind="primary"] { background: linear-gradient(135deg, #1a5c2e 0%, #c5a23e 100%); border: none; }
 
 /* ========== ALERT KUTULARI ========== */
 .stAlert { border-radius: 12px; border-left-width: 5px; padding: 16px 20px; }
 [data-testid="stAlert"] > div { font-size: 0.95rem; line-height: 1.6; }
 
 /* ========== PROGRESS BAR ========== */
-.stProgress > div > div > div > div { border-radius: 20px; background: linear-gradient(90deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%); }
+.stProgress > div > div > div > div { border-radius: 20px; background: linear-gradient(90deg, #1a5c2e 0%, #c5a23e 60%, #4ade80 100%); }
 .stProgress > div > div { border-radius: 20px; background: rgba(255,255,255,0.05); }
 
 /* ========== DATA TABLE ========== */
-[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; border: 1px solid rgba(197,162,62,0.15); }
 
 /* ========== SIDEBAR ========== */
-[data-testid="stSidebar"] { background: linear-gradient(180deg, rgba(15,23,42,0.98) 0%, rgba(15,23,42,0.95) 100%); border-right: 1px solid rgba(255,255,255,0.06); }
-[data-testid="stSidebar"] .block-container { padding-top: 2rem; }
+[data-testid="stSidebar"] { background: linear-gradient(180deg, rgba(5,12,8,0.99) 0%, rgba(8,15,10,0.97) 100%); border-right: 1px solid rgba(197,162,62,0.12); }
+[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
 
 /* ========== PLOTLY GRAFİKLER ========== */
-[data-testid="stPlotlyChart"] { border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); padding: 8px; }
+[data-testid="stPlotlyChart"] { border-radius: 16px; overflow: hidden; border: 1px solid rgba(197,162,62,0.10); background: rgba(26,92,46,0.03); padding: 8px; }
 
 /* ========== BAŞLIKLAR ========== */
 h1 { font-weight: 700 !important; letter-spacing: -0.5px; }
 h2, h3 { font-weight: 600 !important; letter-spacing: -0.3px; }
-hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !important; }
+hr { border-color: rgba(197,162,62,0.12) !important; margin: 1.5rem 0 !important; }
 
 /* ========== FORM ELEMANLARI ========== */
 [data-testid="stNumberInput"] { border-radius: 10px; }
@@ -101,29 +101,30 @@ hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !importan
 
 /* ========== REJİM KARTLARI ========== */
 .regime-card { padding: 32px; border-radius: 20px; margin-bottom: 20px; position: relative; overflow: hidden; }
-.regime-card::before { content: ''; position: absolute; top: -50%; right: -50%; width: 100%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%); }
-.regime-card-stable  { background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%); border-left: 6px solid #3b82f6; }
+.regime-card::before { content: ''; position: absolute; top: -50%; right: -50%; width: 100%; height: 200%; background: radial-gradient(circle, rgba(197,162,62,0.08) 0%, transparent 70%); }
+.regime-card-stable  { background: linear-gradient(135deg, #0d2e16 0%, #1a5c2e 100%); border-left: 6px solid #c5a23e; }
 .regime-card-crisis  { background: linear-gradient(135deg, #5f1e1e 0%, #991b1b 100%); border-left: 6px solid #ef4444; }
-.regime-card-riskon  { background: linear-gradient(135deg, #1e3a2f 0%, #166534 100%); border-left: 6px solid #22c55e; }
+.regime-card-riskon  { background: linear-gradient(135deg, #1e3a2f 0%, #166534 100%); border-left: 6px solid #4ade80; }
 .regime-card-ratehike { background: linear-gradient(135deg, #5f4b1e 0%, #92400e 100%); border-left: 6px solid #f59e0b; }
 .regime-card h1 { font-size: 2.2em; margin: 0 0 8px 0; color: white; }
 .regime-card p { font-size: 1.15em; color: rgba(255,255,255,0.85); margin: 4px 0; line-height: 1.5; }
 .regime-card .recommendation { font-size: 1.05em; color: rgba(255,255,255,0.7); }
+.regime-card-timestamp { position: absolute; top: 16px; right: 20px; font-size: 0.75rem; color: rgba(255,255,255,0.55); background: rgba(0,0,0,0.25); padding: 3px 10px; border-radius: 20px; }
 
 /* ========== PORTFÖY BAŞLIK KART ========== */
-.portfolio-header { background: linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%); padding: 24px 32px; border-radius: 16px; margin-bottom: 16px; border-left: 6px solid #38bdf8; }
+.portfolio-header { background: linear-gradient(135deg, #0d2e16 0%, #1a5c2e 100%); padding: 24px 32px; border-radius: 16px; margin-bottom: 16px; border-left: 6px solid #c5a23e; }
 .portfolio-header h2 { margin: 0; color: white; font-size: 1.5em; }
 .portfolio-header p { color: rgba(255,255,255,0.8); margin: 8px 0 0 0; font-size: 1.1em; }
 
 /* ========== AI TAHMİN KART ========== */
-.ai-header { background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%); padding: 24px 32px; border-radius: 16px; margin-bottom: 16px; border-left: 6px solid #a78bfa; }
+.ai-header { background: linear-gradient(135deg, #0d2e16 0%, #1a5c2e 80%, #7a6020 100%); padding: 24px 32px; border-radius: 16px; margin-bottom: 16px; border-left: 6px solid #c5a23e; }
 .ai-header h2 { margin: 0; color: white; font-size: 1.5em; }
 .ai-header p { color: rgba(255,255,255,0.8); margin: 8px 0 0 0; font-size: 1.05em; line-height: 1.5; }
 
 /* ========== BİLGİ KUTULARI ========== */
 .info-box { padding: 16px 20px; border-radius: 12px; margin-bottom: 16px; line-height: 1.6; }
 .info-box-yellow { background: rgba(234,179,8,0.1); border-left: 5px solid #eab308; }
-.info-box-blue   { background: rgba(59,130,246,0.08); border-left: 5px solid #3b82f6; }
+.info-box-blue   { background: rgba(26,92,46,0.10); border-left: 5px solid #4ade80; }
 .info-box-orange { background: rgba(234,88,12,0.08); border-left: 5px solid #ea580c; }
 .info-box p { margin: 0; color: rgba(255,255,255,0.85); }
 
@@ -204,76 +205,77 @@ hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !importan
 if st.session_state.get("theme") == "light":
     st.markdown("""
 <style>
-/* ========== LIGHT MODE ========== */
+/* ========== LIGHT MODE — yeşil-altın tonları ========== */
 .stApp, [data-testid="stAppViewContainer"] {
-    background-color: #f8fafc !important;
+    background-color: #f4f8f5 !important;
 }
-[data-testid="stHeader"] { background-color: #f8fafc !important; }
+[data-testid="stHeader"] { background-color: #f4f8f5 !important; }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%) !important;
-    border-right: 1px solid rgba(0,0,0,0.10) !important;
+    background: linear-gradient(180deg, #eaf2ec 0%, #dceae0 100%) !important;
+    border-right: 1px solid rgba(26,92,46,0.15) !important;
 }
 
 /* Metin renkleri */
 .stApp p, .stApp span, .stApp label, .stApp div,
-.stMarkdown, .stCaption { color: #334155 !important; }
-h1, h2, h3, h4 { color: #0f172a !important; }
+.stMarkdown, .stCaption { color: #1c3a24 !important; }
+h1, h2, h3, h4 { color: #0d2e16 !important; }
 
 /* Metrik kartları */
 [data-testid="stMetric"] {
-    background: linear-gradient(135deg, rgba(30,64,175,0.06) 0%, rgba(59,130,246,0.03) 100%) !important;
-    border: 1px solid rgba(30,64,175,0.2) !important;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+    background: linear-gradient(135deg, rgba(26,92,46,0.08) 0%, rgba(197,162,62,0.05) 100%) !important;
+    border: 1px solid rgba(197,162,62,0.30) !important;
+    box-shadow: 0 2px 12px rgba(26,92,46,0.08) !important;
 }
-[data-testid="stMetricLabel"] { color: #64748b !important; opacity: 1 !important; }
-[data-testid="stMetricValue"] { color: #0f172a !important; }
+[data-testid="stMetricLabel"] { color: #3d6b4a !important; opacity: 1 !important; }
+[data-testid="stMetricValue"] { color: #0d2e16 !important; }
 [data-testid="stMetricDelta"] { opacity: 1 !important; }
 
 /* Tab navigation */
 .stTabs [data-baseweb="tab-list"] {
-    background: rgba(0,0,0,0.04) !important;
+    background: rgba(26,92,46,0.06) !important;
 }
-.stTabs [data-baseweb="tab"] { color: #475569 !important; }
+.stTabs [data-baseweb="tab"] { color: #2d5a3a !important; }
 .stTabs [aria-selected="true"] {
-    background: rgba(30,64,175,0.12) !important;
-    color: #1e40af !important;
+    background: rgba(26,92,46,0.14) !important;
+    color: #1a5c2e !important;
+    border-bottom: 2px solid #c5a23e !important;
 }
 
 /* Expander */
 .streamlit-expanderHeader {
-    background: rgba(0,0,0,0.03) !important;
-    border: 1px solid rgba(0,0,0,0.08) !important;
-    color: #1e293b !important;
+    background: rgba(26,92,46,0.04) !important;
+    border: 1px solid rgba(26,92,46,0.12) !important;
+    color: #0d2e16 !important;
 }
 
 /* Butonlar */
-.stButton > button { color: #1e293b !important; border: 1px solid rgba(0,0,0,0.15) !important; }
+.stButton > button { color: #0d2e16 !important; border: 1px solid rgba(26,92,46,0.20) !important; }
 
 /* Bilgi kutuları */
-.info-box p { color: #374151 !important; }
+.info-box p { color: #1c3a24 !important; }
 .info-box-yellow { background: rgba(234,179,8,0.12) !important; }
-.info-box-blue   { background: rgba(59,130,246,0.10) !important; }
+.info-box-blue   { background: rgba(26,92,46,0.10) !important; border-left-color: #1a5c2e !important; }
 .info-box-orange { background: rgba(234,88,12,0.10) !important; }
 
 /* Plotly grafik wrapper */
 [data-testid="stPlotlyChart"] {
-    border: 1px solid rgba(0,0,0,0.08) !important;
+    border: 1px solid rgba(197,162,62,0.20) !important;
     background: white !important;
 }
 
 /* Data tablo */
-[data-testid="stDataFrame"] { border: 1px solid rgba(0,0,0,0.10) !important; }
+[data-testid="stDataFrame"] { border: 1px solid rgba(26,92,46,0.15) !important; }
 
 /* Scrollbar */
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15) !important; }
+::-webkit-scrollbar-thumb { background: rgba(26,92,46,0.20) !important; }
 
 /* Alert kutuları */
-.stAlert { background: rgba(0,0,0,0.03) !important; }
+.stAlert { background: rgba(26,92,46,0.04) !important; }
 
 /* HR */
-hr { border-color: rgba(0,0,0,0.08) !important; }
+hr { border-color: rgba(197,162,62,0.20) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -407,8 +409,16 @@ my_data = load_my_portfolio()
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.write("### 🛡️ BES Akıllı Fon Danışmanı")
-    st.caption("v2.0 • Kapsamlı test suite ile doğrulanmış")
+    st.image("images/Bes_Fon_Onerisi_Logo.png", width=180)
+    st.markdown("""
+<div style="text-align:center; margin-top:-8px; margin-bottom:4px;">
+    <span style="font-size:1.1rem; font-weight:700;
+        background: linear-gradient(135deg, #c5a23e, #4ade80);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        BES Fon Önerisi</span><br>
+    <span style="font-size:0.7rem; color:rgba(232,232,232,0.45);">AI Destekli • v2.0</span>
+</div>
+""", unsafe_allow_html=True)
 
     st.divider()
 
@@ -596,18 +606,20 @@ with st.sidebar:
     st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
 
 # --- BAŞLIK ---
-st.markdown("""
-<div style="display: flex; align-items: center; gap: 12px; margin-bottom: -10px;">
-    <span style="font-size: 2.5rem;">🛡️</span>
-    <div>
-        <h1 style="margin: 0; padding: 0; font-size: 1.8rem;
-            background: linear-gradient(135deg, #3b82f6, #60a5fa);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            BES Akıllı Fon Danışmanı</h1>
-    </div>
+_hdr_col1, _hdr_col2 = st.columns([1, 8])
+with _hdr_col1:
+    st.image("images/Bes_Fon_Onerisi_Logo.png", width=72)
+with _hdr_col2:
+    st.markdown("""
+<div style="display: flex; flex-direction: column; justify-content: center; height: 72px;">
+    <h1 style="margin: 0; padding: 0; font-size: 1.8rem;
+        background: linear-gradient(135deg, #c5a23e, #4ade80);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        BES Fon Önerisi</h1>
+    <p style="margin: 2px 0 0 0; font-size: 0.85rem; color: rgba(232,232,232,0.55);">
+        AI Destekli BES Portföy Yönetim Sistemi</p>
 </div>
 """, unsafe_allow_html=True)
-st.caption("Yapay zeka destekli BES portföy yönetim sistemi • Yatırım tavsiyesi değildir")
 
 # --- SEKMELER ---
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -633,8 +645,10 @@ with tab1:
         "RATE_HIKE": "regime-card-ratehike",
     }.get(regime, "regime-card-stable")
 
+    _now_ts = datetime.now().strftime("%H:%M")
     st.markdown(f"""
     <div class="regime-card {regime_class}">
+        <span class="regime-card-timestamp">🕐 Güncellendi: Bugün {_now_ts}</span>
         <h1>{regime_info['emoji']} {regime_info['label']}</h1>
         <p>{regime_info['summary']}</p>
         <p class="recommendation">💡 <strong>Öneri:</strong> {regime_info['action']}</p>
