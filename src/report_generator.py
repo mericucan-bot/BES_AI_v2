@@ -170,9 +170,9 @@ class ReportGenerator:
 
         # === KAPAK ===
         story.append(Spacer(1, 2 * cm))
-        story.append(Paragraph("BES Akilli Fon Danismani", self.styles["ReportTitle"]))
+        story.append(Paragraph("BES Akıllı Fon Danışmanı", self.styles["ReportTitle"]))
         story.append(Paragraph(
-            f"Aylik Portfoy Analiz Raporu - {datetime.now().strftime('%B %Y')}",
+            f"Aylık Portföy Analiz Raporu - {datetime.now().strftime('%B %Y')}",
             self.styles["SubHeader"],
         ))
         story.append(Spacer(1, 0.5 * cm))
@@ -186,7 +186,7 @@ class ReportGenerator:
 
         # === 1. PİYASA ÖZETİ ===
         if pipeline_result and pipeline_result.get("status") == "SUCCESS":
-            story.append(Paragraph("1. Piyasa Ozeti", self.styles["SectionHeader"]))
+            story.append(Paragraph("1. Piyasa Özeti", self.styles["SectionHeader"]))
 
             regime = pipeline_result.get("regime", {})
             detected  = regime.get("detected", "?")
@@ -195,19 +195,19 @@ class ReportGenerator:
             regime_names = {
                 "STABLE":    "Sakin Piyasa",
                 "CRISIS":    "Kriz Modu",
-                "RISK_ON":   "Yukselis Trendi",
-                "RATE_HIKE": "Faiz Artisi Donemi",
+                "RISK_ON":   "Yükseliş Trendi",
+                "RATE_HIKE": "Faiz Artışı Dönemi",
             }
             regime_descriptions = {
-                "STABLE":    "Piyasalarda belirgin bir yon yok. Dengeli dagilim mantikli.",
-                "CRISIS":    "Ciddi dusus veya belirsizlik var. Korunma oncelikli.",
-                "RISK_ON":   "Piyasalar yukari yonlu. Hisse agirligini artirma firsati.",
-                "RATE_HIKE": "Merkez bankasi faiz artiriyor. Sabit getirili fonlar one cikiyor.",
+                "STABLE":    "Piyasalarda belirgin bir yön yok. Dengeli dağılım mantıklı.",
+                "CRISIS":    "Ciddi düşüş veya belirsizlik var. Korunma öncelikli.",
+                "RISK_ON":   "Piyasalar yukarı yönlü. Hisse ağırlığını artırma fırsatı.",
+                "RATE_HIKE": "Merkez bankası faiz artırıyor. Sabit getirili fonlar öne çıkıyor.",
             }
 
             story.append(Paragraph(
                 f"<b>Piyasa Durumu:</b> {regime_names.get(detected, detected)} "
-                f"(Guven: %{confidence * 100:.0f})",
+                f"(Güven: %{confidence * 100:.0f})",
                 self.styles["BodyText2"],
             ))
             story.append(Paragraph(
@@ -219,13 +219,13 @@ class ReportGenerator:
             macro   = regime.get("macro", {})
 
             metrics_data = [
-                ["Gosterge", "Deger"],
-                ["BIST Drawdown",       f"%{metrics.get('dd', 0) * 100:.2f}"],
-                ["Volatilite (Yillik)", f"%{metrics.get('vol', 0) * 100:.2f}"],
+                ["Gösterge", "Değer"],
+                ["BIST Drawdown",        f"%{metrics.get('dd', 0) * 100:.2f}"],
+                ["Volatilite (Yıllık)", f"%{metrics.get('vol', 0) * 100:.2f}"],
                 ["USD/TRY Momentum",    f"%{metrics.get('usd_mom', 0) * 100:.2f}"],
             ]
             if macro.get("cpi_yoy"):
-                metrics_data.append(["Enflasyon (TUFE Yillik)", f"%{macro['cpi_yoy'] * 100:.1f}"])
+                metrics_data.append(["Enflasyon (TÜFE Yıllık)", f"%{macro['cpi_yoy'] * 100:.1f}"])
             if macro.get("usdtry_official"):
                 metrics_data.append(["USD/TRY (TCMB)", f"{macro['usdtry_official']:.2f} TL"])
 
@@ -245,12 +245,12 @@ class ReportGenerator:
             story.append(Spacer(1, 0.5 * cm))
 
             # === 2. PORTFÖY DURUMU ===
-            story.append(Paragraph("2. Portfoy Durumu", self.styles["SectionHeader"]))
+            story.append(Paragraph("2. Portföy Durumu", self.styles["SectionHeader"]))
 
             pv    = pipeline_result.get("portfolio_value", {})
             total = pv.get("total_value", 0)
             story.append(Paragraph(
-                f"<b>Toplam Portfoy Degeri:</b> {total:,.0f} TL",
+                f"<b>Toplam Portföy Değeri:</b> {total:,.0f} TL",
                 self.styles["BodyText2"],
             ))
 
@@ -264,7 +264,7 @@ class ReportGenerator:
                 ))
                 if real_pf.get("real_value"):
                     story.append(Paragraph(
-                        f"<b>Reel Deger (satin alma gucu):</b> {real_pf['real_value']:,.0f} TL",
+                        f"<b>Reel Değer (satın alma gücü):</b> {real_pf['real_value']:,.0f} TL",
                         self.styles["BodyText2"],
                     ))
 
@@ -274,7 +274,7 @@ class ReportGenerator:
             _history = _PT().get_portfolio_history()
             if len(_history) >= 2:
                 story.append(Paragraph("Portföy Geçmişi", self.styles["SubHeader"]))
-                hist_data = [["Tarih", "Deger (TL)", "Rejim", "Aylik Getiri"]]
+                hist_data = [["Tarih", "Değer (TL)", "Rejim", "Aylık Getiri"]]
                 for _, hrow in _history.iterrows():
                     ret_str = (
                         f"%{hrow['monthly_return']*100:+.1f}"
@@ -303,20 +303,20 @@ class ReportGenerator:
                 story.append(Spacer(1, 0.3 * cm))
 
             # === 3. REBALANCE ÖNERİLERİ ===
-            story.append(Paragraph("3. Bu Ay Yapilmasi Gerekenler", self.styles["SectionHeader"]))
+            story.append(Paragraph("3. Bu Ay Yapılması Gerekenler", self.styles["SectionHeader"]))
 
             rec     = pipeline_result.get("recommendation", {})
             actions = rec.get("actions", [])
 
             asset_names = {
                 "VEF":  "Hisse Senedi Fonu",
-                "ALT":  "Altin Fonu",
-                "KTS":  "Kamu Borc. Fonu",
-                "KCH":  "Karma/Degisken Fon",
-                "CASH": "Para Piyasasi",
+                "ALT":  "Altın Fonu",
+                "KTS":  "Kamu Borç. Fonu",
+                "KCH":  "Karma/Değişken Fon",
+                "CASH": "Para Piyasası",
             }
 
-            action_data = [["Fon", "Islem", "Tutar", "Mevcut %", "Hedef %"]]
+            action_data = [["Fon", "İşlem", "Tutar", "Mevcut %", "Hedef %"]]
             has_action = False
 
             for a in sorted(actions, key=lambda x: -abs(x.get("diff_tl", 0))):
@@ -335,7 +335,7 @@ class ReportGenerator:
 
             if not has_action:
                 story.append(Paragraph(
-                    "Portfoy dengeli, bu ay degisiklik gerekmiyor.",
+                    "Portföy dengeli, bu ay değişiklik gerekmiyor.",
                     self.styles["BodyText2"],
                 ))
             else:
@@ -357,20 +357,20 @@ class ReportGenerator:
             if cost:
                 story.append(Spacer(1, 0.3 * cm))
                 story.append(Paragraph(
-                    f"<b>Tahmini Islem Maliyeti:</b> {cost.get('total_cost_tl', 0):,.0f} TL "
+                    f"<b>Tahmini İşlem Maliyeti:</b> {cost.get('total_cost_tl', 0):,.0f} TL "
                     f"(%{cost.get('total_cost_pct', 0) * 100:.3f}) | "
-                    f"Islem Sayisi: {cost.get('switch_count', 0)} / 6",
+                    f"İşlem Sayısı: {cost.get('switch_count', 0)} / 6",
                     self.styles["SmallText"],
                 ))
 
         # === 4. AI FON TAHMİNLERİ ===
         if ml_summary and ml_summary.get("status") == "SUCCESS":
-            story.append(Paragraph("4. AI Fon Tahminleri (3 Aylik)", self.styles["SectionHeader"]))
+            story.append(Paragraph("4. AI Fon Tahminleri (3 Aylık)", self.styles["SectionHeader"]))
 
             story.append(Paragraph(
                 f"<b>Model:</b> {ml_summary.get('best_model', '?').upper()} | "
-                f"<b>Sinyal Gucu (IC):</b> {ml_summary.get('best_ic', 0):.2f} | "
-                f"<b>Yon Dogrulugu:</b> %{ml_summary.get('best_dir_acc', 0) * 100:.0f} | "
+                f"<b>Sinyal Gücü (IC):</b> {ml_summary.get('best_ic', 0):.2f} | "
+                f"<b>Yön Doğruluğu:</b> %{ml_summary.get('best_dir_acc', 0) * 100:.0f} | "
                 f"<b>Analiz Edilen Fon:</b> {ml_summary.get('fund_count', 0)}",
                 self.styles["BodyText2"],
             ))
@@ -380,10 +380,10 @@ class ReportGenerator:
 
                 pred_col = "predicted_fwd_return_3m"
                 if pred_col in predictions_df.columns:
-                    story.append(Paragraph("En Yuksek Tahmini Getiri (Top 10)", self.styles["SubHeader"]))
+                    story.append(Paragraph("En Yüksek Tahmini Getiri (Top 10)", self.styles["SubHeader"]))
 
                     top10    = predictions_df.nlargest(10, pred_col)
-                    top_data = [["#", "Fon Kodu", "Fon Adi", "3M Tahmin"]]
+                    top_data = [["#", "Fon Kodu", "Fon Adı", "3M Tahmini"]]
                     for i, (_, row) in enumerate(top10.iterrows()):
                         code = row["fund_code"]
                         name = POPULAR_BES_FUNDS.get(code, code)
@@ -406,10 +406,10 @@ class ReportGenerator:
                     story.append(top_table)
 
                     story.append(Spacer(1, 0.3 * cm))
-                    story.append(Paragraph("En Dusuk Tahmini Getiri (Alt 5)", self.styles["SubHeader"]))
+                    story.append(Paragraph("En Düşük Tahmini Getiri (Alt 5)", self.styles["SubHeader"]))
 
                     bottom5  = predictions_df.nsmallest(5, pred_col)
-                    bot_data = [["Fon Kodu", "Fon Adi", "3M Tahmin"]]
+                    bot_data = [["Fon Kodu", "Fon Adı", "3M Tahmini"]]
                     for _, row in bottom5.iterrows():
                         code = row["fund_code"]
                         name = POPULAR_BES_FUNDS.get(code, code)
@@ -437,14 +437,14 @@ class ReportGenerator:
                     "return_1m":  "Son 1 Ay Getirisi",
                     "return_3m":  "Son 3 Ay Getirisi",
                     "return_6m":  "Son 6 Ay Getirisi",
-                    "return_12m": "Son 1 Yil Getirisi",
-                    "sharpe_6m":  "6 Aylik Risk-Getiri",
-                    "vol_6m":     "6 Aylik Oynaklik",
-                    "vol_3m":     "3 Aylik Oynaklik",
+                    "return_12m": "Son 1 Yıl Getirisi",
+                    "sharpe_6m":  "6 Aylık Risk-Getiri",
+                    "vol_6m":     "6 Aylık Oynaklık",
+                    "vol_3m":     "3 Aylık Oynaklık",
                 }
                 active = {k: float(v) for k, v in top_features.items() if float(v) > 0.001}
                 if active:
-                    story.append(Paragraph("Model Neye Bakiyor?", self.styles["SubHeader"]))
+                    story.append(Paragraph("Model Neye Bakıyor?", self.styles["SubHeader"]))
                     for feat, imp in list(active.items())[:5]:
                         name = feature_names.get(feat, feat)
                         bar  = "#" * int(imp * 50)
@@ -461,10 +461,10 @@ class ReportGenerator:
             if not pred_12m.empty and "predicted_fwd_return_12m" in pred_12m.columns:
                 from src.data_collector import POPULAR_BES_FUNDS as _BES_FUNDS
                 story.append(Spacer(1, 0.5 * cm))
-                story.append(Paragraph("12 Aylik Uzun Vadeli Tahminler (Top 5)", self.styles["SubHeader"]))
+                story.append(Paragraph("12 Aylık Uzun Vadeli Tahminler (Top 5)", self.styles["SubHeader"]))
 
                 top5_12m = pred_12m.nlargest(5, "predicted_fwd_return_12m")
-                data_12m = [["Fon Kodu", "Fon Adi", "12M Tahmin"]]
+                data_12m = [["Fon Kodu", "Fon Adı", "12M Tahmini"]]
                 for _, row in top5_12m.iterrows():
                     code = row["fund_code"]
                     name = _BES_FUNDS.get(code, code)
@@ -490,14 +490,14 @@ class ReportGenerator:
         story.append(HRFlowable(width="100%", thickness=1, color=self.SECONDARY))
         story.append(Spacer(1, 0.3 * cm))
         story.append(Paragraph(
-            "<b>Yasal Uyari:</b> Bu rapor yapay zeka destekli otomatik analiz sistemi tarafından "
-            "üretilmistir. Yatirim tavsiyesi niteligli taşımaz. Gecmis performans gelecek sonuclari "
-            "garanti etmez. Yatirim kararlarinizdan yalnizca siz sorumlusunuz. "
-            "Detayli bilgi icin bir yatirim daniSmanina basvurunuz.",
+            "<b>Yasal Uyarı:</b> Bu rapor yapay zeka destekli otomatik analiz sistemi tarafından "
+            "üretilmiştir. Yatırım tavsiyesi niteliği taşımaz. Geçmiş performans gelecek sonuçları "
+            "garanti etmez. Yatırım kararlarınızdan yalnızca siz sorumlusunuz. "
+            "Detaylı bilgi için bir yatırım danışmanına başvurunuz.",
             self.styles["SmallText"],
         ))
         story.append(Paragraph(
-            f"BES Akilli Fon Danismani v2.0 - {datetime.now().strftime('%d.%m.%Y')} - 194 test ile dogrulanmis",
+            f"BES Akıllı Fon Danışmanı v2.0 - {datetime.now().strftime('%d.%m.%Y')} - 222 test ile doğrulanmış",
             self.styles["SmallText"],
         ))
 
