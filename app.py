@@ -1869,6 +1869,127 @@ Aşağıdaki tablo farklı getiri senaryolarında gerçek (reel) kazancını gö
     else:
         st.info("⚠️ CPI verisi yok — reel getiri hesaplanamıyor. TCMB_API_KEY tanımlı mı?")
 
+    # === PORTFÖY KARŞILAŞTIRMA ===
+    from src.portfolio_manager import PortfolioManager as _PM_CMP
+    _pm_cmp = _PM_CMP()
+    _all_pfs = _pm_cmp.list_portfolios()
+
+    if len(_all_pfs) >= 2:
+        st.divider()
+        st.write("### 📊 Portföy Karşılaştırma")
+
+        _pf_label_map = {
+            f"{p['name']} ({p['total_tl']:,.0f} TL)": p["slug"]
+            for p in _all_pfs
+        }
+        _cmp_sel = st.multiselect(
+            "Karşılaştırılacak portföyleri seç (en fazla 4):",
+            options=list(_pf_label_map.keys()),
+            default=list(_pf_label_map.keys())[:min(2, len(_pf_label_map))],
+            max_selections=4,
+            key="pf_compare_sel",
+        )
+
+        if len(_cmp_sel) >= 2:
+            _cmp_data = []
+            for _lbl in _cmp_sel:
+                _slug = _pf_label_map[_lbl]
+                _pf   = _pm_cmp.get_portfolio(_slug)
+                if _pf:
+                    _holdings = _pf.get("holdings_tl", {})
+                    _total    = sum(_holdings.values())
+                    _top_asset = max(_holdings, key=_holdings.get) if _holdings else "—"
+                    _top_pct   = (_holdings[_top_asset] / _total * 100) if _total > 0 else 0
+                    _cmp_data.append({
+                        "slug":     _slug,
+                        "name":     _pf.get("name", _slug),
+                        "holdings": _holdings,
+                        "total":    _total,
+                        "n_funds":  len([v for v in _holdings.values() if v > 0]),
+                        "top_asset": _top_asset,
+                        "top_pct":   _top_pct,
+                    })
+
+            if _cmp_data:
+                # --- Metrik kartları ---
+                _mc = st.columns(len(_cmp_data))
+                for _ci, _cd in enumerate(_cmp_data):
+                    with _mc[_ci]:
+                        st.markdown(f"**{_cd['name']}**")
+                        st.metric("Toplam Değer", f"{_cd['total']:,.0f} TL")
+                        st.metric("Fon Sayısı",   _cd["n_funds"])
+                        st.metric(
+                            "En Büyük Fon",
+                            f"{_cd['top_asset']}",
+                            f"%{_cd['top_pct']:.0f}",
+                        )
+
+                st.markdown(" ")
+
+                # --- Grouped bar chart (TL bazında) ---
+                _all_assets = sorted({a for _cd in _cmp_data for a in _cd["holdings"] if _cd["holdings"][a] > 0})
+                _bar_fig = go.Figure()
+                for _cd in _cmp_data:
+                    _bar_fig.add_trace(go.Bar(
+                        name=_cd["name"],
+                        x=_all_assets,
+                        y=[_cd["holdings"].get(a, 0) for a in _all_assets],
+                        text=[f"{_cd['holdings'].get(a,0):,.0f}" for a in _all_assets],
+                        textposition="auto",
+                    ))
+                _bar_fig.update_layout(
+                    barmode="group",
+                    title="Portföy Karşılaştırması (TL)",
+                    height=380,
+                    margin=dict(l=10, r=10, t=50, b=30),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e8e8e8"),
+                    xaxis=dict(gridcolor="rgba(255,255,255,0.08)"),
+                    yaxis=dict(gridcolor="rgba(255,255,255,0.08)", tickformat=","),
+                    legend=dict(orientation="h", y=1.08),
+                )
+                st.plotly_chart(_bar_fig, use_container_width=True)
+
+                # --- Donut chartlar yan yana ---
+                _donut_cols = st.columns(len(_cmp_data))
+                _donut_palette = ["#1a5c2e","#4ade80","#c5a23e","#2d8a4e","#86efac","#166534","#bbf7d0"]
+                for _ci, _cd in enumerate(_cmp_data):
+                    with _donut_cols[_ci]:
+                        _h = {k: v for k, v in _cd["holdings"].items() if v > 0}
+                        if _h:
+                            _df = go.Figure(go.Pie(
+                                labels=list(_h.keys()),
+                                values=list(_h.values()),
+                                hole=0.55,
+                                textinfo="label+percent",
+                                marker=dict(colors=_donut_palette[:len(_h)]),
+                                hovertemplate="<b>%{label}</b><br>%{value:,.0f} TL<extra></extra>",
+                            ))
+                            _df.update_layout(
+                                title=dict(text=_cd["name"][:20], font=dict(size=12)),
+                                showlegend=False,
+                                height=230,
+                                margin=dict(l=5, r=5, t=35, b=5),
+                                paper_bgcolor="rgba(0,0,0,0)",
+                            )
+                            st.plotly_chart(_df, use_container_width=True)
+
+                # --- Karşılaştırma tablosu ---
+                st.markdown("**Fon Dağılımı Tablosu**")
+                _tbl_rows = []
+                for _asset in _all_assets:
+                    _row = {"Fon": f"{_asset} ({POPULAR_BES_FUNDS.get(_asset, _asset)[:20]})"}
+                    for _cd in _cmp_data:
+                        _tl  = _cd["holdings"].get(_asset, 0)
+                        _pct = (_tl / _cd["total"] * 100) if _cd["total"] > 0 else 0
+                        _row[_cd["name"]] = f"{_tl:,.0f} TL  (%{_pct:.0f})" if _tl > 0 else "—"
+                    _tbl_rows.append(_row)
+                st.dataframe(pd.DataFrame(_tbl_rows), hide_index=True, use_container_width=True)
+
+        elif _cmp_sel:
+            st.info("En az 2 portföy seç.")
+
     # === BACKTEST BÖLÜMÜ ===
     st.divider()
     st.write("### 🔬 Geriye Dönük Test (Backtest)")
