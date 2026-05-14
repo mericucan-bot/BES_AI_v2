@@ -669,7 +669,23 @@ with st.sidebar:
                 save_notification_prefs({**_prefs, "email_enabled": False})
 
     st.divider()
+    if st.button("🔄 Rehberi Tekrar Göster", key="reset_onboarding", use_container_width=True):
+        st.session_state.onboarding_complete = False
+        st.session_state.onboarding_step = 1
+        st.rerun()
+    st.divider()
     st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
+
+# --- ONBOARDING STATE ---
+if "onboarding_complete" not in st.session_state:
+    _prefs_path = Path("data/user_prefs.json")
+    try:
+        _up = json.loads(_prefs_path.read_text(encoding="utf-8")) if _prefs_path.exists() else {}
+        st.session_state.onboarding_complete = bool(_up.get("onboarding_complete", False))
+    except Exception:
+        st.session_state.onboarding_complete = False
+if "onboarding_step" not in st.session_state:
+    st.session_state.onboarding_step = 1
 
 # --- BAŞLIK ---
 _hdr_col1, _hdr_col2 = st.columns([1, 8])
@@ -686,6 +702,103 @@ with _hdr_col2:
         AI Destekli BES Portföy Yönetim Sistemi</p>
 </div>
 """, unsafe_allow_html=True)
+
+# --- ONBOARDING ---
+if not st.session_state.onboarding_complete:
+    _step  = st.session_state.onboarding_step
+    _total = 4
+    st.progress(_step / _total, text=f"Adım {_step} / {_total}")
+    st.markdown("---")
+    _ob_c1, _ob_c2, _ob_c3 = st.columns([1, 3, 1])
+
+    def _ob_save_complete():
+        st.session_state.onboarding_complete = True
+        _p = Path("data/user_prefs.json")
+        try:
+            _d = json.loads(_p.read_text(encoding="utf-8")) if _p.exists() else {}
+            _d["onboarding_complete"] = True
+            _p.write_text(json.dumps(_d, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    with _ob_c2:
+        if _step == 1:
+            try:
+                st.image("images/Bes_Fon_Onerisi_Logo.png", width=120)
+            except Exception:
+                pass
+            st.markdown("## 👋 Hoş Geldin!")
+            st.markdown(
+                "**BES Fon Önerisi**, yapay zeka destekli bireysel emeklilik "
+                "portföy yönetim sistemidir.\n\n"
+                "Sana özel fon dağılımı önerileri, piyasa analizi ve AI tahminleri sunuyoruz."
+            )
+            st.markdown(" ")
+            if st.button("Başlayalım →", key="ob_next_1", type="primary", use_container_width=True):
+                st.session_state.onboarding_step = 2
+                st.rerun()
+
+        elif _step == 2:
+            st.markdown("## 💼 Portföyünü Tanıt")
+            st.markdown(
+                "BES hesabındaki fon dağılımını gir. "
+                "Endişelenme — istediğin zaman değiştirebilirsin."
+            )
+            st.markdown(" ")
+            if st.button("📋 Demo Portföy Yükle (100K TL)", key="ob_demo", type="primary", use_container_width=True):
+                st.session_state.portfolio = {
+                    "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000,
+                }
+                from src.portfolio_manager import PortfolioManager as _PM_OB
+                _PM_OB().save_portfolio("varsayilan", "Varsayılan Portföy", st.session_state.portfolio)
+                st.session_state.onboarding_step = 3
+                st.rerun()
+            if st.button("Kendim gireceğim →", key="ob_manual", use_container_width=True):
+                st.session_state.onboarding_step = 3
+                st.rerun()
+            if st.button("← Geri", key="ob_back_2", use_container_width=True):
+                st.session_state.onboarding_step = 1
+                st.rerun()
+
+        elif _step == 3:
+            st.markdown("## 🎯 Risk Profilini Belirle")
+            st.markdown(
+                "5 basit soru ile yatırım tarzını belirleyelim. "
+                "Bu sayede öneriler sana özel kişiselleştirilebilir."
+            )
+            st.markdown(" ")
+            if st.button("Anketi Doldur →", key="ob_survey", type="primary", use_container_width=True):
+                _ob_save_complete()
+                st.session_state["goto_risk_survey"] = True
+                st.rerun()
+            if st.button("Şimdilik Atla →", key="ob_skip_survey", use_container_width=True):
+                st.session_state.onboarding_step = 4
+                st.rerun()
+            if st.button("← Geri", key="ob_back_3", use_container_width=True):
+                st.session_state.onboarding_step = 2
+                st.rerun()
+
+        elif _step == 4:
+            st.markdown("## ✅ Hazırsın!")
+            st.markdown("Artık piyasa analizleri, AI tahminleri ve kişisel önerilerini görebilirsin.")
+            st.markdown(" ")
+            st.markdown("**Sekmeler:**")
+            for _ti in [
+                ("📊 Piyasa",    "Güncel piyasa durumu, rejim analizi, anomali uyarıları"),
+                ("💼 Portföy",   "Portföy yönetimi, rebalance önerileri, çeşitlendirme analizi"),
+                ("📈 Geçmiş",    "Portföy geçmişi, performans takibi, backtest"),
+                ("🤖 AI Tahmin", "ML fon tahminleri, model karşılaştırma, fon detay"),
+            ]:
+                st.markdown(f"- **{_ti[0]}** — {_ti[1]}")
+            st.markdown(" ")
+            if st.button("Dashboard'a Git →", key="ob_finish", type="primary", use_container_width=True):
+                _ob_save_complete()
+                st.rerun()
+            if st.button("← Geri", key="ob_back_4", use_container_width=True):
+                st.session_state.onboarding_step = 3
+                st.rerun()
+
+    st.stop()
 
 # --- SEKMELER ---
 tab1, tab2, tab3, tab4 = st.tabs([
