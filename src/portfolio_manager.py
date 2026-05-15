@@ -34,7 +34,9 @@ class PortfolioManager:
         legacy_path  = Path("data/my_portfolio.json")
         default_path = self.portfolios_dir / "varsayilan.json"
 
-        if legacy_path.exists() and not default_path.exists():
+        # Sadece portfolios/ klasörü tamamen boşsa taşı
+        existing = list(self.portfolios_dir.glob("*.json"))
+        if legacy_path.exists() and not existing:
             try:
                 with open(legacy_path, encoding="utf-8") as f:
                     old_data = json.load(f)
