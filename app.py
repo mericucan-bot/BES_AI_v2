@@ -422,16 +422,22 @@ hr { border-color: rgba(197,162,62,0.20) !important; }
 }
 
 /* Ana içerik selectbox / multiselect */
-.stApp [data-testid="stSelectbox"] > div > div,
-.stApp [data-testid="stMultiSelect"] > div > div {
+.stApp .stSelectbox > div > div,
+.stApp .stMultiSelect > div > div {
     background: white !important;
     border-color: rgba(26,92,46,0.25) !important;
     color: #0d2e16 !important;
 }
+/* Multiselect control container (koyu arka plan override) */
+.stApp .stMultiSelect [data-baseweb="select"] > div:first-child {
+    background: white !important;
+    border-color: rgba(26,92,46,0.25) !important;
+}
 [data-baseweb="select"] input { color: #0d2e16 !important; }
 [data-baseweb="select"] [class*="placeholder"] { color: rgba(13,46,22,0.40) !important; }
 [data-baseweb="select"] [class*="singleValue"],
-[data-baseweb="select"] [class*="SingleValue"] { color: #0d2e16 !important; }
+[data-baseweb="select"] [class*="SingleValue"],
+[data-baseweb="select"] [class*="value"] { color: #0d2e16 !important; }
 
 /* portfolio-header / ai-header — kasıtlı koyu arka plan, beyaz metin korunur */
 .portfolio-header h2, .ai-header h2 { color: white !important; }
@@ -1318,16 +1324,25 @@ with tab1:
                 _cat_grid = "rgba(26,92,46,0.12)" if st.session_state.get("theme") == "light" else "rgba(255,255,255,0.08)"
                 _cat_zero = "rgba(26,92,46,0.25)" if st.session_state.get("theme") == "light" else "rgba(255,255,255,0.2)"
                 _cat_fig.update_layout(
-                    title="Fon Kategorileri — Aylık Ortalama Performans",
-                    xaxis_title="Ortalama 1 Aylık Getiri (%)",
-                    yaxis_title=None,
+                    title=dict(
+                        text="Fon Kategorileri — Aylık Ortalama Performans",
+                        font=dict(color=_cat_txt, size=14),
+                    ),
                     height=420,
                     margin=dict(l=10, r=60, t=50, b=40),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
                     font=dict(color=_cat_txt),
-                    xaxis=dict(gridcolor=_cat_grid, zerolinecolor=_cat_zero),
-                    yaxis=dict(gridcolor="rgba(0,0,0,0)"),
+                    xaxis=dict(
+                        title=dict(text="Ortalama 1 Aylık Getiri (%)", font=dict(color=_cat_txt)),
+                        tickfont=dict(color=_cat_txt),
+                        gridcolor=_cat_grid,
+                        zerolinecolor=_cat_zero,
+                    ),
+                    yaxis=dict(
+                        tickfont=dict(color=_cat_txt),
+                        gridcolor="rgba(0,0,0,0)",
+                    ),
                 )
                 st.plotly_chart(_cat_fig, use_container_width=True)
                 st.caption(f"Son 1 aylık ortalama getiriler. {_total_funds} fon analiz edildi.")
