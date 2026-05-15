@@ -1,20 +1,12 @@
 {
   "status": "SUCCESS",
-  "run_date": "2026-05-15T20:59:00.938386",
-  "run_time_sec": 43.3,
-  "fund_count": 24,
-  "dataset_shape": [
-    576,
-    20
-  ],
+  "run_date": "2026-05-15T20:59:00.937675",
   "target": "fwd_return_3m",
-  "targets": [
-    "fwd_return_3m"
-  ],
   "best_model": "xgboost",
   "best_ic": 0.7243,
   "best_mae": 0.001306,
   "best_dir_acc": 1.0,
+  "fund_count": 24,
   "model_comparison": {
     "ridge": {
       "mae": 0.000199,
