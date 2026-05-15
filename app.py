@@ -27,7 +27,12 @@ except Exception:
     pass
 
 # --- SAYFA KONFİGÜRASYONU ---
-st.set_page_config(page_title="BES Fon Önerisi", page_icon="🛡️", layout="wide")
+try:
+    from PIL import Image as _PILImage
+    _page_icon = _PILImage.open("images/new_logo.png")
+except Exception:
+    _page_icon = "🛡️"
+st.set_page_config(page_title="BES Fon Önerisi", page_icon=_page_icon, layout="wide")
 
 # --- ŞİFRE KORUMASI ---
 def _get_app_password() -> str:
