@@ -384,6 +384,71 @@ class TEFASCollector:
         except Exception as e:
             logger.error(f"Cache yazma hatasi ({key}): {e}")
 
+    def latest_snapshot_date(self) -> Optional[datetime]:
+        """En son snapshot dosyasının tarihini döner. Dosya yoksa None."""
+        files = sorted(self.cache_dir.glob("snapshot_*.parquet"))
+        if not files:
+            return None
+        return datetime.fromtimestamp(files[-1].stat().st_mtime)
+
+    def is_cache_stale(self, max_age_days: int = 7) -> bool:
+        """Son snapshot max_age_days günden eskiyse True döner."""
+        last = self.latest_snapshot_date()
+        if last is None:
+            return True
+        return (datetime.now() - last).days >= max_age_days
+
+    def auto_refresh_cache(self, max_age_days: int = 7) -> bool:
+        """
+        Cache eskiyse sadece bu ayın snapshot'ını çekip güncelle.
+        Başarılıysa True, güncelleme gerekmiyorsa/başarısızsa False döner.
+        """
+        if not self.is_cache_stale(max_age_days):
+            return False
+        try:
+            today     = datetime.now()
+            # Ayın son iş günü tahmini: bugün veya en son geçmiş iş günü
+            snap_date = today.strftime("%Y-%m-%d")
+            logger.info(f"Cache eski — otomatik güncelleme: {snap_date}")
+            df = self.fetch_fund_snapshot(snap_date, fund_type="EMK", use_cache=False)
+            if df is not None and not df.empty:
+                logger.info(f"Otomatik cache güncellendi: {len(df)} fon, {snap_date}")
+                # fund_list.json'u da güncelle
+                try:
+                    import json as _json
+                    fund_list_path = Path(__file__).resolve().parent.parent / "data" / "fund_list.json"
+                    records = (
+                        df[["fund_code", "fund_name"]]
+                        .rename(columns={"fund_code": "code", "fund_name": "title"})
+                        .drop_duplicates(subset=["code"])
+                        .to_dict(orient="records")
+                    )
+                    fund_list_path.write_text(
+                        _json.dumps(records, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    logger.info(f"fund_list.json güncellendi: {len(records)} fon")
+                except Exception as e:
+                    logger.warning(f"fund_list.json yazılamadı: {e}")
+                return True
+            logger.warning("Otomatik cache: boş veri döndü, güncelleme yapılmadı")
+            return False
+        except Exception as e:
+            logger.warning(f"Otomatik cache güncelleme başarısız: {e}")
+            return False
+
+    def cache_age_str(self) -> str:
+        """Sidebar için okunabilir cache yaşı metni."""
+        last = self.latest_snapshot_date()
+        if last is None:
+            return "Cache bulunamadı"
+        days = (datetime.now() - last).days
+        if days == 0:
+            return "Güncel (bugün)"
+        if days == 1:
+            return "1 gün önce"
+        return f"{days} gün önce"
+
     def get_fund_list(self) -> pd.DataFrame:
         """
         TEFAS fon listesini döndür. Öncelik sırası:

@@ -319,6 +319,16 @@ Ornekler:
             print("❌ Test e-postası gönderilemedi. .env ayarlarını kontrol et.")
         sys.exit(0)
 
+    # TEFAS cache kontrolü — pipeline öncesi
+    try:
+        from src.data_collector import TEFASCollector as _TC_MAIN
+        _tc_main = _TC_MAIN()
+        if _tc_main.is_cache_stale(max_age_days=7):
+            logger.info("TEFAS cache eski — otomatik güncelleniyor...")
+            _tc_main.auto_refresh_cache(max_age_days=7)
+    except Exception as _e:
+        logger.warning(f"TEFAS cache kontrol hatası: {_e}")
+
     try:
         pipeline = MonthlyPipeline(portfolio_path=args.portfolio)
         result = pipeline.run()

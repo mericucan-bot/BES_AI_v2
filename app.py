@@ -673,6 +673,20 @@ with st.sidebar:
         st.session_state.onboarding_complete = False
         st.session_state.onboarding_step = 1
         st.rerun()
+    # --- CACHE DURUMU ---
+    from src.data_collector import TEFASCollector as _TC_SB
+    _tc_sb = _TC_SB()
+    _cache_age = _tc_sb.cache_age_str()
+    st.caption(f"📦 Fon verisi: {_cache_age}")
+    if st.button("🔄 Fon Verilerini Güncelle", key="force_cache_refresh", use_container_width=True):
+        with st.spinner("Fon verileri güncelleniyor..."):
+            _ok = _tc_sb.auto_refresh_cache(max_age_days=0)  # max_age_days=0 → zorla güncelle
+        if _ok:
+            st.toast("✅ Fon verileri güncellendi!", icon="📦")
+            st.rerun()
+        else:
+            st.warning("Güncelleme yapılamadı — TEFAS'a erişilemiyor olabilir.")
+
     st.divider()
     st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
 
@@ -686,6 +700,22 @@ if "onboarding_complete" not in st.session_state:
         st.session_state.onboarding_complete = False
 if "onboarding_step" not in st.session_state:
     st.session_state.onboarding_step = 1
+
+# --- OTOMATİK TEFAS CACHE KONTROLÜ ---
+if "cache_checked" not in st.session_state:
+    st.session_state.cache_checked = False
+if not st.session_state.cache_checked:
+    try:
+        from src.data_collector import TEFASCollector as _TC_AUTO
+        _tc_auto = _TC_AUTO()
+        if _tc_auto.is_cache_stale(max_age_days=7):
+            with st.spinner("📦 Fon verileri güncelleniyor..."):
+                _refreshed = _tc_auto.auto_refresh_cache(max_age_days=7)
+            if _refreshed:
+                st.toast("✅ Fon verileri güncellendi!", icon="📦")
+    except Exception:
+        pass
+    st.session_state.cache_checked = True
 
 # --- BAŞLIK ---
 _hdr_col1, _hdr_col2 = st.columns([1, 8])
