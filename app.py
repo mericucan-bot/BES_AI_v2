@@ -39,7 +39,8 @@ def _get_app_password() -> str:
     return os.environ.get("APP_PASSWORD", "besfonoinerisi2026")
 
 if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+    # DEV_BYPASS_AUTH=true ile local preview'da auth atla
+    st.session_state.authenticated = os.environ.get("DEV_BYPASS_AUTH", "").lower() == "true"
 if "login_attempts" not in st.session_state:
     st.session_state.login_attempts = 0
 if "lockout_until" not in st.session_state:
@@ -88,6 +89,11 @@ if not st.session_state.authenticated:
 if "logging_configured" not in st.session_state:
     configure_logging(log_file="streamlit.log", level="INFO")
     st.session_state.logging_configured = True
+
+@st.cache_resource
+def _get_tefas_collector():
+    from src.data_collector import TEFASCollector
+    return TEFASCollector()
 
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
@@ -731,18 +737,22 @@ with st.sidebar:
         st.session_state.onboarding_step = 1
         st.rerun()
     # --- CACHE DURUMU ---
-    from src.data_collector import TEFASCollector as _TC_SB
-    _tc_sb = _TC_SB()
-    _cache_age = _tc_sb.cache_age_str()
-    st.caption(f"📦 Fon verisi: {_cache_age}")
-    if st.button("🔄 Fon Verilerini Güncelle", key="force_cache_refresh", use_container_width=True):
-        with st.spinner("Fon verileri güncelleniyor..."):
-            _ok = _tc_sb.auto_refresh_cache(max_age_days=0)
-        if _ok:
-            st.toast("✅ Fon verileri güncellendi!", icon="📦")
-            st.rerun()
-        else:
-            st.warning("Güncelleme yapılamadı — TEFAS'a erişilemiyor olabilir.")
+    try:
+        _tc_sb = _get_tefas_collector()
+        _cache_age = _tc_sb.cache_age_str()
+        st.caption(f"📦 Fon verisi: {_cache_age}")
+        if st.button("🔄 Fon Verilerini Güncelle", key="force_cache_refresh", use_container_width=True):
+            with st.spinner("Fon verileri güncelleniyor..."):
+                _ok = _tc_sb.auto_refresh_cache(max_age_days=0)
+            if _ok:
+                st.toast("✅ Fon verileri güncellendi!", icon="📦")
+                st.rerun()
+            else:
+                st.warning("Güncelleme yapılamadı — TEFAS'a erişilemiyor olabilir.")
+    except Exception as _cache_err:
+        st.caption("📦 Fon verisi: —")
+        import logging as _log
+        _log.getLogger(__name__).warning(f"Sidebar cache hatası: {_cache_err}")
 
     st.divider()
     if st.button("🚪 Çıkış Yap", use_container_width=True, key="logout_btn"):
@@ -766,8 +776,7 @@ if "cache_checked" not in st.session_state:
     st.session_state.cache_checked = False
 if not st.session_state.cache_checked:
     try:
-        from src.data_collector import TEFASCollector as _TC_AUTO
-        _tc_auto = _TC_AUTO()
+        _tc_auto = _get_tefas_collector()
         if _tc_auto.is_cache_stale(max_age_days=7):
             with st.spinner("📦 Fon verileri güncelleniyor..."):
                 _refreshed = _tc_auto.auto_refresh_cache(max_age_days=7)
