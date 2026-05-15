@@ -8,6 +8,7 @@ from pathlib import Path
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
+import time as _time
 from src.regime_engine import RegimeEngineV2
 from src.learning_engine import LearningEngineV2
 from src.cache_manager import get_smart_ttl, is_market_hours
@@ -27,6 +28,62 @@ except Exception:
 
 # --- SAYFA KONFİGÜRASYONU ---
 st.set_page_config(page_title="BES Fon Önerisi", page_icon="🛡️", layout="wide")
+
+# --- ŞİFRE KORUMASI ---
+def _get_app_password() -> str:
+    try:
+        if hasattr(st, "secrets") and "APP_PASSWORD" in st.secrets:
+            return st.secrets["APP_PASSWORD"]
+    except Exception:
+        pass
+    return os.environ.get("APP_PASSWORD", "besfonoinerisi2026")
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "login_attempts" not in st.session_state:
+    st.session_state.login_attempts = 0
+if "lockout_until" not in st.session_state:
+    st.session_state.lockout_until = 0.0
+
+if not st.session_state.authenticated:
+    _, _lc, _ = st.columns([1, 2, 1])
+    with _lc:
+        try:
+            st.image("images/Bes_Fon_Onerisi_Logo.png", width=120)
+        except Exception:
+            pass
+        st.markdown("""
+<div style="text-align:center; margin-bottom:1.5rem;">
+    <h2 style="margin:0.5rem 0 0.25rem 0;
+        background: linear-gradient(135deg, #c5a23e, #4ade80);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        BES Fon Önerisi</h2>
+    <p style="margin:0; font-size:0.85rem; color:rgba(232,232,232,0.5);">
+        Yapay zeka destekli BES portföy yönetimi</p>
+</div>
+""", unsafe_allow_html=True)
+        _now = _time.time()
+        if st.session_state.lockout_until > _now:
+            _wait = int(st.session_state.lockout_until - _now)
+            st.warning(f"⏳ Çok fazla deneme. {_wait} saniye bekleyin.")
+        else:
+            _pwd = st.text_input("🔑 Şifre:", type="password", key="login_password",
+                                 placeholder="Şifreyi girin...")
+            if st.button("Giriş Yap", type="primary", use_container_width=True):
+                if _pwd == _get_app_password():
+                    st.session_state.authenticated = True
+                    st.session_state.login_attempts = 0
+                    st.rerun()
+                else:
+                    st.session_state.login_attempts += 1
+                    if st.session_state.login_attempts >= 3:
+                        st.session_state.lockout_until = _time.time() + 30
+                        st.session_state.login_attempts = 0
+                        st.error("❌ Çok fazla hatalı deneme. 30 saniye bekleyin.")
+                    else:
+                        _remaining = 3 - st.session_state.login_attempts
+                        st.error(f"❌ Şifre hatalı. {_remaining} deneme hakkınız kaldı.")
+    st.stop()
 
 if "logging_configured" not in st.session_state:
     configure_logging(log_file="streamlit.log", level="INFO")
@@ -680,7 +737,7 @@ with st.sidebar:
     st.caption(f"📦 Fon verisi: {_cache_age}")
     if st.button("🔄 Fon Verilerini Güncelle", key="force_cache_refresh", use_container_width=True):
         with st.spinner("Fon verileri güncelleniyor..."):
-            _ok = _tc_sb.auto_refresh_cache(max_age_days=0)  # max_age_days=0 → zorla güncelle
+            _ok = _tc_sb.auto_refresh_cache(max_age_days=0)
         if _ok:
             st.toast("✅ Fon verileri güncellendi!", icon="📦")
             st.rerun()
@@ -688,6 +745,9 @@ with st.sidebar:
             st.warning("Güncelleme yapılamadı — TEFAS'a erişilemiyor olabilir.")
 
     st.divider()
+    if st.button("🚪 Çıkış Yap", use_container_width=True, key="logout_btn"):
+        st.session_state.authenticated = False
+        st.rerun()
     st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
 
 # --- ONBOARDING STATE ---
