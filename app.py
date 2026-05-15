@@ -356,12 +356,41 @@ h1, h2, h3, h4 { color: #0d2e16 !important; }
     border-bottom: 2px solid #c5a23e !important;
 }
 
-/* Expander */
+/* Expander — tüm kapsayıcı */
+[data-testid="stExpander"] {
+    background: #ffffff !important;
+    border: 1px solid rgba(26,92,46,0.18) !important;
+    border-radius: 10px !important;
+}
+[data-testid="stExpander"] details {
+    background: #ffffff !important;
+    border-radius: 10px !important;
+}
+[data-testid="stExpander"] details summary {
+    background: rgba(26,92,46,0.05) !important;
+    color: #0d2e16 !important;
+    border-radius: 10px !important;
+}
+[data-testid="stExpander"] details[open] summary {
+    border-radius: 10px 10px 0 0 !important;
+    border-bottom: 1px solid rgba(26,92,46,0.12) !important;
+}
+[data-testid="stExpander"] details > div {
+    background: #ffffff !important;
+    color: #1c3a24 !important;
+}
+/* Eski class-based expander header (Streamlit eski sürümler) */
 .streamlit-expanderHeader {
-    background: rgba(26,92,46,0.04) !important;
+    background: rgba(26,92,46,0.05) !important;
     border: 1px solid rgba(26,92,46,0.12) !important;
     color: #0d2e16 !important;
 }
+/* AI header ve portfolio header — koyu arka plan kasıtlı, değiştirilmez */
+.ai-header, .portfolio-header {
+    background: linear-gradient(135deg, #0d2e16 0%, #1a5c2e 80%, #7a6020 100%) !important;
+    color: white !important;
+}
+.ai-header *, .portfolio-header * { color: white !important; }
 
 /* Butonlar */
 .stButton > button { color: #0d2e16 !important; border: 1px solid rgba(26,92,46,0.20) !important; }
