@@ -68,7 +68,7 @@ if not st.session_state.authenticated:
             _wait = int(st.session_state.lockout_until - _now)
             st.warning(f"⏳ Çok fazla deneme. {_wait} saniye bekleyin.")
         else:
-            _pwd = st.text_input("🔑 Şifre:", type="password", key="login_password",
+            _pwd = st.text_input("Şifre:", type="password", key="login_password",
                                  placeholder="Şifreyi girin...")
             if st.button("Giriş Yap", type="primary", use_container_width=True):
                 if _pwd == _get_app_password():
@@ -80,10 +80,10 @@ if not st.session_state.authenticated:
                     if st.session_state.login_attempts >= 3:
                         st.session_state.lockout_until = _time.time() + 30
                         st.session_state.login_attempts = 0
-                        st.error("❌ Çok fazla hatalı deneme. 30 saniye bekleyin.")
+                        st.error("Çok fazla hatalı deneme. 30 saniye bekleyin.")
                     else:
                         _remaining = 3 - st.session_state.login_attempts
-                        st.error(f"❌ Şifre hatalı. {_remaining} deneme hakkınız kaldı.")
+                        st.error(f"Şifre hatalı. {_remaining} deneme hakkınız kaldı.")
     st.stop()
 
 if "logging_configured" not in st.session_state:
@@ -368,6 +368,74 @@ hr { border-color: rgba(197,162,62,0.20) !important; }
 /* Section başlık */
 .section-heading { color: #0d2e16 !important; }
 .section-heading-sub { color: rgba(13,46,22,0.45) !important; }
+
+/* Sidebar buttons */
+[data-testid="stSidebar"] .stButton > button {
+    background: rgba(26,92,46,0.08) !important;
+    color: #0d2e16 !important;
+    border: 1px solid rgba(26,92,46,0.18) !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(26,92,46,0.14) !important;
+    border-color: rgba(26,92,46,0.28) !important;
+}
+
+/* Sidebar expander */
+[data-testid="stSidebar"] .streamlit-expanderHeader,
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {
+    background: rgba(26,92,46,0.06) !important;
+    color: #0d2e16 !important;
+    border: 1px solid rgba(26,92,46,0.14) !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] {
+    border: 1px solid rgba(26,92,46,0.12) !important;
+    background: rgba(26,92,46,0.03) !important;
+}
+
+/* Sidebar selectbox */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div {
+    background: rgba(26,92,46,0.06) !important;
+    border-color: rgba(26,92,46,0.18) !important;
+    color: #0d2e16 !important;
+}
+
+/* Sidebar toggle/checkbox labels */
+[data-testid="stSidebar"] .stCheckbox label,
+[data-testid="stSidebar"] .stToggle label { color: #1c3a24 !important; }
+
+/* Ana içerik — tüm butonlar */
+.stApp .stButton > button {
+    background: rgba(26,92,46,0.07) !important;
+    color: #0d2e16 !important;
+    border: 1px solid rgba(26,92,46,0.18) !important;
+}
+.stApp .stButton > button:hover {
+    background: rgba(26,92,46,0.13) !important;
+    border-color: rgba(26,92,46,0.28) !important;
+}
+
+/* Popover trigger butonu */
+[data-testid="stPopover"] button {
+    background: rgba(26,92,46,0.07) !important;
+    color: #0d2e16 !important;
+    border: 1px solid rgba(26,92,46,0.18) !important;
+}
+
+/* Ana içerik selectbox / multiselect */
+.stApp [data-testid="stSelectbox"] > div > div,
+.stApp [data-testid="stMultiSelect"] > div > div {
+    background: white !important;
+    border-color: rgba(26,92,46,0.25) !important;
+    color: #0d2e16 !important;
+}
+[data-baseweb="select"] input { color: #0d2e16 !important; }
+[data-baseweb="select"] [class*="placeholder"] { color: rgba(13,46,22,0.40) !important; }
+[data-baseweb="select"] [class*="singleValue"],
+[data-baseweb="select"] [class*="SingleValue"] { color: #0d2e16 !important; }
+
+/* portfolio-header / ai-header — kasıtlı koyu arka plan, beyaz metin korunur */
+.portfolio-header h2, .ai-header h2 { color: white !important; }
+.portfolio-header p,  .ai-header p  { color: rgba(255,255,255,0.82) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -515,17 +583,29 @@ with st.sidebar:
     _mkt_lbl  = "Açık" if _mkt_open else "Kapalı"
     _next_upd = get_smart_ttl() // 60
 
+    _is_light   = st.session_state.get("theme") == "light"
+    _c_label    = "rgba(13,46,22,0.45)"  if _is_light else "rgba(232,232,232,0.35)"
+    _c_dim      = "rgba(13,46,22,0.55)"  if _is_light else "rgba(232,232,232,0.50)"
+    _c_dimmer   = "rgba(13,46,22,0.40)"  if _is_light else "rgba(232,232,232,0.35)"
+    _c_med      = "rgba(13,46,22,0.80)"  if _is_light else "rgba(232,232,232,0.70)"
+    _c_val      = "#0d2e16"              if _is_light else "rgba(232,232,232,0.60)"
+    _c_card_bg  = "rgba(26,92,46,0.06)"  if _is_light else "rgba(255,255,255,0.04)"
+    _c_card_bd  = "rgba(26,92,46,0.15)"  if _is_light else "rgba(197,162,62,0.12)"
+    _c_prog_bg  = "rgba(26,92,46,0.10)"  if _is_light else "rgba(255,255,255,0.06)"
+    _c_footer   = "rgba(13,46,22,0.28)"  if _is_light else "rgba(232,232,232,0.22)"
+    _c_subhead  = "rgba(13,46,22,0.35)"  if _is_light else "rgba(232,232,232,0.32)"
+
     st.markdown(f"""
 <style>
 .sb-section {{ margin-bottom: 6px; }}
 .sb-label {{
     font-size: 0.62rem; font-weight: 600; letter-spacing: 0.8px;
-    text-transform: uppercase; color: rgba(232,232,232,0.35);
+    text-transform: uppercase; color: {_c_label};
     margin-bottom: 6px;
 }}
 .sb-card {{
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(197,162,62,0.12);
+    background: {_c_card_bg};
+    border: 1px solid {_c_card_bd};
     border-radius: 10px;
     padding: 10px 12px;
     margin-bottom: 8px;
@@ -550,7 +630,7 @@ with st.sidebar:
         -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
         BES Fon Önerisi</div>
     <div style="display:flex; align-items:center; gap:5px; margin-top:3px;">
-      <span style="font-size:0.6rem; color:rgba(232,232,232,0.32);">AI Destekli · v2.0</span>
+      <span style="font-size:0.6rem; color:{_c_subhead};">AI Destekli · v2.0</span>
       <span class="sb-pill" style="color:{_mkt_clr}; background:{_mkt_clr}15; border:1px solid {_mkt_clr}30;">
         <span style="width:4px;height:4px;border-radius:50%;background:{_mkt_clr};"></span>
         BIST {_mkt_lbl}
@@ -621,10 +701,11 @@ with st.sidebar:
 
     _pf_col1, _pf_col2 = st.columns([1, 1])
     with _pf_col1:
-        with st.expander("＋ Yeni", expanded=False):
-            _new_name = st.text_input("Ad:", placeholder="Eşimin BES'i", key="new_pf_name",
-                                      label_visibility="collapsed")
-            if st.button("Oluştur", key="create_pf", use_container_width=True) and _new_name:
+        with st.popover("+  Yeni", use_container_width=True):
+            _new_name = st.text_input("Portföy adı:", placeholder="Eşimin BES'i",
+                                      key="new_pf_name")
+            if st.button("Oluştur", key="create_pf", type="primary",
+                         use_container_width=True, disabled=not bool(_new_name if "new_pf_name" in st.session_state else False)):
                 _slug = _pm.create_slug(_new_name)
                 _pm.save_portfolio(_slug, _new_name, {})
                 st.session_state.active_portfolio = _slug
@@ -632,7 +713,7 @@ with st.sidebar:
                 st.rerun()
     with _pf_col2:
         if st.session_state.active_portfolio != "varsayilan" and len(_portfolios) > 1:
-            if st.button("🗑️ Sil", key="delete_pf", use_container_width=True):
+            if st.button("×  Sil", key="delete_pf", use_container_width=True):
                 _pm.delete_portfolio(st.session_state.active_portfolio)
                 st.session_state.active_portfolio = _portfolios[0]["slug"]
                 _fallback = _pm.get_portfolio(_portfolios[0]["slug"])
@@ -693,21 +774,21 @@ with st.sidebar:
         _ai_html = f"""
 <div class="sb-card" style="margin-top:10px;">
   <div class="sb-row" style="margin-bottom:6px;">
-    <span style="font-size:0.72rem; font-weight:600; color:rgba(232,232,232,0.7);">🤖 AI Model</span>
-    <span style="font-size:0.6rem; color:rgba(232,232,232,0.35);">{_ai_date}</span>
+    <span style="font-size:0.72rem; font-weight:600; color:{_c_med};">AI Model</span>
+    <span style="font-size:0.6rem; color:{_c_dimmer};">{_ai_date}</span>
   </div>
   <div class="sb-row">
-    <span style="font-size:0.65rem; color:rgba(232,232,232,0.5);">IC Skoru</span>
+    <span style="font-size:0.65rem; color:{_c_dim};">IC Skoru</span>
     <span style="font-size:0.7rem; font-weight:700; color:#c5a23e;">{_ai_ic}</span>
   </div>
   <div class="sb-row">
-    <span style="font-size:0.65rem; color:rgba(232,232,232,0.5);">Yön Doğruluğu</span>
+    <span style="font-size:0.65rem; color:{_c_dim};">Yön Doğruluğu</span>
     <span style="font-size:0.7rem; font-weight:700; color:#4ade80;">{_ai_acc}</span>
   </div>
 </div>"""
     else:
-        _ai_html = """<div style="font-size:0.65rem; color:rgba(232,232,232,0.3);
-            padding:6px 0; margin-bottom:4px;">🤖 AI model henüz eğitilmemiş</div>"""
+        _ai_html = f"""<div style="font-size:0.65rem; color:{_c_label};
+            padding:6px 0; margin-bottom:4px;">AI model henüz eğitilmemiş</div>"""
 
     # Cache durumu
     try:
@@ -725,14 +806,14 @@ with st.sidebar:
     <div class="sb-row" style="margin-bottom:8px;">
       <div>
         <span style="font-size:1.6rem; font-weight:800; color:{_ps_clr}; line-height:1;">{_ps}</span>
-        <span style="font-size:0.75rem; color:rgba(232,232,232,0.3);">/100</span>
+        <span style="font-size:0.75rem; color:{_c_dimmer};">/100</span>
       </div>
       <span class="sb-pill" style="font-size:0.65rem; color:{_ps_clr};
           background:{_ps_clr}18; border:1px solid {_ps_clr}30; padding:3px 10px;">
         {_ps_label}
       </span>
     </div>
-    <div style="background:rgba(255,255,255,0.06); border-radius:4px; height:4px; overflow:hidden;">
+    <div style="background:{_c_prog_bg}; border-radius:4px; height:4px; overflow:hidden;">
       <div style="width:{_ps_pct}%; height:100%;
           background:linear-gradient(90deg,{_ps_clr}88,{_ps_clr}); border-radius:4px;"></div>
     </div>
@@ -742,12 +823,12 @@ with st.sidebar:
 
   <div class="sb-card" style="margin-top:4px;">
     <div class="sb-row">
-      <span style="font-size:0.65rem; color:rgba(232,232,232,0.45);">📦 Fon verisi</span>
-      <span style="font-size:0.65rem; color:rgba(232,232,232,0.6);">{_cache_age}</span>
+      <span style="font-size:0.65rem; color:{_c_dim};">Fon verisi</span>
+      <span style="font-size:0.65rem; color:{_c_val};">{_cache_age}</span>
     </div>
     <div class="sb-row" style="margin-top:4px;">
-      <span style="font-size:0.65rem; color:rgba(232,232,232,0.45);">🕐 Güncelleme</span>
-      <span style="font-size:0.65rem; color:rgba(232,232,232,0.6);">{_next_upd} dk</span>
+      <span style="font-size:0.65rem; color:{_c_dim};">Güncelleme</span>
+      <span style="font-size:0.65rem; color:{_c_val};">{_next_upd} dk</span>
     </div>
   </div>
 
@@ -760,15 +841,15 @@ with st.sidebar:
             with st.spinner("Güncelleniyor..."):
                 _ok = _tc_sb.auto_refresh_cache(max_age_days=0)
             if _ok:
-                st.toast("✅ Fon verileri güncellendi!", icon="📦")
+                st.toast("Fon verileri güncellendi!")
                 st.rerun()
             else:
                 st.warning("TEFAS'a erişilemiyor.")
 
     # ── Ayarlar ─────────────────────────────────────────────
-    with st.expander("⚙️  Ayarlar", expanded=False):
+    with st.expander("Ayarlar", expanded=False):
         _current_theme = st.session_state.get("theme", "dark")
-        _theme_label   = "☀️  Açık Tema" if _current_theme == "dark" else "🌙  Koyu Tema"
+        _theme_label   = "Açık Tema" if _current_theme == "dark" else "Koyu Tema"
         if st.button(_theme_label, key="theme_toggle", use_container_width=True):
             st.session_state.theme = "light" if _current_theme == "dark" else "dark"
             st.rerun()
@@ -780,13 +861,13 @@ with st.sidebar:
         if _email_on:
             _email_addr = st.text_input("E-posta:", value=_prefs["email_address"],
                                         placeholder="ornek@gmail.com", key="notif_email_addr")
-            _on_regime = st.checkbox("📊 Rejim değişikliği", value=_prefs["on_regime_change"],
+            _on_regime = st.checkbox("Rejim değişikliği", value=_prefs["on_regime_change"],
                                      key="notif_regime")
-            _weekly    = st.checkbox("📅 Haftalık özet", value=_prefs["weekly_summary"],
+            _weekly    = st.checkbox("Haftalık özet", value=_prefs["weekly_summary"],
                                      key="notif_weekly")
-            _critical  = st.checkbox("🚨 Kritik sinyal", value=_prefs["critical_signal"],
+            _critical  = st.checkbox("Kritik sinyal", value=_prefs["critical_signal"],
                                      key="notif_critical")
-            if st.button("💾  Kaydet", key="save_notif_prefs", use_container_width=True):
+            if st.button("Kaydet", key="save_notif_prefs", use_container_width=True):
                 _ok = save_notification_prefs({
                     "email_enabled": True, "email_address": _email_addr,
                     "on_regime_change": _on_regime, "weekly_summary": _weekly,
@@ -811,12 +892,12 @@ with st.sidebar:
             st.cache_data.clear()
             st.rerun()
 
-    if st.button("🚪  Çıkış Yap", use_container_width=True, key="logout_btn"):
+    if st.button("Çıkış Yap", use_container_width=True, key="logout_btn"):
         st.session_state.authenticated = False
         st.rerun()
 
-    st.markdown("""
-<div style="font-size:0.58rem; color:rgba(232,232,232,0.22); text-align:center;
+    st.markdown(f"""
+<div style="font-size:0.58rem; color:{_c_footer}; text-align:center;
     margin-top:8px; line-height:1.4; padding:0 4px;">
   Bu sistem yatırım tavsiyesi vermez.<br>Kararlarınızdan siz sorumlusunuz.
 </div>
@@ -840,10 +921,10 @@ if not st.session_state.cache_checked:
     try:
         _tc_auto = _get_tefas_collector()
         if _tc_auto.is_cache_stale(max_age_days=7):
-            with st.spinner("📦 Fon verileri güncelleniyor..."):
+            with st.spinner("Fon verileri güncelleniyor..."):
                 _refreshed = _tc_auto.auto_refresh_cache(max_age_days=7)
             if _refreshed:
-                st.toast("✅ Fon verileri güncellendi!", icon="📦")
+                st.toast("Fon verileri güncellendi!")
     except Exception:
         pass
     st.session_state.cache_checked = True
@@ -888,7 +969,7 @@ if not st.session_state.onboarding_complete:
                 st.image("images/Bes_Fon_Onerisi_Logo.png", width=120)
             except Exception:
                 pass
-            st.markdown("## 👋 Hoş Geldin!")
+            st.markdown("## Hoş Geldin!")
             st.markdown(
                 "**BES Fon Önerisi**, yapay zeka destekli bireysel emeklilik "
                 "portföy yönetim sistemidir.\n\n"
@@ -900,13 +981,13 @@ if not st.session_state.onboarding_complete:
                 st.rerun()
 
         elif _step == 2:
-            st.markdown("## 💼 Portföyünü Tanıt")
+            st.markdown("## Portföyünü Tanıt")
             st.markdown(
                 "BES hesabındaki fon dağılımını gir. "
                 "Endişelenme — istediğin zaman değiştirebilirsin."
             )
             st.markdown(" ")
-            if st.button("📋 Demo Portföy Yükle (100K TL)", key="ob_demo", type="primary", use_container_width=True):
+            if st.button("Demo Portföy Yükle (100K TL)", key="ob_demo", type="primary", use_container_width=True):
                 st.session_state.portfolio = {
                     "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000,
                 }
@@ -922,7 +1003,7 @@ if not st.session_state.onboarding_complete:
                 st.rerun()
 
         elif _step == 3:
-            st.markdown("## 🎯 Risk Profilini Belirle")
+            st.markdown("## Risk Profilini Belirle")
             st.markdown(
                 "5 basit soru ile yatırım tarzını belirleyelim. "
                 "Bu sayede öneriler sana özel kişiselleştirilebilir."
@@ -940,16 +1021,16 @@ if not st.session_state.onboarding_complete:
                 st.rerun()
 
         elif _step == 4:
-            st.markdown("## ✅ Hazırsın!")
+            st.markdown("## Hazırsın!")
             st.markdown("Artık piyasa analizleri, AI tahminleri ve kişisel önerilerini görebilirsin.")
             st.markdown(" ")
             st.markdown("**Sekmeler:**")
             for _ti in [
-                ("📊 Piyasa",    "Güncel piyasa durumu, rejim analizi, anomali uyarıları"),
-                ("💼 Portföy",   "Portföy yönetimi, rebalance önerileri, çeşitlendirme analizi"),
-                ("📈 Geçmiş",    "Portföy geçmişi, performans takibi, backtest"),
-                ("🤖 AI Tahmin", "ML fon tahminleri, model karşılaştırma, fon detay"),
-                ("📚 Eğitim",   "BES, fon tipleri, stratejiler, SSS ve terimler sözlüğü"),
+                ("Piyasa",    "Güncel piyasa durumu, rejim analizi, anomali uyarıları"),
+                ("Portföy",   "Portföy yönetimi, rebalance önerileri, çeşitlendirme analizi"),
+                ("Geçmiş",    "Portföy geçmişi, performans takibi, backtest"),
+                ("AI Tahmin", "ML fon tahminleri, model karşılaştırma, fon detay"),
+                ("Eğitim",    "BES, fon tipleri, stratejiler, SSS ve terimler sözlüğü"),
             ]:
                 st.markdown(f"- **{_ti[0]}** — {_ti[1]}")
             st.markdown(" ")
@@ -964,11 +1045,11 @@ if not st.session_state.onboarding_complete:
 
 # --- SEKMELER ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Piyasa",
-    "💼 Portföy",
-    "📈 Geçmiş",
-    "🤖 AI Tahmin",
-    "📚 Eğitim",
+    "Piyasa",
+    "Portföy",
+    "Geçmiş",
+    "AI Tahmin",
+    "Eğitim",
 ])
 
 
@@ -1078,9 +1159,9 @@ with tab1:
         mc3.metric("2 Yıllık Tahvil Faizi", f"%{bond:.1f}" if bond else "Veri yok")
 
         as_of = macro.get("data_quality", {}).get("as_of", "?")
-        st.caption(f"📅 TCMB verisi: {as_of}")
+        st.caption(f"TCMB verisi: {as_of}")
     else:
-        st.info("⚠️ TCMB verisi yok — .env dosyasında TCMB_API_KEY tanımlı mı?")
+        st.info("TCMB verisi yok — .env dosyasında TCMB_API_KEY tanımlı mı?")
 
     # === AI İÇGÖRÜLERİ ===
     st.markdown('<div class="section-heading">AI İçgörüleri</div>', unsafe_allow_html=True)
@@ -1149,26 +1230,28 @@ with tab1:
                     _ret_str = f"%{_ret*100:+.1f}"
                     _arrow = "▲" if _ret >= 0 else "▼"
                     _ret_clr = "#4ade80" if _ret >= 0 else "#ef4444"
+                    _fon_txt = "#0d2e16" if st.session_state.get("theme") == "light" else "#e8e8e8"
+                    _fon_sub = "rgba(13,46,22,0.50)" if st.session_state.get("theme") == "light" else "rgba(232,232,232,0.55)"
                     st.markdown(f"""
 <div style="display:flex; align-items:center; justify-content:space-between;
     background:rgba(26,92,46,0.08); border:1px solid rgba(197,162,62,0.15);
     border-radius:8px; padding:10px 14px; margin-bottom:6px;">
   <div>
-    <span style="font-weight:700; color:#e8e8e8;">{_fc}</span>
-    <span style="font-size:0.82rem; color:rgba(232,232,232,0.55); margin-left:8px;">{_fn}</span>
+    <span style="font-weight:700; color:{_fon_txt};">{_fc}</span>
+    <span style="font-size:0.82rem; color:{_fon_sub}; margin-left:8px;">{_fn}</span>
   </div>
   <div style="font-weight:700; color:{_ret_clr};">{_arrow} {_ret_str} (3M tahmini)</div>
 </div>
 """, unsafe_allow_html=True)
             else:
-                st.info("📊 Tahmin verisi henüz işlenmemiş.")
+                st.info("Tahmin verisi henüz işlenmemiş.")
         except Exception:
-            st.info("📊 ML tahmin dosyası okunamadı.")
+            st.info("ML tahmin dosyası okunamadı.")
     else:
-        st.info("🤖 Model henüz eğitilmemiş — `python main.py --ml-train` çalıştır.")
+        st.info("Model henüz eğitilmemiş — `python main.py --ml-train` çalıştır.")
 
     if st.button("Tüm Fonları Gör →", key="goto_tab4_btn"):
-        st.info("💡 AI Tahmin sekmesinden tüm fon tahminlerini görebilirsin.")
+        st.info("AI Tahmin sekmesinden tüm fon tahminlerini görebilirsin.")
 
     st.divider()
 
@@ -1231,31 +1314,34 @@ with tab1:
                     textposition="outside",
                     hovertemplate="<b>%{y}</b><br>Ort. Getiri: %{x:.2f}%<extra></extra>",
                 ))
+                _cat_txt = "#1c3a24" if st.session_state.get("theme") == "light" else "#e8e8e8"
+                _cat_grid = "rgba(26,92,46,0.12)" if st.session_state.get("theme") == "light" else "rgba(255,255,255,0.08)"
+                _cat_zero = "rgba(26,92,46,0.25)" if st.session_state.get("theme") == "light" else "rgba(255,255,255,0.2)"
                 _cat_fig.update_layout(
-                    title="📊 Fon Kategorileri — Aylık Ortalama Performans",
+                    title="Fon Kategorileri — Aylık Ortalama Performans",
                     xaxis_title="Ortalama 1 Aylık Getiri (%)",
                     yaxis_title=None,
                     height=420,
                     margin=dict(l=10, r=60, t=50, b=40),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#e8e8e8"),
-                    xaxis=dict(gridcolor="rgba(255,255,255,0.08)", zerolinecolor="rgba(255,255,255,0.2)"),
+                    font=dict(color=_cat_txt),
+                    xaxis=dict(gridcolor=_cat_grid, zerolinecolor=_cat_zero),
                     yaxis=dict(gridcolor="rgba(0,0,0,0)"),
                 )
                 st.plotly_chart(_cat_fig, use_container_width=True)
                 st.caption(f"Son 1 aylık ortalama getiriler. {_total_funds} fon analiz edildi.")
             else:
-                st.info("📂 Snapshot'ta kategori/getiri verisi bulunamadı.")
+                st.info("Snapshot'ta kategori/getiri verisi bulunamadı.")
         except Exception as _e:
-            st.info(f"📂 Kategori analizi yüklenemedi: {_e}")
+            st.info(f"Kategori analizi yüklenemedi: {_e}")
     else:
-        st.info("📂 TEFAS cache bulunamadı — `python main.py --collect` çalıştır.")
+        st.info("TEFAS cache bulunamadı — `python main.py --collect` çalıştır.")
 
     st.divider()
 
     # === TEKNİK DETAYLAR (gizli) ===
-    with st.expander("🔧 Teknik Detaylar (ileri düzey)"):
+    with st.expander("Teknik Detaylar (ileri düzey)"):
         st.write("**Rejim Skorları** — Her piyasa durumunun olasılık puanı (0–1 arası):")
         st.bar_chart(pd.DataFrame.from_dict(result["scores"], orient="index", columns=["Skor"]))
 
@@ -1279,16 +1365,16 @@ with tab1:
 with tab2:
     st.markdown("""
     <div class="info-box info-box-blue">
-        <p>💼 Portföy bilgilerini aşağıdan girebilir veya güncelleyebilirsin.
+        <p>Portföy bilgilerini aşağıdan girebilir veya güncelleyebilirsin.
         Değişiklikler kaydedilir ve bir sonraki ziyaretinde hatırlanır.</p>
     </div>
     """, unsafe_allow_html=True)
 
     # === RİSK PROFİLİ ANKETİ ===
     _risk_labels = {
-        "muhafazakar": "🛡️ Muhafazakar",
-        "dengeli":     "⚖️ Dengeli",
-        "agresif":     "🚀 Agresif",
+        "muhafazakar": "◽ Muhafazakar",
+        "dengeli":     "◎ Dengeli",
+        "agresif":     "▲ Agresif",
     }
     _risk_desc = {
         "muhafazakar": "Düşük risk, sermaye koruma öncelikli",
@@ -1315,8 +1401,8 @@ with tab2:
 
     _existing_profile = st.session_state.get("risk_profile")
     _expander_label = (
-        f"🎯 Risk Profilin: {_risk_labels.get(_existing_profile, '')} — güncelle"
-        if _existing_profile else "🎯 Risk Profilini Belirle"
+        f"Risk Profilin: {_risk_labels.get(_existing_profile, '')} — güncelle"
+        if _existing_profile else "Risk Profilini Belirle"
     )
 
     with st.expander(_expander_label, expanded=not bool(_existing_profile)):
@@ -1354,9 +1440,9 @@ with tab2:
             key="rp_q5", index=None,
         )
 
-        if st.button("🎯 Profilimi Belirle", key="rp_submit", type="primary"):
+        if st.button("Profilimi Belirle", key="rp_submit", type="primary"):
             if None in [_q1, _q2, _q3, _q4, _q5]:
-                st.warning("⚠️ Lütfen tüm soruları yanıtla.")
+                st.warning("Lütfen tüm soruları yanıtla.")
             else:
                 _score_map = {
                     "1-3 yıl (Kısa vade)": 1, "3-7 yıl (Orta vade)": 2, "7+ yıl (Uzun vade)": 3,
@@ -1446,7 +1532,7 @@ with tab2:
             _cur_label_t2 = _slug_to_label_t2.get(st.session_state.active_portfolio, _labels_t2[0])
             _cur_idx_t2 = _labels_t2.index(_cur_label_t2) if _cur_label_t2 in _labels_t2 else 0
             _sel_t2 = st.selectbox(
-                "📂 Aktif Portföy:",
+                "Aktif Portföy:",
                 options=_labels_t2,
                 index=_cur_idx_t2,
                 key="pf_select_tab2",
@@ -1460,7 +1546,7 @@ with tab2:
                 st.rerun()
         with _t2_col2:
             st.write("")
-            with st.popover("➕ Yeni"):
+            with st.popover("+  Yeni"):
                 _new_name_t2 = st.text_input("Ad:", key="new_pf_inline")
                 if st.button("Oluştur", key="create_pf_inline") and _new_name_t2:
                     _new_slug_t2 = _pm_t2.create_slug(_new_name_t2)
@@ -1474,7 +1560,7 @@ with tab2:
     _active_data_t2 = _pm_t2.get_portfolio(active_slug)
     active_pf_name = _active_data_t2.get("name", "Portföy") if _active_data_t2 else "Portföy"
 
-    with st.expander(f"✏️ {active_pf_name} — Düzenle", expanded=False):
+    with st.expander(f"{active_pf_name} — Düzenle", expanded=False):
 
         from src.data_collector import TEFASCollector
         collector = TEFASCollector()
@@ -1522,7 +1608,7 @@ with tab2:
                     updated_portfolio[code] = new_amount
 
                 with col_remove:
-                    if st.button("🗑️", key=f"remove_{code}", help=f"{code} fonunu çıkar"):
+                    if st.button("×", key=f"remove_{code}", help=f"{code} fonunu çıkar"):
                         funds_to_remove.append(code)
 
             for code in funds_to_remove:
@@ -1571,7 +1657,7 @@ with tab2:
 
         with add_col3:
             st.write("")
-            if st.button("➕ Ekle", type="primary", key="add_fund"):
+            if st.button("+  Ekle", type="primary", key="add_fund"):
                 if selected_label and selected_label in available_options:
                     new_code = available_options[selected_label]
                     st.session_state.portfolio[new_code] = new_fund_amount
@@ -1583,7 +1669,7 @@ with tab2:
         st.divider()
         _existing_notes = _active_data_t2.get("notes", "") if _active_data_t2 else ""
         _pf_notes = st.text_area(
-            "📝 Notlar:",
+            "Notlar:",
             value=_existing_notes,
             placeholder="Bu portföy hakkında notlar… (ör. yatırım amacı, risk tercihi)",
             key="pf_notes",
@@ -1595,22 +1681,22 @@ with tab2:
         save_col1, save_col2, save_col3 = st.columns(3)
 
         with save_col1:
-            if st.button("💾 Kaydet", type="primary", key="save_portfolio"):
+            if st.button("Kaydet", type="primary", key="save_portfolio"):
                 st.session_state.portfolio = updated_portfolio if updated_portfolio else st.session_state.portfolio
                 if _pm_t2.save_portfolio(active_slug, active_pf_name, st.session_state.portfolio, notes=_pf_notes):
-                    st.success(f"✅ {active_pf_name} kaydedildi!")
+                    st.success(f"{active_pf_name} kaydedildi!")
                     st.cache_data.clear()
                     st.rerun()
                 else:
                     st.error("Kaydetme hatası.")
 
         with save_col2:
-            if st.button("🔄 Sıfırla", key="reset_portfolio"):
+            if st.button("↺  Sıfırla", key="reset_portfolio"):
                 st.session_state.portfolio = {}
                 st.rerun()
 
         with save_col3:
-            if st.button("📋 Demo Portföy", key="demo_portfolio"):
+            if st.button("Demo Portföy", key="demo_portfolio"):
                 st.session_state.portfolio = {
                     "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000
                 }
@@ -1619,7 +1705,7 @@ with tab2:
     # === PORTFÖY ÇEŞİTLENDİRME ANALİZİ ===
     _pf_codes = [k for k, v in (st.session_state.portfolio or {}).items() if v > 0]
     if len(_pf_codes) >= 2:
-        st.write("### 📐 Portföy Çeşitlendirme Analizi")
+        st.markdown('<div class="section-heading">Portföy Çeşitlendirme Analizi</div>', unsafe_allow_html=True)
         _corr_snaps = sorted(Path("data/tefas_cache").glob("snapshot_*.parquet"))
         if len(_corr_snaps) >= 3:
             # Her snapshot'tan portföy fonlarının 1M getirisini topla
@@ -1655,21 +1741,22 @@ with tab2:
                     showscale=True,
                     colorbar=dict(title="Korelasyon"),
                 ))
+                _hmap_txt = "#1c3a24" if st.session_state.get("theme") == "light" else "#e8e8e8"
                 _hmap.update_layout(
                     height=max(300, 80 * len(_valid_cols)),
                     margin=dict(l=10, r=10, t=20, b=10),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#e8e8e8"),
+                    font=dict(color=_hmap_txt),
                 )
                 st.plotly_chart(_hmap, use_container_width=True)
 
                 if _avg_corr > 0.7:
-                    st.warning("⚠️ Portföyün çeşitlendirmesi zayıf — fonların çoğu benzer hareket ediyor.")
+                    st.warning("Portföyün çeşitlendirmesi zayıf — fonların çoğu benzer hareket ediyor.")
                 elif _avg_corr > 0.3:
-                    st.success("✅ Portföyün makul çeşitlendirilmiş.")
+                    st.success("Portföyün makul çeşitlendirilmiş.")
                 else:
-                    st.success("🎯 Mükemmel çeşitlendirme — fonlar birbirinden bağımsız hareket ediyor.")
+                    st.success("Mükemmel çeşitlendirme — fonlar birbirinden bağımsız hareket ediyor.")
                 st.caption(f"Ortalama korelasyon: {_avg_corr:.2f} | {len(_corr_snaps)} snapshot kullanıldı")
             else:
                 st.info("Portföy fonları için yeterli veri bulunamadı (en az 3 snapshot gerekli).")
@@ -1680,7 +1767,7 @@ with tab2:
     total_value = sum(holdings.values())
 
     if total_value == 0:
-        st.warning("⚠️ Portföy değeri 0 TL. Yukarıdaki formu kullanarak fon tutarlarını gir.")
+        st.warning("Portföy değeri 0 TL. Yukarıdaki formu kullanarak fon tutarlarını gir.")
     else:
         current_weights = {k: v / total_value for k, v in holdings.items() if v > 0}
 
@@ -1694,7 +1781,7 @@ with tab2:
         # === ANA MESAJ ===
         st.markdown(f"""
         <div class="portfolio-header">
-            <h2>💼 {active_pf_name}: {format_tl(total_value)}</h2>
+            <h2>{active_pf_name}: {format_tl(total_value)}</h2>
             <p>{regime_info['symbol']} Piyasa <strong>{regime_info['label']}</strong> modunda →
             {regime_info['action']}</p>
         </div>
@@ -1720,16 +1807,17 @@ with tab2:
                 hovertemplate="<b>%{label}</b><br>%{value:,.0f} TL<br>%{percent}<extra></extra>",
                 marker=dict(colors=_donut_colors, line=dict(color="rgba(0,0,0,0.3)", width=1.5)),
             ))
+            _donut_txt = "#1c3a24" if st.session_state.get("theme") == "light" else "#e8e8e8"
             _fig_donut.update_layout(
                 showlegend=True,
                 legend=dict(
                     orientation="v", x=1.02, y=0.5, xanchor="left",
-                    font=dict(size=11, color="#e8e8e8"),
+                    font=dict(size=11, color=_donut_txt),
                 ),
                 annotations=[dict(
                     text=f"<b>{len(_donut_values)} Fon</b><br>%100",
                     x=0.5, y=0.5, font_size=14, showarrow=False,
-                    font=dict(color="#e8e8e8"),
+                    font=dict(color=_donut_txt),
                 )],
                 margin=dict(l=0, r=140, t=10, b=10),
                 height=260,
@@ -1771,15 +1859,15 @@ with tab2:
 
         # === YAPMAN GEREKENLER ===
         _rp_display = {
-            "muhafazakar": "🛡️ Muhafazakar",
-            "dengeli":     "⚖️ Dengeli",
-            "agresif":     "🚀 Agresif",
+            "muhafazakar": "◽ Muhafazakar",
+            "dengeli":     "◎ Dengeli",
+            "agresif":     "▲ Agresif",
         }
         if _user_rp:
-            st.info(f"🎯 Risk profilin: **{_rp_display[_user_rp]}** — Öneriler buna göre kişiselleştirildi.")
+            st.info(f"Risk profilin: **{_rp_display[_user_rp]}** — Öneriler buna göre kişiselleştirildi.")
         else:
-            st.caption("💡 Risk profilini belirleyerek kişiselleştirilmiş öneriler alabilirsin. ↑ Yukarıdaki anketi doldur.")
-        st.write("### 📋 Bu Ay Yapman Gerekenler")
+            st.caption("Risk profilini belirleyerek kişiselleştirilmiş öneriler alabilirsin. ↑ Yukarıdaki anketi doldur.")
+        st.markdown('<div class="section-heading">Bu Ay Yapman Gerekenler</div>', unsafe_allow_html=True)
 
         has_action = False
         for item in sorted(analysis_data, key=lambda x: -abs(x["diff_tl"])):
@@ -1788,19 +1876,19 @@ with tab2:
             has_action = True
             if item["action"] == "BUY":
                 st.success(
-                    f"🟢 **{item['name']}** ({item['asset']}) fonuna "
+                    f"▲ **{item['name']}** ({item['asset']}) fonuna "
                     f"**{format_tl(abs(item['diff_tl']))}** ekle\n\n"
                     f"Şu an: %{item['current_w']*100:.0f} → Hedef: %{item['target_w']*100:.0f}"
                 )
             else:
                 st.error(
-                    f"🔴 **{item['name']}** ({item['asset']}) fonundan "
+                    f"▼ **{item['name']}** ({item['asset']}) fonundan "
                     f"**{format_tl(abs(item['diff_tl']))}** azalt\n\n"
                     f"Şu an: %{item['current_w']*100:.0f} → Hedef: %{item['target_w']*100:.0f}"
                 )
 
         if not has_action:
-            st.success("✅ Portföyün şu an dengeli görünüyor, değişiklik gerekmiyor.")
+            st.success("Portföyün şu an dengeli görünüyor, değişiklik gerekmiyor.")
 
         # === MALİYET BİLGİSİ ===
         cost = cost_model.calculate_rebalance_cost(recommendations, total_value)
@@ -1812,12 +1900,12 @@ with tab2:
         cc3.metric("Portföy Değişimi", f"%{cost['turnover_pct']*100:.0f}")
 
         if cost["exceeds_monthly_limit"]:
-            st.error("⚠️ Aylık fon değişikliği limiti (6) aşılıyor! En önemli değişiklikler önceliklendirildi.")
+            st.error("Aylık fon değişikliği limiti (6) aşılıyor! En önemli değişiklikler önceliklendirildi.")
 
-        st.caption("💡 BES'te fon geçişi ücretsizdir. Maliyet sadece tahmini slippage'dir (%0.2).")
+        st.caption("BES'te fon geçişi ücretsizdir. Maliyet sadece tahmini slippage'dir (%0.2).")
 
         # === DETAY TABLO (gizli) ===
-        with st.expander("📊 Detaylı Portföy Tablosu"):
+        with st.expander("Detaylı Portföy Tablosu"):
             df_detail = pd.DataFrame([{
                 "Fon":           f"{item['name']} ({item['asset']})",
                 "Mevcut":        format_tl(item["current_tl"]),
@@ -1829,7 +1917,7 @@ with tab2:
             st.dataframe(df_detail, hide_index=True, use_container_width=True)
 
         # === EĞİTİCİ EXPANDER ===
-        with st.expander("❓ Bu öneriler ne anlama geliyor?"):
+        with st.expander("Bu öneriler ne anlama geliyor?"):
             st.markdown(f"""
 **Sistem nasıl çalışıyor?**
 
@@ -1843,11 +1931,11 @@ with tab2:
    "ne kadar al, ne kadar sat" önerisi üretiyoruz
 
 **Fon tipleri nedir?**
-- 🏢 **VEF (Hisse Fonu):** Borsa İstanbul hisselerine yatırım. Yüksek risk, yüksek getiri potansiyeli.
-- 🥇 **ALT (Altın Fonu):** Altın fiyatına endeksli. Kriz dönemlerinde koruma sağlar.
-- 🏛️ **KTS (Kamu Borç.):** Devlet tahvili ve bonosu. Düşük risk, sabit getiri.
-- 🔄 **KCH (Karma):** Hisse + tahvil + altın karışımı. Orta risk.
-- 💵 **CASH (Para Piy.):** En düşük riskli, mevduat benzeri getiri.
+- □ **VEF (Hisse Fonu):** Borsa İstanbul hisselerine yatırım. Yüksek risk, yüksek getiri potansiyeli.
+- ◈ **ALT (Altın Fonu):** Altın fiyatına endeksli. Kriz dönemlerinde koruma sağlar.
+- ≡ **KTS (Kamu Borç.):** Devlet tahvili ve bonosu. Düşük risk, sabit getiri.
+- ↺ **KCH (Karma):** Hisse + tahvil + altın karışımı. Orta risk.
+- — **CASH (Para Piy.):** En düşük riskli, mevduat benzeri getiri.
 
 **Önemli:** Bu öneriler kesin yatırım tavsiyesi değildir.
 Kendi durumunuza göre değerlendirin.
@@ -1861,7 +1949,7 @@ with tab3:
     # === SAYFA AÇIKLAMASI ===
     st.markdown("""
     <div class="info-box info-box-yellow">
-        <p>📚 <strong>Bu sayfa ne gösteriyor?</strong> Sistemimiz geçmişte nasıl çalışırdı?
+        <p><strong>Bu sayfa ne gösteriyor?</strong> Sistemimiz geçmişte nasıl çalışırdı?
         Gerçek piyasa verisiyle geriye dönük test yaparak, önerilerimizin ne kadar
         isabetli olduğunu ölçüyoruz.</p>
     </div>
@@ -1874,14 +1962,14 @@ with tab3:
 
     if total_obs < 6:
         st.info(
-            f"🧠 **Sistem öğrenme aşamasında.** Henüz {total_obs} aylık gözlem var. "
+            f"**Sistem öğrenme aşamasında.** Henüz {total_obs} aylık gözlem var. "
             f"6 aydan sonra sistem kendi geçmiş performansından öğrenmeye başlayacak. "
             f"Şu an sabit (uzman görüşü bazlı) ağırlıklar kullanılıyor."
         )
     else:
-        st.success(f"🧠 **Sistem öğreniyor!** {total_obs} aylık gözlem mevcut.")
+        st.success(f"**Sistem öğreniyor!** {total_obs} aylık gözlem mevcut.")
 
-    with st.expander("📋 Rejim Bazlı Öğrenme İstatistikleri", expanded=False):
+    with st.expander("Rejim Bazlı Öğrenme İstatistikleri", expanded=False):
         stats_df = pd.DataFrame.from_dict(stats, orient="index")
         stats_df.index.name = "Rejim"
         st.dataframe(stats_df.style.format({
@@ -1896,7 +1984,7 @@ with tab3:
     history_df = tracker.get_portfolio_history()
 
     if not history_df.empty and len(history_df) >= 2:
-        st.write("### 📈 Portföy Değer Geçmişi")
+        st.markdown('<div class="section-heading">Portföy Değer Geçmişi</div>', unsafe_allow_html=True)
 
         fig = make_subplots(
             rows=2, cols=1,
@@ -1989,7 +2077,7 @@ with tab3:
         hm3.metric("Toplam Getiri", f"%{total_return*100:+.1f}")
         hm4.metric("Süre",          f"{len(history_df)} ay")
 
-        with st.expander("📋 Aylık Detay"):
+        with st.expander("Aylık Detay"):
             detail = history_df[["date", "total_value", "regime", "monthly_return"]].copy()
             detail.columns = ["Tarih", "Değer (TL)", "Rejim", "Aylık Getiri"]
             detail["Tarih"]       = detail["Tarih"].dt.strftime("%Y-%m")
@@ -2000,13 +2088,13 @@ with tab3:
             st.dataframe(detail, hide_index=True, use_container_width=True)
 
     elif not history_df.empty:
-        st.info("📊 Portföy geçmişi için en az 2 aylık snapshot gerekli. Sistem her ay otomatik kaydediyor.")
+        st.info("Portföy geçmişi için en az 2 aylık snapshot gerekli. Sistem her ay otomatik kaydediyor.")
     else:
-        st.info("📊 Henüz portföy geçmişi yok. İlk aylık pipeline çalıştığında (`python main.py`) snapshot kaydedilecek.")
+        st.info("Henüz portföy geçmişi yok. İlk aylık pipeline çalıştığında (`python main.py`) snapshot kaydedilecek.")
 
     # === ENFLASYONs ETKİSİ ===
     st.divider()
-    st.write("### 💰 Enflasyon Etkisi")
+    st.markdown('<div class="section-heading">Enflasyon Etkisi</div>', unsafe_allow_html=True)
     st.markdown("""
 Türkiye'de yüksek enflasyon nedeniyle **nominal (görünen) getiri yanıltıcı** olabilir.
 Örneğin portföyün %20 kazanmış görünse bile, enflasyon %30 ise **gerçekte %10 kaybetmişsindir**.
@@ -2034,12 +2122,12 @@ Aşağıdaki tablo farklı getiri senaryolarında gerçek (reel) kazancını gö
         st.dataframe(pd.DataFrame(scenario_data), hide_index=True)
         monthly_inf = ((1 + cpi) ** (1 / 12) - 1) * 100
         st.caption(
-            f"💡 Yıllık TÜFE: %{cpi*100:.1f} | "
+            f"Yıllık TÜFE: %{cpi*100:.1f} | "
             f"Aylık enflasyon etkisi: ~%{monthly_inf:.2f} | "
             f"Enflasyonun üstünde getiri için aylık minimum ~%{monthly_inf:.2f} getiri gerekli."
         )
     else:
-        st.info("⚠️ CPI verisi yok — reel getiri hesaplanamıyor. TCMB_API_KEY tanımlı mı?")
+        st.info("CPI verisi yok — reel getiri hesaplanamıyor. TCMB_API_KEY tanımlı mı?")
 
     # === PORTFÖY KARŞILAŞTIRMA ===
     from src.portfolio_manager import PortfolioManager as _PM_CMP
@@ -2048,7 +2136,7 @@ Aşağıdaki tablo farklı getiri senaryolarında gerçek (reel) kazancını gö
 
     if len(_all_pfs) >= 2:
         st.divider()
-        st.write("### 📊 Portföy Karşılaştırma")
+        st.markdown('<div class="section-heading">Portföy Karşılaştırma</div>', unsafe_allow_html=True)
 
         _pf_label_map = {
             f"{p['name']} ({p['total_tl']:,.0f} TL)": p["slug"]
@@ -2164,7 +2252,7 @@ Aşağıdaki tablo farklı getiri senaryolarında gerçek (reel) kazancını gö
 
     # === BACKTEST BÖLÜMÜ ===
     st.divider()
-    st.write("### 🔬 Geriye Dönük Test (Backtest)")
+    st.markdown('<div class="section-heading">Geriye Dönük Test (Backtest)</div>', unsafe_allow_html=True)
     st.markdown("""
 Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapacağını simüle eder.
 
@@ -2182,11 +2270,11 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
 - **CAGR (Yıllık büyüme):** Yılda ortalama kaç % kazanıldı
     """)
 
-    with st.expander("⚙️ Backtest Ayarları", expanded=False):
+    with st.expander("Backtest Ayarları", expanded=False):
         bc1, bc2 = st.columns(2)
         bt_start = bc1.date_input("Başlangıç", value=pd.Timestamp("2024-06-01"))
         bt_end   = bc2.date_input("Bitiş",     value=pd.Timestamp("2026-04-01"))
-        run_backtest = st.button("🚀 Backtest Çalıştır", type="primary")
+        run_backtest = st.button("Backtest Çalıştır", type="primary")
 
     if run_backtest:
         with st.spinner("Backtest çalışıyor... (yfinance'tan veri çekiliyor, 1-2 dk sürebilir)"):
@@ -2209,26 +2297,26 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
 
         if diff > 0.02:
             st.success(
-                f"✅ **AI portföy benchmark'ı geçti!** "
+                f"**AI portföy benchmark'ı geçti!** "
                 f"AI: %{total_ret*100:.1f} vs Eşit Dağılım: %{bench_ret*100:.1f} "
                 f"→ %{diff*100:.1f} daha iyi performans."
             )
         elif diff > -0.02:
             st.info(
-                f"🟡 **AI ve benchmark yakın performans gösterdi.** "
+                f"**AI ve benchmark yakın performans gösterdi.** "
                 f"AI: %{total_ret*100:.1f} vs Eşit Dağılım: %{bench_ret*100:.1f} "
                 f"→ Fark: %{diff*100:.1f}"
             )
         else:
             st.warning(
-                f"⚠️ **Bu dönemde benchmark daha iyi performans gösterdi.** "
+                f"**Bu dönemde benchmark daha iyi performans gösterdi.** "
                 f"AI: %{total_ret*100:.1f} vs Eşit Dağılım: %{bench_ret*100:.1f} "
                 f"→ %{abs(diff)*100:.1f} geride. Bu normal olabilir — proxy model "
                 f"kullanılıyor ve sistem henüz öğrenme aşamasında."
             )
 
         # === ÖZET METRİKLER ===
-        st.write("### 📊 Performans Özeti")
+        st.markdown('<div class="section-heading">Performans Özeti</div>', unsafe_allow_html=True)
         km1, km2, km3, km4 = st.columns(4)
         km1.metric(
             "AI Toplam Getiri",
@@ -2245,7 +2333,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
         km8.metric("Test Süresi", f"{bt_result.months_count} ay")
 
         # --- 1. Equity Curve ---
-        st.write("### 📈 Portföy Değeri: AI vs Benchmark")
+        st.markdown('<div class="section-heading">Portföy Değeri: AI vs Benchmark</div>', unsafe_allow_html=True)
         fig_equity = go.Figure()
         fig_equity.add_trace(go.Scatter(
             x=df_bt.index, y=df_bt["portfolio_value"], name="AI Portföy",
@@ -2270,13 +2358,13 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
         st.plotly_chart(fig_equity, use_container_width=True)
 
         # --- 2. Rejim Zaman Çizelgesi ---
-        st.write("### 🎯 Piyasa Ortamı — Zaman Çizelgesi")
+        st.markdown('<div class="section-heading">Piyasa Ortamı — Zaman Çizelgesi</div>', unsafe_allow_html=True)
         st.markdown("""
 **Rejim ne demek?** Sistem piyasayı 4 kategoride sınıflandırıyor:
-- 🔴 **CRISIS:** Sert düşüş dönemi — altın ve nakit ağırlıklı
-- 🟢 **RISK_ON:** Yükseliş trendi — hisse ağırlıklı
-- 🔵 **STABLE:** Sakin dönem — dengeli dağılım
-- 🟠 **RATE_HIKE:** Faiz artışı — tahvil ağırlıklı
+- ▼ **CRISIS:** Sert düşüş dönemi — altın ve nakit ağırlıklı
+- ▲ **RISK_ON:** Yükseliş trendi — hisse ağırlıklı
+- ◎ **STABLE:** Sakin dönem — dengeli dağılım
+- ≡ **RATE_HIKE:** Faiz artışı — tahvil ağırlıklı
         """)
         regime_colors = {
             "CRISIS":    "#ef4444",
@@ -2304,7 +2392,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
         st.plotly_chart(fig_regime, use_container_width=True)
 
         # --- 3. Aylık Alpha ---
-        st.write("### 📊 Piyasaya Göre Aylık Fark (Alpha)")
+        st.markdown('<div class="section-heading">Piyasaya Göre Aylık Fark (Alpha)</div>', unsafe_allow_html=True)
         colors_alpha = ["#22c55e" if a > 0 else "#ef4444" for a in df_bt["alpha"]]
         fig_alpha = go.Figure()
         fig_alpha.add_trace(go.Bar(
@@ -2324,7 +2412,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
         st.plotly_chart(fig_alpha, use_container_width=True)
 
         # --- 4. Drawdown ---
-        st.write("### 📉 Zirveden Düşüş (Drawdown)")
+        st.markdown('<div class="section-heading">Zirveden Düşüş (Drawdown)</div>', unsafe_allow_html=True)
         pf_returns = [s.portfolio_return - s.rebalance_cost_pct for s in bt_result.steps]
         eq = [bt_engine.config.initial_capital]
         for r in pf_returns:
@@ -2360,7 +2448,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
         st.plotly_chart(fig_dd, use_container_width=True)
 
         # --- 5. Rejim Bazlı Performans ---
-        st.write("### 🏷️ Her Piyasa Ortamında Performans")
+        st.markdown('<div class="section-heading">Her Piyasa Ortamında Performans</div>', unsafe_allow_html=True)
         regime_stats = {}
         for reg in regime_colors:
             rs = [s for s in bt_result.steps if s.regime == reg]
@@ -2380,7 +2468,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
             )
 
         # --- 6. Aylık Detay ---
-        with st.expander("📋 Aylık Detay Tablosu", expanded=False):
+        with st.expander("Aylık Detay Tablosu", expanded=False):
             detail_df = df_bt[["regime", "confidence", "portfolio_return", "benchmark_return",
                                "alpha", "net_alpha", "cost_pct", "portfolio_value"]].copy()
             detail_df.columns = ["Rejim", "Güven", "Getiri", "Benchmark", "Fark (Alpha)",
@@ -2396,7 +2484,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
             }), use_container_width=True)
 
     elif "bt_result" not in st.session_state:
-        st.info("⬆️ Yukarıdaki 'Backtest Çalıştır' butonuna tıkla.")
+        st.info("Yukarıdaki 'Backtest Çalıştır' butonuna tıkla.")
 
 
 # ══════════════════════════════════════════════════════
@@ -2405,7 +2493,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
 with tab4:
     st.markdown("""
     <div class="ai-header">
-        <h2>🤖 AI Fon Tahmin Motoru</h2>
+        <h2>AI Fon Tahmin Motoru</h2>
         <p>Makine öğrenmesi (XGBoost) ile BES fonlarının önümüzdeki 3 aylık
         tahmini getirilerini hesaplıyoruz. Model, geçmiş performans, volatilite,
         momentum ve makro verilerden öğreniyor.</p>
@@ -2417,7 +2505,7 @@ with tab4:
 
     if not ml_summary_path.exists():
         st.warning(
-            "⚠️ Henüz AI model eğitilmemiş. Terminalde şu komutu çalıştır:\n\n"
+            "Henüz AI model eğitilmemiş. Terminalde şu komutu çalıştır:\n\n"
             "```\npython main.py --ml-train\n```\n\n"
             "Bu işlem 5-15 dakika sürer ve TEFAS'tan fon verilerini çekerek "
             "makine öğrenmesi modelini eğitir."
@@ -2433,11 +2521,11 @@ with tab4:
         fund_count  = ml_summary.get("fund_count", 0)
 
         if best_ic >= 0.4:
-            quality_emoji, quality_text = "🟢", "Güçlü sinyal"
+            quality_emoji, quality_text = "▲", "Güçlü sinyal"
         elif best_ic >= 0.2:
-            quality_emoji, quality_text = "🟡", "Orta sinyal"
+            quality_emoji, quality_text = "◎", "Orta sinyal"
         else:
-            quality_emoji, quality_text = "🔴", "Zayıf sinyal"
+            quality_emoji, quality_text = "▼", "Zayıf sinyal"
 
         mi1, mi2, mi3, mi4 = st.columns(4)
         mi1.metric("Model", best_model.upper())
@@ -2445,10 +2533,10 @@ with tab4:
         mi3.metric("Yön Doğruluğu", f"%{best_dir_acc*100:.0f}")
         mi4.metric("Analiz Edilen Fon", f"{fund_count}")
 
-        st.caption(f"📅 Son eğitim: {run_date} | {quality_emoji} {quality_text}")
+        st.caption(f"Son eğitim: {run_date} | {quality_emoji} {quality_text}")
 
         # === TAHMİNLER TABLOSU ===
-        st.write("### 📋 3 Aylık Getiri Tahminleri")
+        st.markdown('<div class="section-heading">3 Aylık Getiri Tahminleri</div>', unsafe_allow_html=True)
 
         pred_files = sorted(ml_predictions_dir.glob("predictions_fwd_return_3m_*.csv"))
 
@@ -2464,7 +2552,7 @@ with tab4:
                 col_best, col_worst = st.columns(2)
 
                 with col_best:
-                    st.write("#### 🟢 En Yüksek Tahmini Getiri")
+                    st.write("#### ▲ En Yüksek Tahmini Getiri")
                     for _, row in pred_df.nlargest(5, "predicted_fwd_return_3m").iterrows():
                         ret = row["predicted_fwd_return_3m"]
                         st.success(
@@ -2473,7 +2561,7 @@ with tab4:
                         )
 
                 with col_worst:
-                    st.write("#### 🔴 En Düşük Tahmini Getiri")
+                    st.write("#### ▼ En Düşük Tahmini Getiri")
                     for _, row in pred_df.nsmallest(5, "predicted_fwd_return_3m").iterrows():
                         ret = row["predicted_fwd_return_3m"]
                         st.error(
@@ -2481,7 +2569,7 @@ with tab4:
                             f"Tahmini 3M getiri: **%{ret*100:+.1f}**"
                         )
 
-                with st.expander("📊 Tüm Fonlar — Tahmin Tablosu"):
+                with st.expander("Tüm Fonlar — Tahmin Tablosu"):
                     display_df = pred_df[["fund_code", "fon_adi", "predicted_fwd_return_3m"]].copy()
                     display_df.columns = ["Kod", "Fon Adı", "3M Tahmini Getiri"]
                     display_df["3M Tahmini Getiri"] = display_df["3M Tahmini Getiri"].apply(
@@ -2497,7 +2585,7 @@ with tab4:
         pred_files_12m = sorted(ml_predictions_dir.glob("predictions_fwd_return_12m_*.csv"))
         if pred_files_12m:
             st.divider()
-            st.write("### 📋 12 Aylık Getiri Tahminleri (Uzun Vade)")
+            st.markdown('<div class="section-heading">12 Aylık Getiri Tahminleri (Uzun Vade)</div>', unsafe_allow_html=True)
 
             pred_12m = pd.read_csv(pred_files_12m[-1])
             if not pred_12m.empty and "predicted_fwd_return_12m" in pred_12m.columns:
@@ -2507,7 +2595,7 @@ with tab4:
                 col_12m_best, col_12m_worst = st.columns(2)
 
                 with col_12m_best:
-                    st.write("#### 🟢 En Yüksek (12M)")
+                    st.write("#### ▲ En Yüksek (12M)")
                     for _, row in pred_12m.nlargest(5, "predicted_fwd_return_12m").iterrows():
                         ret = row["predicted_fwd_return_12m"]
                         st.success(
@@ -2516,7 +2604,7 @@ with tab4:
                         )
 
                 with col_12m_worst:
-                    st.write("#### 🔴 En Düşük (12M)")
+                    st.write("#### ▼ En Düşük (12M)")
                     for _, row in pred_12m.nsmallest(5, "predicted_fwd_return_12m").iterrows():
                         ret = row["predicted_fwd_return_12m"]
                         st.error(
@@ -2525,7 +2613,7 @@ with tab4:
                         )
 
         # === MODEL KARŞILAŞTIRMA ===
-        with st.expander("🔬 Model Karşılaştırma (Teknik Detay)"):
+        with st.expander("Model Karşılaştırma (Teknik Detay)"):
             comparison = ml_summary.get("model_comparison", {})
             if comparison:
                 comp_df = pd.DataFrame.from_dict(comparison, orient="index")
@@ -2550,7 +2638,7 @@ with tab4:
                 )
 
         # === FEATURE IMPORTANCE ===
-        with st.expander("📊 Model Neye Bakıyor? (Feature Importance)"):
+        with st.expander("Model Neye Bakıyor? (Feature Importance)"):
             top_features = ml_summary.get("top_features", {})
             active_features = {k: float(v) for k, v in top_features.items() if float(v) > 0}
 
@@ -2603,7 +2691,7 @@ with tab4:
                 top_feat_name = next(iter(active_features))
                 top_feat_label = feature_explanations.get(top_feat_name, top_feat_name)
                 st.caption(
-                    f"💡 En önemli gösterge: **{top_feat_label}** — "
+                    f"En önemli gösterge: **{top_feat_label}** — "
                     "bu, iyi performans gösteren fonların kısa vadede devam etme "
                     "eğiliminde olduğu anlamına gelir (momentum etkisi)."
                 )
@@ -2641,9 +2729,9 @@ with tab4:
                     _top_rp = _filtered_rp.nlargest(5, "predicted_fwd_return_3m") if not _filtered_rp.empty else pd.DataFrame()
 
                     if not _top_rp.empty:
-                        _rp_labels_t4 = {"muhafazakar": "🛡️ Muhafazakar", "dengeli": "⚖️ Dengeli", "agresif": "🚀 Agresif"}
+                        _rp_labels_t4 = {"muhafazakar": "◽ Muhafazakar", "dengeli": "◎ Dengeli", "agresif": "▲ Agresif"}
                         st.divider()
-                        st.write(f"### 🎯 Sana Özel Fon Önerileri — {_rp_labels_t4[_t4_rp]}")
+                        st.markdown(f'<div class="section-heading">Sana Özel Fon Önerileri — {_rp_labels_t4[_t4_rp]}</div>', unsafe_allow_html=True)
                         st.caption("Risk profiline göre filtrelenmiş en yüksek AI 3M tahminli fonlar")
                         for _, _rp_row in _top_rp.iterrows():
                             _rp_ret = _rp_row["predicted_fwd_return_3m"]
@@ -2667,7 +2755,7 @@ with tab4:
 
         # === FON KARŞILAŞTIRMA ===
         st.divider()
-        st.write("### 🔍 Fon Karşılaştırma")
+        st.markdown('<div class="section-heading">Fon Karşılaştırma</div>', unsafe_allow_html=True)
 
         from src.data_collector import TEFASCollector as _TC_CMP
         _cmp_tc   = _TC_CMP()
@@ -2748,7 +2836,7 @@ with tab4:
                             st.metric("Risk Skoru", f"{_risk}")
 
             # Bar chart
-            st.write("#### 📊 Getiri Karşılaştırması")
+            st.write("#### Getiri Karşılaştırması")
             _chart_rows = []
             for _c in _sel_codes:
                 _s = _snap_rows.get(_c)
@@ -2798,11 +2886,11 @@ with tab4:
             else:
                 st.info("Seçilen fonlar için tahmin/getiri verisi bulunamadı.")
         else:
-            st.info("👆 Yukarıdan 2-5 fon seçerek getiri ve tahmin karşılaştırması yap.")
+            st.info("Yukarıdan 2-5 fon seçerek getiri ve tahmin karşılaştırması yap.")
 
         # === FON DETAY ===
         st.divider()
-        st.write("### 🔎 Fon Detay")
+        st.markdown('<div class="section-heading">Fon Detay</div>', unsafe_allow_html=True)
 
         _snap_files_det = sorted(Path("data/tefas_cache").glob("snapshot_*.parquet"))
         if _snap_files_det:
@@ -2850,7 +2938,7 @@ with tab4:
                         for col, label in _ret_cols
                     }
                     _ret_df = pd.DataFrame([_ret_data])
-                    st.write("**📈 Getiri Özeti**")
+                    st.write("**Getiri Özeti**")
                     st.dataframe(
                         _ret_df,
                         use_container_width=True,
@@ -2877,7 +2965,7 @@ with tab4:
 
                     if len(_ts_rows) >= 2:
                         _ts_df = pd.DataFrame(_ts_rows).sort_values("Tarih").dropna(subset=["1M"])
-                        st.write("**📊 Aylık Getiri Trendi (son snapshot'lardan)**")
+                        st.write("**Aylık Getiri Trendi (son snapshot'lardan)**")
                         _det_fig = go.Figure()
                         for _col, _clr in [("1M", "#4ade80"), ("3M", "#60a5fa"), ("6M", "#f59e0b"), ("12M", "#a78bfa")]:
                             _valid = _ts_df[["Tarih", _col]].dropna()
@@ -2913,7 +3001,7 @@ with tab4:
                                 _pred_val = _pred_row.iloc[0]["predicted_fwd_return_3m"]
                                 _clr_p = "#4ade80" if _pred_val >= 0 else "#ef4444"
                                 st.markdown(
-                                    f"**🤖 AI 3M Tahmini:** "
+                                    f"**AI 3M Tahmini:** "
                                     f"<span style='color:{_clr_p}; font-size:1.2rem; font-weight:700'>"
                                     f"%{_pred_val*100:+.1f}</span>",
                                     unsafe_allow_html=True,
@@ -2921,13 +3009,13 @@ with tab4:
                         except Exception:
                             pass
         else:
-            st.info("📂 TEFAS cache bulunamadı — `python main.py --collect` çalıştır.")
+            st.info("TEFAS cache bulunamadı — `python main.py --collect` çalıştır.")
 
         # === UYARI ===
         st.divider()
         st.markdown("""
         <div class="info-box info-box-orange">
-            <p>⚠️ <strong>Önemli Uyarı:</strong> Bu tahminler makine öğrenmesi modelinin
+            <p><strong>Önemli Uyarı:</strong> Bu tahminler makine öğrenmesi modelinin
             geçmiş verilerden öğrendiği kalıplara dayanmaktadır. Geçmiş performans
             gelecek sonuçları garanti etmez. Yatırım kararlarınızı sadece bu tahminlere
             dayandırmayın.</p>
@@ -2940,12 +3028,12 @@ with tab4:
 with tab5:
     st.markdown("""
     <div class="info-box info-box-blue">
-        <p>📚 BES ve yatırım hakkında temel bilgiler.
+        <p>BES ve yatırım hakkında temel bilgiler.
         Bu bölüm <strong>eğitim amaçlıdır</strong>, yatırım tavsiyesi değildir.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    with st.expander("🏦 BES Nedir?", expanded=True):
+    with st.expander("BES Nedir?", expanded=True):
         st.markdown("""
 **Bireysel Emeklilik Sistemi (BES)**, Türkiye'de devlet destekli gönüllü bir emeklilik tasarruf sistemidir.
 
@@ -2976,21 +3064,21 @@ Devlet katkısının tavanı: **yıllık brüt asgari ücretin %30'u**.
 - **Her iki koşul sağlandıktan sonra:** Tam hak, sıfır kesinti.
         """)
 
-    with st.expander("📊 Fon Tipleri"):
+    with st.expander("Fon Tipleri"):
         _fund_types = [
-            ("🔴 Hisse Senedi Fonları", "**Yüksek risk, yüksek getiri potansiyeli.** BIST (Borsa İstanbul) hisse senetlerine yatırım yapar. Uzun vadede enflasyonu en çok aşma potansiyeline sahip fondur. Kısa vadede sert dalgalanabilir. Genç yatırımcılar ve uzun vadeli planlar için uygundur."),
-            ("🟢 Kamu Borçlanma Fonları", "**Düşük-orta risk.** Devlet tahvili ve Hazine bonosu gibi devlet borçlanma araçlarına yatırım yapar. Faiz artış dönemlerinde güçlü performans gösterir. Sermaye koruması ön planda tutulur."),
-            ("🟡 Altın Fonları", "**Orta risk, enflasyon koruması.** Fiziksel altın veya altına dayalı araçlara yatırım yapar. Kriz dönemlerinde 'güvenli liman' görevi görür. TL değer kaybından korunma sağlar."),
-            ("🟠 Karma / Değişken Fonlar", "**Orta risk.** Hisse senedi, tahvil, altın ve para piyasası araçlarını karışık tutar. Fon yöneticisi piyasa koşullarına göre dağılımı değiştirir. Tek fonda çeşitlendirme arayan yatırımcılar için."),
-            ("⚪ Para Piyasası Fonları", "**En düşük risk.** Kısa vadeli devlet kağıtları ve repo gibi likit araçlara yatırım yapar. Mevduat hesabına benzer ama daha düşük getiri. Piyasa belirsizliğinde nakde yakın durmak için."),
-            ("🔵 Katılım Fonları", "**Faizsiz finans prensiplerine uygun.** Kira sertifikaları, sukuk ve faiz içermeyen araçlara yatırım yapar. Risk profili türüne göre değişir (katılım hisse, katılım kamu borçlanma vb.)."),
+            ("▲ Hisse Senedi Fonları", "**Yüksek risk, yüksek getiri potansiyeli.** BIST (Borsa İstanbul) hisse senetlerine yatırım yapar. Uzun vadede enflasyonu en çok aşma potansiyeline sahip fondur. Kısa vadede sert dalgalanabilir. Genç yatırımcılar ve uzun vadeli planlar için uygundur."),
+            ("≡ Kamu Borçlanma Fonları", "**Düşük-orta risk.** Devlet tahvili ve Hazine bonosu gibi devlet borçlanma araçlarına yatırım yapar. Faiz artış dönemlerinde güçlü performans gösterir. Sermaye koruması ön planda tutulur."),
+            ("◈ Altın Fonları", "**Orta risk, enflasyon koruması.** Fiziksel altın veya altına dayalı araçlara yatırım yapar. Kriz dönemlerinde 'güvenli liman' görevi görür. TL değer kaybından korunma sağlar."),
+            ("↺ Karma / Değişken Fonlar", "**Orta risk.** Hisse senedi, tahvil, altın ve para piyasası araçlarını karışık tutar. Fon yöneticisi piyasa koşullarına göre dağılımı değiştirir. Tek fonda çeşitlendirme arayan yatırımcılar için."),
+            ("— Para Piyasası Fonları", "**En düşük risk.** Kısa vadeli devlet kağıtları ve repo gibi likit araçlara yatırım yapar. Mevduat hesabına benzer ama daha düşük getiri. Piyasa belirsizliğinde nakde yakın durmak için."),
+            ("◎ Katılım Fonları", "**Faizsiz finans prensiplerine uygun.** Kira sertifikaları, sukuk ve faiz içermeyen araçlara yatırım yapar. Risk profili türüne göre değişir (katılım hisse, katılım kamu borçlanma vb.)."),
         ]
         for _title, _desc in _fund_types:
             st.markdown(f"**{_title}**")
             st.markdown(_desc)
             st.markdown("---")
 
-    with st.expander("🎯 Yatırım Stratejileri"):
+    with st.expander("Yatırım Stratejileri"):
         st.markdown("""
 #### Yaşa Göre Strateji
 Emekliliğe ne kadar uzaksın, o kadar fazla risk taşıyabilirsin:
@@ -3024,7 +3112,7 @@ Piyasanın dibini ve tepesini yakalamaya çalışmak istatistiksel olarak başar
 - Yıllık kontrol ve düzeltme, günlük panik kararlarından çok daha karlıdır.
         """)
 
-    with st.expander("💡 Sıkça Sorulan Sorular"):
+    with st.expander("Sıkça Sorulan Sorular"):
         _faqs = [
             ("Fon değiştirmek ücretli mi?",
              "**Hayır.** BES'te ayda **6 kez** fon değişikliği ücretsizdir. 6'yı aşan değişimlerde küçük bir işlem ücreti uygulanabilir (şirkete göre değişir). Bu sistem aylık 1 değişiklik önerir — limitin çok altında."),
@@ -3040,11 +3128,11 @@ Piyasanın dibini ve tepesini yakalamaya çalışmak istatistiksel olarak başar
              "**OKS (Otomatik Katılım Sistemi)** çalışanları işveren aracılığıyla otomatik kaydeder ama çıkış serbesttir. **BES** ise gönüllüdür, devlet katkısı daha yüksek (%30 vs %0) ve vergi avantajı sunar. İkisi birbirini tamamlayabilir."),
         ]
         for _q, _a in _faqs:
-            st.markdown(f"**❓ {_q}**")
+            st.markdown(f"**{_q}**")
             st.info(_a)
             st.markdown(" ")
 
-    with st.expander("📖 Terimler Sözlüğü"):
+    with st.expander("Terimler Sözlüğü"):
         _terms = [
             ("NAV (Net Aktif Değer)", "Bir yatırım fonunun toplam varlıklarının, toplam yükümlülüklerinden çıkarılmasıyla bulunan değer. Fon fiyatı = NAV / pay sayısı. BES'te her işlem günü hesaplanır."),
             ("Volatilite (Oynaklık)", "Bir varlığın fiyatının ne kadar dalgalandığının ölçüsü. Yüksek volatilite = yüksek risk ve fırsat. Genellikle yıllık standart sapma olarak ifade edilir (%15 düşük, %30+ yüksek)."),
