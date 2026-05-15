@@ -159,6 +159,18 @@ h1 { font-weight: 700 !important; letter-spacing: -0.5px; }
 h2, h3 { font-weight: 600 !important; letter-spacing: -0.3px; }
 hr { border-color: rgba(197,162,62,0.12) !important; margin: 1.5rem 0 !important; }
 
+/* ========== BÖLÜM BAŞLIKLARI ========== */
+.section-heading {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: rgba(232,232,232,0.45);
+    margin: 20px 0 12px 0;
+    padding-left: 10px;
+    border-left: 2px solid rgba(197,162,62,0.5);
+}
+
 /* ========== FORM ELEMANLARI ========== */
 [data-testid="stNumberInput"] { border-radius: 10px; }
 [data-testid="stNumberInput"] input { border-radius: 10px; font-weight: 500; }
@@ -172,10 +184,11 @@ hr { border-color: rgba(197,162,62,0.12) !important; margin: 1.5rem 0 !important
 .regime-card-crisis  { background: linear-gradient(135deg, #5f1e1e 0%, #991b1b 100%); border-left: 6px solid #ef4444; }
 .regime-card-riskon  { background: linear-gradient(135deg, #1e3a2f 0%, #166534 100%); border-left: 6px solid #4ade80; }
 .regime-card-ratehike { background: linear-gradient(135deg, #5f4b1e 0%, #92400e 100%); border-left: 6px solid #f59e0b; }
-.regime-card h1 { font-size: 2.2em; margin: 0 0 8px 0; color: white; }
-.regime-card p { font-size: 1.15em; color: rgba(255,255,255,0.85); margin: 4px 0; line-height: 1.5; }
-.regime-card .recommendation { font-size: 1.05em; color: rgba(255,255,255,0.7); }
-.regime-card-timestamp { position: absolute; top: 16px; right: 20px; font-size: 0.75rem; color: rgba(255,255,255,0.55); background: rgba(0,0,0,0.25); padding: 3px 10px; border-radius: 20px; }
+.regime-card-symbol { font-size:0.9rem; font-weight:700; letter-spacing:1px; opacity:0.7; margin-bottom:6px; display:block; }
+.regime-card h1 { font-size:2rem; margin: 4px 0 10px 0; color: white; font-weight:800; letter-spacing:-0.5px; }
+.regime-card p { font-size:1.05em; color: rgba(255,255,255,0.82); margin: 4px 0; line-height:1.6; }
+.regime-card .recommendation { font-size:1.0em; color: rgba(255,255,255,0.65); border-top: 1px solid rgba(255,255,255,0.1); padding-top:10px; margin-top:8px; }
+.regime-card-timestamp { position: absolute; top: 16px; right: 20px; font-size: 0.7rem; color: rgba(255,255,255,0.45); background: rgba(0,0,0,0.2); padding: 3px 10px; border-radius: 20px; letter-spacing:0.3px; }
 
 /* ========== PORTFÖY BAŞLIK KART ========== */
 .portfolio-header { background: linear-gradient(135deg, #0d2e16 0%, #1a5c2e 100%); padding: 24px 32px; border-radius: 16px; margin-bottom: 16px; border-left: 6px solid #c5a23e; }
@@ -342,6 +355,19 @@ h1, h2, h3, h4 { color: #0d2e16 !important; }
 
 /* HR */
 hr { border-color: rgba(197,162,62,0.20) !important; }
+
+/* Regime card — light modda da okunaklı (dark bg sabit) */
+.regime-card h1 { color: rgba(255,255,255,0.95) !important; }
+.regime-card p  { color: rgba(255,255,255,0.82) !important; }
+.regime-card .recommendation { color: rgba(255,255,255,0.70) !important; }
+.regime-card-timestamp { color: rgba(255,255,255,0.50) !important; }
+
+/* Insight kartlar light modda */
+.insight-card-text { color: rgba(20,40,25,0.85) !important; }
+
+/* Section başlık */
+.section-heading { color: #0d2e16 !important; }
+.section-heading-sub { color: rgba(13,46,22,0.45) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -378,7 +404,7 @@ def save_notification_prefs(prefs: dict) -> bool:
 def explain_regime(regime: str) -> dict:
     explanations = {
         "STABLE": {
-            "emoji": "😌",
+            "symbol": "◎",
             "label": "Sakin Piyasa",
             "color": "blue",
             "border": "#3b82f6",
@@ -387,7 +413,7 @@ def explain_regime(regime: str) -> dict:
             "detail": "Volatilite düşük, BIST belirgin bir trend göstermiyor, döviz sakin. Bu ortamda aşırı agresif veya defansif olmaya gerek yok.",
         },
         "CRISIS": {
-            "emoji": "🚨",
+            "symbol": "▼",
             "label": "Kriz Modu",
             "color": "red",
             "border": "#ef4444",
@@ -396,7 +422,7 @@ def explain_regime(regime: str) -> dict:
             "detail": "BIST'te sert düşüş, dövizde hızlı yükseliş veya yüksek volatilite tespit edildi. Bu dönemlerde sermayeyi korumak önceliklidir.",
         },
         "RISK_ON": {
-            "emoji": "🚀",
+            "symbol": "▲",
             "label": "Yükseliş Trendi",
             "color": "green",
             "border": "#22c55e",
@@ -405,7 +431,7 @@ def explain_regime(regime: str) -> dict:
             "detail": "BIST güçlü momentum gösteriyor, volatilite makul seviyelerde. Tarihsel olarak bu dönemlerde hisse fonları iyi performans gösterir.",
         },
         "RATE_HIKE": {
-            "emoji": "🏦",
+            "symbol": "≡",
             "label": "Faiz Artışı Dönemi",
             "color": "orange",
             "border": "#f59e0b",
@@ -964,10 +990,11 @@ with tab1:
     _now_ts = datetime.now().strftime("%H:%M")
     st.markdown(f"""
     <div class="regime-card {regime_class}">
-        <span class="regime-card-timestamp">🕐 Güncellendi: Bugün {_now_ts}</span>
-        <h1>{regime_info['emoji']} {regime_info['label']}</h1>
+        <span class="regime-card-timestamp">{_now_ts} itibarıyla</span>
+        <span class="regime-card-symbol">{regime_info['symbol']} Piyasa Durumu</span>
+        <h1>{regime_info['label']}</h1>
         <p>{regime_info['summary']}</p>
-        <p class="recommendation">💡 <strong>Öneri:</strong> {regime_info['action']}</p>
+        <p class="recommendation"><strong>Öneri —</strong> {regime_info['action']}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -993,7 +1020,7 @@ with tab1:
         pass
 
     # === PİYASA ÖZETİ ===
-    st.write("### 📊 Piyasa Özeti")
+    st.markdown('<div class="section-heading">Piyasa Özeti</div>', unsafe_allow_html=True)
     m1, m2, m3, m4 = st.columns(4)
 
     dd_val  = metrics["dd"] * 100
@@ -1034,7 +1061,7 @@ with tab1:
 
     # === EKONOMİK GÖSTERGELER ===
     if macro and macro.get("usdtry_official"):
-        st.write("### 🏛️ Ekonomik Göstergeler")
+        st.markdown('<div class="section-heading">Ekonomik Göstergeler</div>', unsafe_allow_html=True)
         mc1, mc2, mc3 = st.columns(3)
 
         rate        = macro.get("current_policy_rate")
@@ -1056,48 +1083,56 @@ with tab1:
         st.info("⚠️ TCMB verisi yok — .env dosyasında TCMB_API_KEY tanımlı mı?")
 
     # === AI İÇGÖRÜLERİ ===
-    st.write("### 🧠 AI İçgörüleri")
+    st.markdown('<div class="section-heading">AI İçgörüleri</div>', unsafe_allow_html=True)
 
     _insights = {
         "STABLE": {
-            "firsat": ("🟢 Piyasa Fırsatı", "Dengeli dağılım fırsatı, düşük maliyetle rebalance zamanı.", "#4ade80"),
-            "risk":   ("🟡 Risk Uyarısı",   "Ani rejim değişikliği riski düşük ama takipte kal.", "#c5a23e"),
-            "oneri":  ("💡 Öneri",           "Katkı payını artırarak devlet katkısından faydalanabilirsin.", "#60a5fa"),
+            "firsat": ("Piyasa Fırsatı", "Dengeli dağılım fırsatı, düşük maliyetle rebalance zamanı.", "#4ade80"),
+            "risk":   ("Risk Uyarısı",   "Ani rejim değişikliği riski düşük ama takipte kal.", "#c5a23e"),
+            "oneri":  ("Öneri",           "Katkı payını artırarak devlet katkısından faydalanabilirsin.", "#60a5fa"),
         },
         "CRISIS": {
-            "firsat": ("🟢 Piyasa Fırsatı", "Düşük fiyatlardan alım fırsatı, uzun vadeli düşün.", "#4ade80"),
-            "risk":   ("🔴 Risk Uyarısı",   "Yüksek volatilite, kısa vadeli kayıp riski yüksek.", "#ef4444"),
-            "oneri":  ("💡 Öneri",           "Altın ve kamu borçlanma fonlarına ağırlık ver.", "#c5a23e"),
+            "firsat": ("Piyasa Fırsatı", "Düşük fiyatlardan alım fırsatı, uzun vadeli düşün.", "#4ade80"),
+            "risk":   ("Risk Uyarısı",   "Yüksek volatilite, kısa vadeli kayıp riski yüksek.", "#ef4444"),
+            "oneri":  ("Öneri",           "Altın ve kamu borçlanma fonlarına ağırlık ver.", "#c5a23e"),
         },
         "RISK_ON": {
-            "firsat": ("🟢 Piyasa Fırsatı", "Yükseliş trendi devam ediyor, hisse fonları öne çıkıyor.", "#4ade80"),
-            "risk":   ("🟡 Risk Uyarısı",   "Aşırı ısınma sinyalleri takip edilmeli.", "#c5a23e"),
-            "oneri":  ("💡 Öneri",           "Hisse ağırlığını artır ama stop-loss seviyelerini belirle.", "#60a5fa"),
+            "firsat": ("Piyasa Fırsatı", "Yükseliş trendi devam ediyor, hisse fonları öne çıkıyor.", "#4ade80"),
+            "risk":   ("Risk Uyarısı",   "Aşırı ısınma sinyalleri takip edilmeli.", "#c5a23e"),
+            "oneri":  ("Öneri",           "Hisse ağırlığını artır ama stop-loss seviyelerini belirle.", "#60a5fa"),
         },
         "RATE_HIKE": {
-            "firsat": ("🟢 Piyasa Fırsatı", "Yüksek faizli sabit getirili fonlar cazip.", "#4ade80"),
-            "risk":   ("🟡 Risk Uyarısı",   "Faiz artışı hisse ve altın fonlarını baskılayabilir.", "#c5a23e"),
-            "oneri":  ("💡 Öneri",           "Kısa vadeli kira sertifikaları ve para piyasası fonlarını değerlendir.", "#c5a23e"),
+            "firsat": ("Piyasa Fırsatı", "Yüksek faizli sabit getirili fonlar cazip.", "#4ade80"),
+            "risk":   ("Risk Uyarısı",   "Faiz artışı hisse ve altın fonlarını baskılayabilir.", "#c5a23e"),
+            "oneri":  ("Öneri",           "Kısa vadeli kira sertifikaları ve para piyasası fonlarını değerlendir.", "#c5a23e"),
         },
     }
     _ig = _insights.get(regime, _insights["STABLE"])
 
+    _ig_symbols = {"firsat": "↗", "risk": "△", "oneri": "→"}
     _ig_c1, _ig_c2, _ig_c3 = st.columns(3)
     for _col, _key in [(_ig_c1, "firsat"), (_ig_c2, "risk"), (_ig_c3, "oneri")]:
         _title, _text, _clr = _ig[_key]
+        # Başlıktan emoji/circle kaldır — sadece metin al
+        _clean_title = _title.split(" ", 1)[-1] if _title[0] in "🟢🟡🔴💡🔵" else _title
+        _sym = _ig_symbols[_key]
         _col.markdown(f"""
-<div style="background: rgba(26,92,46,0.10); border-left: 4px solid {_clr};
-    border-radius: 10px; padding: 14px 16px; height: 100%; min-height: 110px;">
-  <div style="font-size:0.8rem; font-weight:700; color:{_clr}; margin-bottom:6px;">{_title}</div>
-  <div style="font-size:0.88rem; color:rgba(232,232,232,0.85); line-height:1.5;">{_text}</div>
-  <div style="text-align:right; margin-top:8px; color:{_clr}; font-size:0.8rem;">›</div>
+<div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+    border-top: 3px solid {_clr}; border-radius: 10px; padding: 14px 16px;
+    height: 100%; min-height: 120px; box-sizing: border-box;">
+  <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+    <span style="font-size:0.75rem; font-weight:800; color:{_clr}; font-family:monospace;">{_sym}</span>
+    <span class="insight-card-text" style="font-size:0.72rem; font-weight:700; letter-spacing:0.5px;
+        text-transform:uppercase; color:rgba(232,232,232,0.55);">{_clean_title}</span>
+  </div>
+  <div class="insight-card-text" style="font-size:0.88rem; color:rgba(232,232,232,0.8); line-height:1.55;">{_text}</div>
 </div>
 """, unsafe_allow_html=True)
 
     st.write("")  # boşluk
 
     # === ÖNE ÇIKAN FONLAR ===
-    st.write("### ⭐ Öne Çıkan Fonlar")
+    st.markdown('<div class="section-heading">Öne Çıkan Fonlar</div>', unsafe_allow_html=True)
 
     _pred_dir = Path("data/ml")
     _pred_files_t1 = sorted(_pred_dir.glob("predictions_fwd_return_3m_*.csv"))
@@ -1660,7 +1695,7 @@ with tab2:
         st.markdown(f"""
         <div class="portfolio-header">
             <h2>💼 {active_pf_name}: {format_tl(total_value)}</h2>
-            <p>{regime_info['emoji']} Piyasa <strong>{regime_info['label']}</strong> modunda →
+            <p>{regime_info['symbol']} Piyasa <strong>{regime_info['label']}</strong> modunda →
             {regime_info['action']}</p>
         </div>
         """, unsafe_allow_html=True)
@@ -1799,7 +1834,7 @@ with tab2:
 **Sistem nasıl çalışıyor?**
 
 1. Piyasa verilerine bakarak ortamı sınıflandırıyoruz:
-   şu an **{regime_info['label']}** ({regime_info['emoji']})
+   şu an **{regime_info['label']}** ({regime_info['symbol']})
 
 2. Her piyasa ortamı için tarihsel olarak en iyi çalışan
    fon dağılımını hesaplıyoruz
