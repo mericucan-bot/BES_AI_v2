@@ -1,5 +1,34 @@
 import streamlit as st
 import pandas as pd
+
+# --- PWA PATCH: Streamlit'in index.html'ine apple-touch-icon enjekte et ---
+# Bu fonksiyon set_page_config'den ÖNCE çalışmalı.
+def _patch_streamlit_index_html():
+    try:
+        import streamlit as _st
+        from pathlib import Path as _Path
+        _idx = _Path(_st.__file__).parent / "static" / "index.html"
+        _html = _idx.read_text(encoding="utf-8")
+        _tags = (
+            '\n    <link rel="apple-touch-icon" href="/app/static/icons/icon-192.png">'
+            '\n    <link rel="apple-touch-icon" sizes="192x192" href="/app/static/icons/icon-192.png">'
+            '\n    <link rel="apple-touch-icon" sizes="512x512" href="/app/static/icons/icon-512.png">'
+            '\n    <link rel="manifest" href="/app/static/manifest.json">'
+            '\n    <meta name="mobile-web-app-capable" content="yes">'
+            '\n    <meta name="apple-mobile-web-app-capable" content="yes">'
+            '\n    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">'
+            '\n    <meta name="apple-mobile-web-app-title" content="BES Fon">'
+            '\n    <meta name="theme-color" content="#1a5c2e">'
+        )
+        _marker = "<!-- BES_PWA_PATCHED -->"
+        if _marker not in _html:
+            _patched = _html.replace("<head>", f"<head>{_marker}{_tags}", 1)
+            _idx.write_text(_patched, encoding="utf-8")
+    except Exception:
+        pass
+
+_patch_streamlit_index_html()
+
 import numpy as np
 import json
 import os
@@ -33,57 +62,6 @@ try:
 except Exception:
     _page_icon = "🛡️"
 st.set_page_config(page_title="BES Fon Önerisi", page_icon=_page_icon, layout="wide")
-
-# --- PWA MANIFEST OVERRIDE ---
-# Streamlit'in kendi manifest'ini JS ile override ediyoruz.
-# st.markdown script'leri execute etmez — components iframe'inden parent head'e yazıyoruz.
-import streamlit.components.v1 as _components
-_components.html("""
-<script>
-(function() {
-    function applyPWA() {
-        try {
-            var d = window.parent.document;
-            // Streamlit'in manifest'ini kaldır
-            d.querySelectorAll('link[rel="manifest"]').forEach(function(el) {
-                el.parentNode.removeChild(el);
-            });
-            // Bizim manifest'imizi ekle
-            var m = d.createElement('link');
-            m.rel = 'manifest';
-            m.href = '/app/static/manifest.json';
-            d.head.appendChild(m);
-            // Apple touch icon
-            if (!d.querySelector('link[rel="apple-touch-icon"]')) {
-                var a = d.createElement('link');
-                a.rel = 'apple-touch-icon';
-                a.href = '/app/static/icons/icon-192.png';
-                d.head.appendChild(a);
-            }
-            // Apple PWA meta tags
-            var metas = {
-                'apple-mobile-web-app-capable': 'yes',
-                'apple-mobile-web-app-status-bar-style': 'black-translucent',
-                'apple-mobile-web-app-title': 'BES Fon',
-                'mobile-web-app-capable': 'yes',
-                'theme-color': '#1a5c2e'
-            };
-            Object.keys(metas).forEach(function(name) {
-                if (!d.querySelector('meta[name="' + name + '"]')) {
-                    var tag = d.createElement('meta');
-                    tag.name = name;
-                    tag.content = metas[name];
-                    d.head.appendChild(tag);
-                }
-            });
-        } catch(e) {}
-    }
-    applyPWA();
-    setTimeout(applyPWA, 800);
-    setTimeout(applyPWA, 2500);
-})();
-</script>
-""", height=0)
 
 # --- ŞİFRE KORUMASI ---
 def _get_app_password() -> str:
