@@ -1,51 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-# --- FAVICON OVERRIDE: Streamlit'in favicon.png'sini kendi logomuzla değiştir ---
-# index.html patch'i Streamlit'in JS dinamik favicon ayarını bozuyordu.
-# Bunun yerine: statik favicon.png'yi kopyala + index.html'e apple-touch-icon ekle.
-def _override_streamlit_assets():
-    try:
-        import streamlit as _st
-        import shutil as _shutil
-        from pathlib import Path as _Path
-
-        _static = _Path(_st.__file__).parent / "static"
-        _our_logo = _Path("images/new_logo.png")
-
-        # 1) favicon.png → bizim logomuz (tarayıcı sekmesi için)
-        if _our_logo.exists():
-            _shutil.copy(_our_logo, _static / "favicon.png")
-
-        # 2) index.html'e apple-touch-icon ekle (iOS ana ekran için)
-        #    Marker ile tekrar patch'i önle; mevcut <link rel="shortcut icon"> satırından önce yaz
-        _idx = _static / "index.html"
-        _html = _idx.read_text(encoding="utf-8")
-        _marker = "<!-- BES_ICON -->"
-        if _marker not in _html:
-            _icon_tags = (
-                f"{_marker}"
-                '\n    <link rel="apple-touch-icon" href="/app/static/icons/icon-192.png">'
-                '\n    <link rel="apple-touch-icon" sizes="192x192" href="/app/static/icons/icon-192.png">'
-                '\n    <link rel="manifest" href="/app/static/manifest.json">'
-                '\n    <meta name="mobile-web-app-capable" content="yes">'
-                '\n    <meta name="apple-mobile-web-app-capable" content="yes">'
-                '\n    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">'
-                '\n    <meta name="apple-mobile-web-app-title" content="BES Fon">'
-                '\n    <meta name="theme-color" content="#1a5c2e">'
-                '\n    '
-            )
-            _patched = _html.replace(
-                '<link rel="shortcut icon"',
-                _icon_tags + '<link rel="shortcut icon"',
-                1,
-            )
-            _idx.write_text(_patched, encoding="utf-8")
-    except Exception:
-        pass
-
-_override_streamlit_assets()
-
 import numpy as np
 import json
 import os
@@ -73,14 +28,7 @@ except Exception:
     pass
 
 # --- SAYFA KONFİGÜRASYONU ---
-# favicon.png zaten _override_streamlit_assets() ile değiştirildi.
-# page_icon ile Streamlit JS'i de override ediyoruz.
-try:
-    from PIL import Image as _PILImage
-    _page_icon = _PILImage.open("images/new_logo.png")
-except Exception:
-    _page_icon = "🛡️"
-st.set_page_config(page_title="BES Fon Önerisi", page_icon=_page_icon, layout="wide")
+st.set_page_config(page_title="BES Fon Önerisi", page_icon="images/favicon_32.png", layout="wide")
 
 
 # --- ŞİFRE KORUMASI ---
