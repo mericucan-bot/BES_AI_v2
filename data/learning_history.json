@@ -1,0 +1,257 @@
+[
+  {
+    "date": "2024-06-28",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.012448,
+    "alpha_vs_benchmark": -0.012508
+  },
+  {
+    "date": "2024-07-31",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.00247,
+    "alpha_vs_benchmark": -0.00685
+  },
+  {
+    "date": "2024-08-30",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.029322,
+    "alpha_vs_benchmark": 2.6e-05
+  },
+  {
+    "date": "2024-09-30",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.009801,
+    "alpha_vs_benchmark": -0.003228
+  },
+  {
+    "date": "2024-10-31",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.062569,
+    "alpha_vs_benchmark": 0.031636
+  },
+  {
+    "date": "2024-11-29",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.014558,
+    "alpha_vs_benchmark": -0.004835
+  },
+  {
+    "date": "2024-12-31",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.032337,
+    "alpha_vs_benchmark": -0.010512
+  },
+  {
+    "date": "2025-01-31",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": -0.009823,
+    "alpha_vs_benchmark": -0.025153
+  },
+  {
+    "date": "2025-02-28",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.039348,
+    "alpha_vs_benchmark": -0.000703
+  },
+  {
+    "date": "2025-03-31",
+    "regime": "CRISIS",
+    "weights_used": {
+      "ALT": 0.6,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.050575,
+    "alpha_vs_benchmark": 0.02931
+  },
+  {
+    "date": "2025-04-30",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.017062,
+    "alpha_vs_benchmark": -0.003217
+  },
+  {
+    "date": "2025-05-30",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.024346,
+    "alpha_vs_benchmark": -0.000804
+  },
+  {
+    "date": "2025-06-30",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.033263,
+    "alpha_vs_benchmark": 0.000683
+  },
+  {
+    "date": "2025-07-31",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.0514,
+    "alpha_vs_benchmark": 0.008294
+  },
+  {
+    "date": "2025-08-29",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.002695,
+    "alpha_vs_benchmark": -0.032603
+  },
+  {
+    "date": "2025-09-30",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.020691,
+    "alpha_vs_benchmark": -0.003813
+  },
+  {
+    "date": "2025-10-31",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.025992,
+    "alpha_vs_benchmark": -0.000529
+  },
+  {
+    "date": "2025-11-28",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.032562,
+    "alpha_vs_benchmark": 0.000566
+  },
+  {
+    "date": "2025-12-31",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.150225,
+    "alpha_vs_benchmark": 0.020176
+  },
+  {
+    "date": "2026-01-30",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": 0.019393,
+    "alpha_vs_benchmark": -0.023892
+  },
+  {
+    "date": "2026-02-27",
+    "regime": "RISK_ON",
+    "weights_used": {
+      "VEF": 0.5,
+      "KCH": 0.4,
+      "CASH": 0.1
+    },
+    "monthly_return": -0.066272,
+    "alpha_vs_benchmark": -0.028334
+  },
+  {
+    "date": "2026-03-31",
+    "regime": "STABLE",
+    "weights_used": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.09999999999999998
+    },
+    "monthly_return": 0.041962,
+    "alpha_vs_benchmark": -0.000268
+  }
+]

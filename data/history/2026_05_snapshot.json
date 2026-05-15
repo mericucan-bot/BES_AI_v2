@@ -1,0 +1,147 @@
+{
+  "status": "SUCCESS",
+  "run_date": "2026-05-14T21:12:32.072861+03:00",
+  "portfolio_value": {
+    "total_value": 100000,
+    "weights": {
+      "VEF": 0.3,
+      "ALT": 0.25,
+      "KTS": 0.2,
+      "KCH": 0.15,
+      "CASH": 0.1
+    },
+    "date": "2026-05-14T21:12:32.073012"
+  },
+  "regime": {
+    "detected": "STABLE",
+    "confidence": 0.8923360305090254,
+    "scores": {
+      "CRISIS": 0.07840987811764302,
+      "RATE_HIKE": 0.031644867892228756,
+      "RISK_ON": 0.5780200429621507,
+      "STABLE": 0.8923360305090254
+    },
+    "probabilities": {
+      "CRISIS": 0.10288278720255219,
+      "RATE_HIKE": 0.09369645279215873,
+      "RISK_ON": 0.2794464498556122,
+      "STABLE": 0.5239743101496769
+    },
+    "metrics": {
+      "dd": -0.03229919084729238,
+      "vol": 0.20464175303644874,
+      "usd_mom": 0.015822433946114378,
+      "gold_mom": -0.022067141683295932,
+      "bist_60d_return": 0.06088726533286648
+    },
+    "data_quality": {
+      "rows_count": 260,
+      "missing_pct": 0.0,
+      "as_of": "2026-05-14"
+    },
+    "macro": {
+      "tcmb_rate_change": 0.0,
+      "current_policy_rate": null,
+      "cpi_yoy": 0.3064848474101396,
+      "usdtry_official": 45.1566,
+      "bond_2y": null,
+      "data_quality": {
+        "policy_rate_n": 0,
+        "cpi_n": 20,
+        "as_of": "2026-05-08"
+      }
+    }
+  },
+  "recommendation": {
+    "target_weights": {
+      "VEF": 0.3,
+      "ALT": 0.3,
+      "KTS": 0.3,
+      "CASH": 0.09999999999999998
+    },
+    "regime_learning_confidence": 0.308,
+    "actions": [
+      {
+        "asset": "KCH",
+        "current_weight": 0.15,
+        "target_weight": 0,
+        "diff_tl": -15000.0,
+        "action": "SELL"
+      },
+      {
+        "asset": "KTS",
+        "current_weight": 0.2,
+        "target_weight": 0.3,
+        "diff_tl": 10000.0,
+        "action": "BUY"
+      },
+      {
+        "asset": "ALT",
+        "current_weight": 0.25,
+        "target_weight": 0.3,
+        "diff_tl": 5000.0,
+        "action": "BUY"
+      },
+      {
+        "asset": "CASH",
+        "current_weight": 0.1,
+        "target_weight": 0.1,
+        "diff_tl": -0.0,
+        "action": "HOLD"
+      },
+      {
+        "asset": "VEF",
+        "current_weight": 0.3,
+        "target_weight": 0.3,
+        "diff_tl": 0.0,
+        "action": "HOLD"
+      }
+    ],
+    "cost_analysis": {
+      "total_cost_tl": 60.0,
+      "total_cost_pct": 0.0006,
+      "turnover_tl": 30000.0,
+      "turnover_pct": 0.3,
+      "switch_count": 3,
+      "exceeds_monthly_limit": false,
+      "cost_breakdown": [
+        {
+          "asset": "KCH",
+          "action": "SELL",
+          "amount_tl": 15000.0,
+          "slippage_tl": 30.0,
+          "fee_tl": 0.0,
+          "exit_load_tl": 0.0,
+          "total_cost_tl": 30.0
+        },
+        {
+          "asset": "KTS",
+          "action": "BUY",
+          "amount_tl": 10000.0,
+          "slippage_tl": 20.0,
+          "fee_tl": 0.0,
+          "exit_load_tl": 0.0,
+          "total_cost_tl": 20.0
+        },
+        {
+          "asset": "ALT",
+          "action": "BUY",
+          "amount_tl": 5000.0,
+          "slippage_tl": 10.0,
+          "fee_tl": 0.0,
+          "exit_load_tl": 0.0,
+          "total_cost_tl": 10.0
+        }
+      ],
+      "cost_effective": true
+    }
+  },
+  "previous_evaluation": null,
+  "real_portfolio": {
+    "nominal_value": 100000,
+    "real_value": 97796.8,
+    "nominal_total_return": 0.0,
+    "real_total_return": -0.022032,
+    "months_elapsed": 1
+  }
+}
