@@ -87,6 +87,98 @@ class TCMBClient:
         except (OSError, json.JSONDecodeError, KeyError):
             return None
 
+    def _get_api_key(self) -> Optional[str]:
+        """Env var veya APIKEY_FOLDER dosyasindan API keyini al."""
+        # 1) Env var
+        env_key = os.environ.get("TCMB_API_KEY") or os.environ.get("EVDS_API_KEY")
+        if env_key:
+            return env_key
+        # 2) evdspy APIKEY_FOLDER dosyasi
+        try:
+            from evdspy.EVDSlocal.initial_setup.api_key_save import get_api_key_from_file_improved
+            file_key = get_api_key_from_file_improved()
+            if file_key:
+                return file_key
+        except Exception:
+            pass
+        return None
+
+    def _fetch_series_rest(
+        self,
+        series_code: str,
+        start_str: str,
+        end_str: str,
+        api_key: str,
+    ) -> List[Dict]:
+        """
+        Dogrudan evds3 REST API'ye istek at.
+        URL: https://evds3.tcmb.gov.tr/igmevdsms-dis/series={code}&startDate=...&endDate=...&type=json
+        Key: HTTP header'da "key" olarak gonderilir (URL parametresi degil).
+        """
+        import requests as _req
+        base = "https://evds3.tcmb.gov.tr/igmevdsms-dis/"
+        url = (
+            f"{base}series={series_code}"
+            f"&startDate={start_str}&endDate={end_str}&type=json"
+        )
+        headers = {"key": api_key}
+        try:
+            resp = _req.get(url, headers=headers, timeout=15)
+            if resp.status_code != 200:
+                logger.warning(f"evds3 REST {resp.status_code}: {series_code}")
+                return []
+            payload = resp.json()
+            items = payload.get("items", [])
+            if not items:
+                logger.warning(f"evds3 REST bos items: {series_code}")
+                return []
+            return self._items_to_list(items, series_code)
+        except Exception as e:
+            logger.error(f"evds3 REST hatasi ({series_code}): {e}")
+            return []
+
+    def _items_to_list(self, items: List[Dict], series_code: str) -> List[Dict]:
+        """
+        evds3 JSON items listesini [{"date": ISO, "value": float}] formatina cevir.
+        items ornegi: [{"Tarih": "01-04-2026", "TP_DK_USD_A_YTL": "44.39", ...}, ...]
+        """
+        val_key = series_code.replace(".", "_")
+        data = []
+        for item in items:
+            date_raw = str(item.get("Tarih", "")).strip()
+            value_raw = item.get(val_key)
+            if value_raw is None:
+                # Fallback: Tarih ve UNIXTIME disindaki ilk alani al
+                for k, v in item.items():
+                    if k not in ("Tarih", "UNIXTIME", "YEARWEEK"):
+                        value_raw = v
+                        break
+            if value_raw is None:
+                continue
+            try:
+                value = float(value_raw)
+            except (ValueError, TypeError):
+                continue
+            # Tarih parse: DD-MM-YYYY veya YYYY-M
+            try:
+                parts = date_raw.split("-")
+                if len(parts) == 3:
+                    if len(parts[0]) == 4:
+                        iso_date = f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+                    else:
+                        d, m, y = parts
+                        iso_date = f"{y}-{int(m):02d}-{int(d):02d}"
+                elif len(parts) == 2:
+                    y, m = parts
+                    iso_date = f"{y}-{int(m):02d}-01"
+                else:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            data.append({"date": iso_date, "value": value})
+        data.sort(key=lambda x: x["date"])
+        return data
+
     def fetch_series(
         self,
         series_code: str,
@@ -94,25 +186,23 @@ class TCMBClient:
         use_cache: bool = True,
     ) -> List[Dict]:
         """
-        evdspy ile TCMB serisini cek.
+        TCMB serisini cek. Oncelik sirasi:
+        1. Cache (24 saat gecerliligi)
+        2. Dogrudan evds3 REST API (key header'da, evds3.tcmb.gov.tr/igmevdsms-dis/)
+        3. evdspy kutuphanesi (fallback)
+        4. Stale cache (her sey basarisiz olursa)
         Donus formati: [{"date": "2024-01-15", "value": 50.0}, ...]
         """
-        # Streamlit Cloud: env var'dan key yükle, dosya yoksa yaz
-        # Lokalde dosya zaten varsa dokunma (evdspy kendi formatını kullanıyor)
-        # evdspy base64-kodlu key bekliyor — raw key'i encode ederek yaz
-        env_key = os.environ.get("TCMB_API_KEY") or os.environ.get("EVDS_API_KEY")
-        if env_key:
-            # evdspy EVDS_API_KEY env var'ını okur — ham key olarak set et
-            os.environ["EVDS_API_KEY"] = env_key
+        # Streamlit Cloud: env var'dan key yükle, evdspy icin dosya olarak da yaz
+        api_key = self._get_api_key()
+        if api_key:
+            os.environ["EVDS_API_KEY"] = api_key
             try:
                 import base64 as _b64
                 apikey_dir = Path("APIKEY_FOLDER")
                 key_file = apikey_dir / "api_key.txt"
-                # Her zaman yaz: evdspy WriteBytes gibi binary mod + base64-encoded bytes
-                # (var olan bozuk dosyayı da düzeltir)
                 apikey_dir.mkdir(exist_ok=True)
-                key_file.write_bytes(_b64.b64encode(env_key.encode()))
-                logger.debug("TCMB API key environment'tan yuklendi (binary format)")
+                key_file.write_bytes(_b64.b64encode(api_key.encode()))
             except Exception:
                 pass
 
@@ -121,12 +211,21 @@ class TCMBClient:
             if cached is not None:
                 return cached
 
-        lookback = lookback_days or 400  # aylik seri icin 13+ ay gerek
+        lookback = lookback_days or 400
         end_date   = datetime.now()
         start_date = end_date - timedelta(days=lookback)
         start_str  = start_date.strftime("%d-%m-%Y")
         end_str    = end_date.strftime("%d-%m-%Y")
 
+        # --- 1. Dogrudan REST (evds3, key header'da) ---
+        if api_key:
+            data = self._fetch_series_rest(series_code, start_str, end_str, api_key)
+            if data:
+                self._write_cache(series_code, data)
+                logger.info(f"TCMB cekildi (REST): {series_code} ({len(data)} satir)")
+                return data
+
+        # --- 2. evdspy fallback ---
         try:
             from evdspy import get_series
             from evdspy.EVDSlocal.initial_setup.api_key_save import check_api_key_on_load
@@ -141,24 +240,25 @@ class TCMBClient:
 
             if df is None or isinstance(df, bool) or (isinstance(df, pd.DataFrame) and df.empty):
                 logger.warning(f"evdspy bos/False dondu: {series_code}")
-                stale = self._read_stale_cache(series_code)
-                return stale if stale else []
-
-            data = self._dataframe_to_list(df, series_code)
-
-            if data:
-                self._write_cache(series_code, data)
-                logger.info(f"TCMB cekildi (evdspy): {series_code} ({len(data)} satir)")
-
-            return data
+            else:
+                data = self._dataframe_to_list(df, series_code)
+                if data:
+                    self._write_cache(series_code, data)
+                    logger.info(f"TCMB cekildi (evdspy): {series_code} ({len(data)} satir)")
+                    return data
 
         except ImportError:
-            logger.error("evdspy yuklu degil: pip install evdspy")
+            logger.warning("evdspy yuklu degil")
         except Exception as e:
-            logger.error(f"TCMB hatasi ({series_code}): {e}")
+            logger.error(f"evdspy hatasi ({series_code}): {e}")
 
+        # --- 3. Stale cache ---
         stale = self._read_stale_cache(series_code)
-        return stale if stale else []
+        if stale:
+            return stale
+
+        logger.error(f"TCMB veri alinamadi: {series_code}")
+        return []
 
     def _dataframe_to_list(self, df: pd.DataFrame, series_code: str) -> List[Dict]:
         """
