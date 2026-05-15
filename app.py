@@ -34,16 +34,56 @@ except Exception:
     _page_icon = "🛡️"
 st.set_page_config(page_title="BES Fon Önerisi", page_icon=_page_icon, layout="wide")
 
-# --- PWA MANIFEST & META TAGS ---
-st.markdown("""
-<link rel="manifest" href="/app/static/manifest.json">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="BES Fon">
-<link rel="apple-touch-icon" href="/app/static/icons/icon-192.png">
-<meta name="theme-color" content="#1a5c2e">
-""", unsafe_allow_html=True)
+# --- PWA MANIFEST OVERRIDE ---
+# Streamlit'in kendi manifest'ini JS ile override ediyoruz.
+# st.markdown script'leri execute etmez — components iframe'inden parent head'e yazıyoruz.
+import streamlit.components.v1 as _components
+_components.html("""
+<script>
+(function() {
+    function applyPWA() {
+        try {
+            var d = window.parent.document;
+            // Streamlit'in manifest'ini kaldır
+            d.querySelectorAll('link[rel="manifest"]').forEach(function(el) {
+                el.parentNode.removeChild(el);
+            });
+            // Bizim manifest'imizi ekle
+            var m = d.createElement('link');
+            m.rel = 'manifest';
+            m.href = '/app/static/manifest.json';
+            d.head.appendChild(m);
+            // Apple touch icon
+            if (!d.querySelector('link[rel="apple-touch-icon"]')) {
+                var a = d.createElement('link');
+                a.rel = 'apple-touch-icon';
+                a.href = '/app/static/icons/icon-192.png';
+                d.head.appendChild(a);
+            }
+            // Apple PWA meta tags
+            var metas = {
+                'apple-mobile-web-app-capable': 'yes',
+                'apple-mobile-web-app-status-bar-style': 'black-translucent',
+                'apple-mobile-web-app-title': 'BES Fon',
+                'mobile-web-app-capable': 'yes',
+                'theme-color': '#1a5c2e'
+            };
+            Object.keys(metas).forEach(function(name) {
+                if (!d.querySelector('meta[name="' + name + '"]')) {
+                    var tag = d.createElement('meta');
+                    tag.name = name;
+                    tag.content = metas[name];
+                    d.head.appendChild(tag);
+                }
+            });
+        } catch(e) {}
+    }
+    applyPWA();
+    setTimeout(applyPWA, 800);
+    setTimeout(applyPWA, 2500);
+})();
+</script>
+""", height=0)
 
 # --- ŞİFRE KORUMASI ---
 def _get_app_password() -> str:
