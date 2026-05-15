@@ -34,6 +34,17 @@ except Exception:
     _page_icon = "🛡️"
 st.set_page_config(page_title="BES Fon Önerisi", page_icon=_page_icon, layout="wide")
 
+# --- PWA MANIFEST & META TAGS ---
+st.markdown("""
+<link rel="manifest" href="/app/static/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BES Fon">
+<link rel="apple-touch-icon" href="/app/static/icons/icon-192.png">
+<meta name="theme-color" content="#1a5c2e">
+""", unsafe_allow_html=True)
+
 # --- ŞİFRE KORUMASI ---
 def _get_app_password() -> str:
     try:

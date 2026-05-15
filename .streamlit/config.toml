@@ -8,6 +8,7 @@ textColor = "#e8e8e8"
 headless = true
 port = 8501
 enableCORS = false
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false
