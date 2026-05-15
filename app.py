@@ -475,30 +475,66 @@ my_data = load_my_portfolio()
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.image("images/Bes_Fon_Onerisi_Logo.png", width=180)
-    st.markdown("""
-<div style="text-align:center; margin-top:-8px; margin-bottom:4px;">
-    <span style="font-size:1.1rem; font-weight:700;
-        background: linear-gradient(135deg, #c5a23e, #4ade80);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-        BES Fon Önerisi</span><br>
-    <span style="font-size:0.7rem; color:rgba(232,232,232,0.45);">AI Destekli • v2.0</span>
+
+    # ── Logo ve başlık ──────────────────────────────────────
+    try:
+        import base64 as _b64
+        _logo_b64 = _b64.b64encode(open("images/Bes_Fon_Onerisi_Logo.png", "rb").read()).decode()
+        _logo_src = f"data:image/png;base64,{_logo_b64}"
+    except Exception:
+        _logo_src = ""
+
+    _mkt_open = is_market_hours()
+    _mkt_clr  = "#4ade80" if _mkt_open else "#ef4444"
+    _mkt_lbl  = "Açık" if _mkt_open else "Kapalı"
+    _next_upd = get_smart_ttl() // 60
+
+    st.markdown(f"""
+<style>
+.sb-section {{ margin-bottom: 6px; }}
+.sb-label {{
+    font-size: 0.62rem; font-weight: 600; letter-spacing: 0.8px;
+    text-transform: uppercase; color: rgba(232,232,232,0.35);
+    margin-bottom: 6px;
+}}
+.sb-card {{
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(197,162,62,0.12);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}}
+.sb-row {{
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+}}
+.sb-pill {{
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.2px;
+    border-radius: 20px; padding: 2px 8px;
+}}
+</style>
+
+<div style="display:flex; align-items:center; gap:10px;
+    padding-bottom:14px; border-bottom:1px solid rgba(197,162,62,0.12); margin-bottom:14px;">
+  {'<img src="' + _logo_src + '" style="width:38px;height:38px;border-radius:8px;object-fit:contain;flex-shrink:0;">' if _logo_src else ''}
+  <div>
+    <div style="font-size:0.95rem; font-weight:700; line-height:1.2;
+        background:linear-gradient(135deg,#c5a23e,#4ade80);
+        -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
+        BES Fon Önerisi</div>
+    <div style="display:flex; align-items:center; gap:5px; margin-top:3px;">
+      <span style="font-size:0.6rem; color:rgba(232,232,232,0.32);">AI Destekli · v2.0</span>
+      <span class="sb-pill" style="color:{_mkt_clr}; background:{_mkt_clr}15; border:1px solid {_mkt_clr}30;">
+        <span style="width:4px;height:4px;border-radius:50%;background:{_mkt_clr};"></span>
+        BIST {_mkt_lbl}
+      </span>
+    </div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
-    st.divider()
-
-    st.write("**Nasıl Çalışır?**")
-    st.markdown("""
-    1. 📊 Piyasa verilerini analiz eder
-    2. 🎯 Piyasa ortamını sınıflandırır
-    3. ⚖️ Optimal fon dağılımı önerir
-    4. 📈 Performansını ölçer ve öğrenir
-    """)
-
-    st.divider()
-    st.write("**💼 Portföy Seçimi**")
-
+    # ── Portföy Seçimi ──────────────────────────────────────
     from src.portfolio_manager import PortfolioManager as _PM
     _pm = _PM()
     _portfolios = _pm.list_portfolios()
@@ -512,7 +548,7 @@ with st.sidebar:
     def _fmt_tl_short(val):
         if val >= 1_000_000:
             return f"{val/1_000_000:.1f}M"
-        elif val >= 1000:
+        if val >= 1000:
             return f"{val/1000:.0f}K"
         return f"{val:.0f}"
 
@@ -525,25 +561,26 @@ with st.sidebar:
     if "pf_change_source" not in st.session_state:
         st.session_state.pf_change_source = None
 
-    # Slug → label ters haritası
     _sb_label_by_slug = {v: k for k, v in _pf_options.items()}
 
-    # İlk yüklemede doğru portföyü göster
     if "portfolio_selector" not in st.session_state:
-        _init_sb = _sb_label_by_slug.get(st.session_state.active_portfolio, list(_pf_options.keys())[0])
-        st.session_state["portfolio_selector"] = _init_sb
+        st.session_state["portfolio_selector"] = _sb_label_by_slug.get(
+            st.session_state.active_portfolio, list(_pf_options.keys())[0]
+        )
 
-    # Tab 2'den değişiklik geldiyse sidebar'ı senkronize et
     if st.session_state.pf_change_source == "tab2":
-        _sync_sb = _sb_label_by_slug.get(st.session_state.active_portfolio)
-        if _sync_sb:
-            st.session_state["portfolio_selector"] = _sync_sb
+        _sync = _sb_label_by_slug.get(st.session_state.active_portfolio)
+        if _sync:
+            st.session_state["portfolio_selector"] = _sync
         st.session_state.pf_change_source = None
 
+    st.markdown('<div class="sb-label">Portföy</div>', unsafe_allow_html=True)
+
     _selected_label = st.selectbox(
-        "Aktif portföy:",
+        "Aktif portföy",
         options=list(_pf_options.keys()),
         key="portfolio_selector",
+        label_visibility="collapsed",
     )
 
     if _selected_label in _pf_options:
@@ -556,58 +593,40 @@ with st.sidebar:
             st.session_state.pf_change_source = "sidebar"
             st.rerun()
 
-    with st.expander("➕ Yeni Portföy", expanded=False):
-        _new_name = st.text_input("Portföy adı:", placeholder="Eşimin BES'i", key="new_pf_name")
-        if st.button("Oluştur", key="create_pf") and _new_name:
-            _slug = _pm.create_slug(_new_name)
-            _pm.save_portfolio(_slug, _new_name, {})
-            st.session_state.active_portfolio = _slug
-            st.session_state.portfolio = {}
-            st.rerun()
+    _pf_col1, _pf_col2 = st.columns([1, 1])
+    with _pf_col1:
+        with st.expander("＋ Yeni", expanded=False):
+            _new_name = st.text_input("Ad:", placeholder="Eşimin BES'i", key="new_pf_name",
+                                      label_visibility="collapsed")
+            if st.button("Oluştur", key="create_pf", use_container_width=True) and _new_name:
+                _slug = _pm.create_slug(_new_name)
+                _pm.save_portfolio(_slug, _new_name, {})
+                st.session_state.active_portfolio = _slug
+                st.session_state.portfolio = {}
+                st.rerun()
+    with _pf_col2:
+        if st.session_state.active_portfolio != "varsayilan" and len(_portfolios) > 1:
+            if st.button("🗑️ Sil", key="delete_pf", use_container_width=True):
+                _pm.delete_portfolio(st.session_state.active_portfolio)
+                st.session_state.active_portfolio = _portfolios[0]["slug"]
+                _fallback = _pm.get_portfolio(_portfolios[0]["slug"])
+                st.session_state.portfolio = _fallback.get("holdings_tl", {}) if _fallback else {}
+                st.rerun()
 
-    if st.session_state.active_portfolio != "varsayilan" and len(_portfolios) > 1:
-        if st.button("🗑️ Bu Portföyü Sil", key="delete_pf"):
-            _pm.delete_portfolio(st.session_state.active_portfolio)
-            st.session_state.active_portfolio = _portfolios[0]["slug"]
-            _fallback = _pm.get_portfolio(_portfolios[0]["slug"])
-            st.session_state.portfolio = _fallback.get("holdings_tl", {}) if _fallback else {}
-            st.rerun()
-
-    st.divider()
-
-    if st.button("🔄 Veriyi Yenile"):
-        st.cache_data.clear()
-        st.success("Veriler yenilendi!")
-        st.rerun()
-
-    market_status = "🟢 Açık" if is_market_hours() else "🔴 Kapalı"
-    st.caption(f"BIST: {market_status}")
-    st.caption(f"Sonraki güncelleme: {get_smart_ttl() // 60} dk")
-
-    st.divider()
+    # ── Profil Skoru ────────────────────────────────────────
     _ml_sidebar_path = Path("data/ml/latest_run_summary.json")
     _ml_info = {}
     if _ml_sidebar_path.exists():
-        with open(_ml_sidebar_path, encoding="utf-8") as _f:
-            _ml_info = json.load(_f)
-        st.write("🤖 **AI Model**")
-        st.caption(
-            f"Son eğitim: {_ml_info.get('run_date', '?')[:10]}\n\n"
-            f"IC: {_ml_info.get('best_ic', 0):.2f} | "
-            f"DirAcc: %{_ml_info.get('best_dir_acc', 0)*100:.0f}"
-        )
-    else:
-        st.caption("🤖 AI model henüz eğitilmemiş")
+        try:
+            with open(_ml_sidebar_path, encoding="utf-8") as _f:
+                _ml_info = json.load(_f)
+        except Exception:
+            pass
 
-    # === PROFİL SKORU ===
     _ps = 0
-
-    # 1. Çeşitlilik (20 puan)
     _ps_holdings = st.session_state.get("portfolio", {})
     _ps_n = len([v for v in _ps_holdings.values() if v > 0])
     _ps += 20 if _ps_n >= 5 else (15 if _ps_n >= 3 else 5)
-
-    # 2. Rejim uyumu (30 puan)
     try:
         from src.learning_engine import LearningEngineV2 as _LE_ps
         _ps_target = _LE_ps().get_optimized_weights(regime)
@@ -621,144 +640,161 @@ with st.sidebar:
             _ps += 5
     except Exception:
         _ps += 10
-
-    # 3. ML sinyal gücü (20 puan)
     _ps_ic = _ml_info.get("best_ic", 0)
-    _ps += 20 if _ps_ic >= 0.5 else (15 if _ps_ic >= 0.3 else (5 if _ps_ic == 0 and not _ml_info else 5))
-
-    # 4. Veri güncelliği (15 puan)
+    _ps += 20 if _ps_ic >= 0.5 else (15 if _ps_ic >= 0.3 else 5)
     try:
         _ps_as_of = result.get("data_quality", {}).get("as_of", "")
-        _ps_days = (datetime.now() - datetime.strptime(_ps_as_of[:10], "%Y-%m-%d")).days
-        _ps += 15 if _ps_days <= 7 else (10 if _ps_days <= 30 else 5)
+        _ps_days_data = (datetime.now() - datetime.strptime(_ps_as_of[:10], "%Y-%m-%d")).days
+        _ps += 15 if _ps_days_data <= 7 else (10 if _ps_days_data <= 30 else 5)
     except Exception:
         _ps += 5
-
-    # 5. Öğrenme geçmişi (15 puan)
     try:
-        _ps_lh_path = Path("data/learning_history.json")
-        if _ps_lh_path.exists():
-            _ps_lh = json.loads(_ps_lh_path.read_text(encoding="utf-8"))
-            _ps_obs = len(_ps_lh) if isinstance(_ps_lh, list) else len(_ps_lh.get("history", []))
-            _ps += 15 if _ps_obs >= 10 else (10 if _ps_obs >= 6 else 5)
-        else:
-            _ps += 5
+        _ps_lh = json.loads(Path("data/learning_history.json").read_text(encoding="utf-8")) if Path("data/learning_history.json").exists() else []
+        _ps_obs = len(_ps_lh) if isinstance(_ps_lh, list) else len(_ps_lh.get("history", []))
+        _ps += 15 if _ps_obs >= 10 else (10 if _ps_obs >= 6 else 5)
     except Exception:
         _ps += 5
 
     _ps_label = "Mükemmel" if _ps >= 90 else ("Yüksek" if _ps >= 70 else ("Orta" if _ps >= 50 else "Düşük"))
-    _ps_color = "#4ade80" if _ps >= 70 else ("#c5a23e" if _ps >= 50 else "#ef4444")
+    _ps_clr   = "#4ade80" if _ps >= 70 else ("#c5a23e" if _ps >= 50 else "#ef4444")
+    _ps_pct   = _ps  # 0-100
+
+    # AI model özeti
+    if _ml_info:
+        _ai_date = _ml_info.get("run_date", "?")[:10]
+        _ai_ic   = f"{_ml_info.get('best_ic', 0):.2f}"
+        _ai_acc  = f"%{_ml_info.get('best_dir_acc', 0)*100:.0f}"
+        _ai_html = f"""
+<div class="sb-card" style="margin-top:10px;">
+  <div class="sb-row" style="margin-bottom:6px;">
+    <span style="font-size:0.72rem; font-weight:600; color:rgba(232,232,232,0.7);">🤖 AI Model</span>
+    <span style="font-size:0.6rem; color:rgba(232,232,232,0.35);">{_ai_date}</span>
+  </div>
+  <div class="sb-row">
+    <span style="font-size:0.65rem; color:rgba(232,232,232,0.5);">IC Skoru</span>
+    <span style="font-size:0.7rem; font-weight:700; color:#c5a23e;">{_ai_ic}</span>
+  </div>
+  <div class="sb-row">
+    <span style="font-size:0.65rem; color:rgba(232,232,232,0.5);">Yön Doğruluğu</span>
+    <span style="font-size:0.7rem; font-weight:700; color:#4ade80;">{_ai_acc}</span>
+  </div>
+</div>"""
+    else:
+        _ai_html = """<div style="font-size:0.65rem; color:rgba(232,232,232,0.3);
+            padding:6px 0; margin-bottom:4px;">🤖 AI model henüz eğitilmemiş</div>"""
+
+    # Cache durumu
+    try:
+        _tc_sb   = _get_tefas_collector()
+        _cache_age = _tc_sb.cache_age_str()
+    except Exception:
+        _tc_sb     = None
+        _cache_age = "—"
 
     st.markdown(f"""
-<div style="background: linear-gradient(135deg, rgba(26,92,46,0.18) 0%, rgba(197,162,62,0.08) 100%);
-    border: 1px solid {_ps_color}55; border-radius: 12px; padding: 14px 16px;
-    text-align: center; margin: 10px 0;">
-  <div style="font-size:0.68rem; color:rgba(232,232,232,0.5); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px;">Profil Skoru</div>
-  <div style="font-size:1.9rem; font-weight:700; color:{_ps_color}; line-height:1.1;">
-    {_ps}<span style="font-size:0.9rem; color:rgba(232,232,232,0.35);">/100</span>
+<div style="margin-top:14px; margin-bottom:2px;">
+
+  <div class="sb-label">Portföy Skoru</div>
+  <div class="sb-card" style="border-color:{_ps_clr}22;">
+    <div class="sb-row" style="margin-bottom:8px;">
+      <div>
+        <span style="font-size:1.6rem; font-weight:800; color:{_ps_clr}; line-height:1;">{_ps}</span>
+        <span style="font-size:0.75rem; color:rgba(232,232,232,0.3);">/100</span>
+      </div>
+      <span class="sb-pill" style="font-size:0.65rem; color:{_ps_clr};
+          background:{_ps_clr}18; border:1px solid {_ps_clr}30; padding:3px 10px;">
+        {_ps_label}
+      </span>
+    </div>
+    <div style="background:rgba(255,255,255,0.06); border-radius:4px; height:4px; overflow:hidden;">
+      <div style="width:{_ps_pct}%; height:100%;
+          background:linear-gradient(90deg,{_ps_clr}88,{_ps_clr}); border-radius:4px;"></div>
+    </div>
   </div>
-  <div style="font-size:0.75rem; color:{_ps_color}; font-weight:600; margin-top:2px;">{_ps_label}</div>
+
+  {_ai_html}
+
+  <div class="sb-card" style="margin-top:4px;">
+    <div class="sb-row">
+      <span style="font-size:0.65rem; color:rgba(232,232,232,0.45);">📦 Fon verisi</span>
+      <span style="font-size:0.65rem; color:rgba(232,232,232,0.6);">{_cache_age}</span>
+    </div>
+    <div class="sb-row" style="margin-top:4px;">
+      <span style="font-size:0.65rem; color:rgba(232,232,232,0.45);">🕐 Güncelleme</span>
+      <span style="font-size:0.65rem; color:rgba(232,232,232,0.6);">{_next_upd} dk</span>
+    </div>
+  </div>
+
 </div>
 """, unsafe_allow_html=True)
 
-    st.divider()
-
-    # ─── AYARLAR (Tema + Bildirimler) ───
-    with st.expander("⚙️ Ayarlar", expanded=False):
-
-        # -- Tema Geçişi --
-        st.write("**🎨 Görünüm**")
-        _current_theme = st.session_state.get("theme", "dark")
-        _theme_label = "☀️ Açık Tema" if _current_theme == "dark" else "🌙 Koyu Tema"
-        if st.button(_theme_label, key="theme_toggle", use_container_width=True):
-            st.session_state.theme = "light" if _current_theme == "dark" else "dark"
-            st.rerun()
-        st.caption(f"Şu an: {'🌙 Koyu' if _current_theme == 'dark' else '☀️ Açık'} mod")
-
-        st.divider()
-
-        # -- Bildirim Tercihleri --
-        st.write("**🔔 Bildirim Tercihleri**")
-        _prefs = load_notification_prefs()
-
-        _email_on = st.toggle(
-            "E-posta bildirimleri",
-            value=_prefs["email_enabled"],
-            key="notif_email_enabled",
-        )
-
-        if _email_on:
-            _email_addr = st.text_input(
-                "E-posta adresi:",
-                value=_prefs["email_address"],
-                placeholder="ornek@gmail.com",
-                key="notif_email_addr",
-            )
-            st.write("**Bildirim türleri:**")
-            _on_regime = st.checkbox(
-                "📊 Reji değişikliği",
-                value=_prefs["on_regime_change"],
-                key="notif_regime",
-                help="Piyasa rejimi değiştiğinde bildirim al",
-            )
-            _weekly = st.checkbox(
-                "📅 Haftalık özet",
-                value=_prefs["weekly_summary"],
-                key="notif_weekly",
-                help="Her pazartesi portföy özeti",
-            )
-            _critical = st.checkbox(
-                "🚨 Kritik sinyal",
-                value=_prefs["critical_signal"],
-                key="notif_critical",
-                help="Kriz veya ani sinyal değişimi",
-            )
-
-            if st.button("💾 Tercihleri Kaydet", key="save_notif_prefs", use_container_width=True):
-                _new_prefs = {
-                    "email_enabled": _email_on,
-                    "email_address": _email_addr,
-                    "on_regime_change": _on_regime,
-                    "weekly_summary": _weekly,
-                    "critical_signal": _critical,
-                }
-                if save_notification_prefs(_new_prefs):
-                    st.success("Tercihler kaydedildi!")
-                else:
-                    st.error("Kayıt başarısız.")
-        else:
-            if _prefs["email_enabled"]:
-                # Kapatıldıysa kaydet
-                save_notification_prefs({**_prefs, "email_enabled": False})
-
-    st.divider()
-    if st.button("🔄 Rehberi Tekrar Göster", key="reset_onboarding", use_container_width=True):
-        st.session_state.onboarding_complete = False
-        st.session_state.onboarding_step = 1
-        st.rerun()
-    # --- CACHE DURUMU ---
-    try:
-        _tc_sb = _get_tefas_collector()
-        _cache_age = _tc_sb.cache_age_str()
-        st.caption(f"📦 Fon verisi: {_cache_age}")
-        if st.button("🔄 Fon Verilerini Güncelle", key="force_cache_refresh", use_container_width=True):
-            with st.spinner("Fon verileri güncelleniyor..."):
+    # Fon verisi güncelle butonu
+    if _tc_sb:
+        if st.button("↻  Fon Verilerini Güncelle", key="force_cache_refresh", use_container_width=True):
+            with st.spinner("Güncelleniyor..."):
                 _ok = _tc_sb.auto_refresh_cache(max_age_days=0)
             if _ok:
                 st.toast("✅ Fon verileri güncellendi!", icon="📦")
                 st.rerun()
             else:
-                st.warning("Güncelleme yapılamadı — TEFAS'a erişilemiyor olabilir.")
-    except Exception as _cache_err:
-        st.caption("📦 Fon verisi: —")
-        import logging as _log
-        _log.getLogger(__name__).warning(f"Sidebar cache hatası: {_cache_err}")
+                st.warning("TEFAS'a erişilemiyor.")
 
-    st.divider()
-    if st.button("🚪 Çıkış Yap", use_container_width=True, key="logout_btn"):
+    # ── Ayarlar ─────────────────────────────────────────────
+    with st.expander("⚙️  Ayarlar", expanded=False):
+        _current_theme = st.session_state.get("theme", "dark")
+        _theme_label   = "☀️  Açık Tema" if _current_theme == "dark" else "🌙  Koyu Tema"
+        if st.button(_theme_label, key="theme_toggle", use_container_width=True):
+            st.session_state.theme = "light" if _current_theme == "dark" else "dark"
+            st.rerun()
+
+        st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+        _prefs   = load_notification_prefs()
+        _email_on = st.toggle("E-posta bildirimleri", value=_prefs["email_enabled"],
+                              key="notif_email_enabled")
+        if _email_on:
+            _email_addr = st.text_input("E-posta:", value=_prefs["email_address"],
+                                        placeholder="ornek@gmail.com", key="notif_email_addr")
+            _on_regime = st.checkbox("📊 Rejim değişikliği", value=_prefs["on_regime_change"],
+                                     key="notif_regime")
+            _weekly    = st.checkbox("📅 Haftalık özet", value=_prefs["weekly_summary"],
+                                     key="notif_weekly")
+            _critical  = st.checkbox("🚨 Kritik sinyal", value=_prefs["critical_signal"],
+                                     key="notif_critical")
+            if st.button("💾  Kaydet", key="save_notif_prefs", use_container_width=True):
+                _ok = save_notification_prefs({
+                    "email_enabled": True, "email_address": _email_addr,
+                    "on_regime_change": _on_regime, "weekly_summary": _weekly,
+                    "critical_signal": _critical,
+                })
+                st.success("Kaydedildi!") if _ok else st.error("Kayıt başarısız.")
+        else:
+            if _prefs["email_enabled"]:
+                save_notification_prefs({**_prefs, "email_enabled": False})
+
+    # ── Footer ──────────────────────────────────────────────
+    st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
+
+    _fc1, _fc2 = st.columns(2)
+    with _fc1:
+        if st.button("↺  Rehber", key="reset_onboarding", use_container_width=True):
+            st.session_state.onboarding_complete = False
+            st.session_state.onboarding_step = 1
+            st.rerun()
+    with _fc2:
+        if st.button("↻  Yenile", key="refresh_data", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+    if st.button("🚪  Çıkış Yap", use_container_width=True, key="logout_btn"):
         st.session_state.authenticated = False
         st.rerun()
-    st.caption("⚠️ Bu sistem yatırım tavsiyesi vermez. Kararlarınızdan siz sorumlusunuz.")
+
+    st.markdown("""
+<div style="font-size:0.58rem; color:rgba(232,232,232,0.22); text-align:center;
+    margin-top:8px; line-height:1.4; padding:0 4px;">
+  Bu sistem yatırım tavsiyesi vermez.<br>Kararlarınızdan siz sorumlusunuz.
+</div>
+""", unsafe_allow_html=True)
 
 # --- ONBOARDING STATE ---
 if "onboarding_complete" not in st.session_state:
