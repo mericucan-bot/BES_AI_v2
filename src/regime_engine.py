@@ -145,9 +145,14 @@ class RegimeEngineV2:
             mask = self._compare_with_index(result.index, as_of_date)
             result = result[mask]
 
+        # NOT: Daha once burada `< 60` icin ValueError firlatiliyordu, ama
+        # compute_composite_score ve diger callerlar zaten kendi guard'larini
+        # uyguluyor (boş/yetersiz veri durumunda fallback donuyor). Tek bir
+        # esik (compute_composite_score'taki `< 5`) yeter — caller'lara
+        # daha az sasirtici davranis.
         if len(result) < 60:
-            raise ValueError(
-                f"Yetersiz veri: {len(result)} satir mevcut, minimum 60 islem gunu gerekli"
+            logger.warning(
+                f"Yetersiz veri ({len(result)} satir), normalde minimum 60 gun beklenir"
             )
 
         return result

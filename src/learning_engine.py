@@ -92,13 +92,26 @@ class LearningEngineV2:
             base = self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
         else:
             positive_obs = [h for h in regime_obs if h["alpha_vs_benchmark"] > 0]
+            win_rate = len(positive_obs) / len(regime_obs) if regime_obs else 0.0
+
+            # Win rate < %50 ise ogrenilmis agirliklara guvenmek yerine prior'a don.
+            # Floating point esit-sifir riskine karsi 1e-9 esigi.
+            total_alpha = sum(h["alpha_vs_benchmark"] for h in positive_obs) if positive_obs else 0.0
 
             if not positive_obs:
                 logger.warning(f"{regime} icin pozitif alpha gozlem yok, static prior kullaniliyor")
                 base = self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
+            elif win_rate < 0.5:
+                logger.info(
+                    f"{regime} icin win_rate dusuk ({len(positive_obs)}/{len(regime_obs)}), "
+                    f"overfit riski — static prior kullaniliyor"
+                )
+                base = self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
+            elif total_alpha <= 1e-9:
+                logger.warning(f"{regime} icin toplam alpha ~0, static prior kullaniliyor")
+                base = self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
             else:
                 # Alpha-weighted ortalama: daha yuksek alpha ureten agirlik setlerine daha fazla pay
-                total_alpha = sum(h["alpha_vs_benchmark"] for h in positive_obs)
                 learned_weights: Dict[str, float] = {}
 
                 for obs in positive_obs:

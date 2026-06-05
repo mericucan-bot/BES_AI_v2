@@ -60,7 +60,19 @@ class MonthlyPipeline:
         path = self.history_dir / filename
 
         if path.exists():
-            logger.warning(f"Bu ay icin snapshot zaten var, uzerine yaziliyor: {path.name}")
+            # Veri kaybini onle: eskisini timestamp'li .bak olarak yedekle
+            backup_name = (
+                f"{run_date.strftime('%Y_%m')}_snapshot."
+                f"bak_{run_date.strftime('%H%M%S')}.json"
+            )
+            backup_path = self.history_dir / backup_name
+            try:
+                path.rename(backup_path)
+                logger.warning(
+                    f"Bu ay icin snapshot zaten vardi, yedeklendi: {backup_name}"
+                )
+            except OSError as e:
+                logger.error(f"Snapshot yedeklenemedi, uzerine yazilacak: {e}")
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, ensure_ascii=False, indent=2, default=str)
@@ -161,7 +173,9 @@ class MonthlyPipeline:
             if len(bist) < 2:
                 return 0.0
 
-            prev_idx = bist.index.get_indexer([prev_date], method="nearest")[0]
+            # "pad" (ffill) semantik olarak dogru: prev_date >= ilgili veri noktasi
+            # olacak sekilde geriye dogru en yakini bulur — look-ahead bias yok.
+            prev_idx = bist.index.get_indexer([prev_date], method="pad")[0]
             if prev_idx < 0 or prev_idx >= len(bist):
                 return 0.0
 
@@ -275,13 +289,19 @@ class MonthlyPipeline:
         cpi_yoy = regime_result.get("macro", {}).get("cpi_yoy")
         real_portfolio = None
         if first_snapshot:
-            real_portfolio = self.tracker.calculate_real_portfolio_value(
-                current_value=portfolio_value["total_value"],
-                initial_value=first_snapshot.get("total_value", portfolio_value["total_value"]),
-                initial_date=first_snapshot.get("date", run_date.isoformat()),
-                current_date=run_date.isoformat(),
-                cpi_yoy=cpi_yoy,
-            )
+            _initial_v = first_snapshot.get("total_value")
+            _initial_d = first_snapshot.get("date")
+            # Tum alanlar mevcut degilse %0 yerine None don — UI "veri yok" gostersin
+            if _initial_v is not None and _initial_d:
+                real_portfolio = self.tracker.calculate_real_portfolio_value(
+                    current_value=portfolio_value["total_value"],
+                    initial_value=_initial_v,
+                    initial_date=_initial_d,
+                    current_date=run_date.isoformat(),
+                    cpi_yoy=cpi_yoy,
+                )
+            else:
+                logger.warning("Ilk snapshot eksik veri, reel getiri hesaplanamadi")
 
         # 8. Snapshot olustur
         snapshot = {

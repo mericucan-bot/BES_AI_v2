@@ -36,6 +36,11 @@ htmlcov/
 data/history/*.json
 data/learning_history.json
 
+# Kullanici tercihleri ve auth state (kisisel/PII)
+data/user_prefs.json
+data/notification_prefs.json
+data/auth_throttle.json
+
 # launchd plist (makineye özgü)
 *.plist
 

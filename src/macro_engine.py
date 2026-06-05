@@ -193,18 +193,11 @@ class TCMBClient:
         4. Stale cache (her sey basarisiz olursa)
         Donus formati: [{"date": "2024-01-15", "value": 50.0}, ...]
         """
-        # Streamlit Cloud: env var'dan key yükle, evdspy icin dosya olarak da yaz
+        # API key'i env var olarak ayarla — evdspy fallback varsa kendi mekanizmasiyla
+        # bulur. Diske yazma kaldirildi (Cloud'da gereksiz exposure).
         api_key = self._get_api_key()
         if api_key:
             os.environ["EVDS_API_KEY"] = api_key
-            try:
-                import base64 as _b64
-                apikey_dir = Path("APIKEY_FOLDER")
-                key_file = apikey_dir / "api_key.txt"
-                apikey_dir.mkdir(exist_ok=True)
-                key_file.write_bytes(_b64.b64encode(api_key.encode()))
-            except Exception:
-                pass
 
         if use_cache:
             cached = self._read_cache(series_code)

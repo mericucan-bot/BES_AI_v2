@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 import plotly.graph_objects as go
@@ -33,22 +34,70 @@ st.set_page_config(page_title="BES Fon Önerisi", page_icon="images/favicon_32.p
 
 # --- ŞİFRE KORUMASI ---
 def _get_app_password() -> str:
+    """Secret/env'den sifreyi al. Tanimli degilse bos string doner."""
     try:
         if hasattr(st, "secrets") and "APP_PASSWORD" in st.secrets:
             return st.secrets["APP_PASSWORD"]
     except Exception:
         pass
-    return os.environ.get("APP_PASSWORD", "besfonoinerisi2026")
+    return os.environ.get("APP_PASSWORD", "")
+
+
+# Sunucu tarafi rate-limit: tum oturumlar/tablar icin ortak sayim
+_AUTH_THROTTLE_PATH = Path("data/auth_throttle.json")
+_AUTH_WINDOW_SEC    = 300   # 5 dakikalik kayar pencere
+_AUTH_MAX_FAILED    = 5     # Pencere icinde 5 hata = lockout
+_AUTH_LOCKOUT_SEC   = 60    # Lockout suresi
+
+
+def _load_auth_throttle() -> dict:
+    if not _AUTH_THROTTLE_PATH.exists():
+        return {"failed_attempts": [], "lockout_until": 0.0}
+    try:
+        data = json.loads(_AUTH_THROTTLE_PATH.read_text(encoding="utf-8"))
+        return {
+            "failed_attempts": [float(t) for t in data.get("failed_attempts", [])],
+            "lockout_until": float(data.get("lockout_until", 0.0)),
+        }
+    except Exception:
+        return {"failed_attempts": [], "lockout_until": 0.0}
+
+
+def _save_auth_throttle(state: dict) -> None:
+    try:
+        _AUTH_THROTTLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _AUTH_THROTTLE_PATH.write_text(json.dumps(state), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _record_failed_attempt() -> tuple:
+    """Bir hatali deneme kaydet. Donus: (kalan_deneme, lockout_until)."""
+    now = _time.time()
+    state = _load_auth_throttle()
+    # Eski denemeleri pencereden cikar
+    state["failed_attempts"] = [
+        t for t in state["failed_attempts"] if now - t < _AUTH_WINDOW_SEC
+    ]
+    state["failed_attempts"].append(now)
+    if len(state["failed_attempts"]) >= _AUTH_MAX_FAILED:
+        state["lockout_until"] = now + _AUTH_LOCKOUT_SEC
+        state["failed_attempts"] = []
+    _save_auth_throttle(state)
+    remaining = max(0, _AUTH_MAX_FAILED - len(state["failed_attempts"]))
+    return remaining, state["lockout_until"]
+
+
+def _reset_auth_throttle() -> None:
+    _save_auth_throttle({"failed_attempts": [], "lockout_until": 0.0})
+
 
 if "authenticated" not in st.session_state:
     # DEV_BYPASS_AUTH=true ile local preview'da auth atla
     st.session_state.authenticated = os.environ.get("DEV_BYPASS_AUTH", "").lower() == "true"
-if "login_attempts" not in st.session_state:
-    st.session_state.login_attempts = 0
-if "lockout_until" not in st.session_state:
-    st.session_state.lockout_until = 0.0
 
 if not st.session_state.authenticated:
+    _correct_pwd = _get_app_password()
     _, _lc, _ = st.columns([1, 2, 1])
     with _lc:
         try:
@@ -65,26 +114,32 @@ if not st.session_state.authenticated:
         Yapay zeka destekli BES portföy yönetimi</p>
 </div>
 """, unsafe_allow_html=True)
+
+        if not _correct_pwd:
+            st.error(
+                "⚠️ Sunucu yapılandırma hatası: `APP_PASSWORD` tanımlı değil. "
+                "Streamlit Cloud → Settings → Secrets üzerinden ekle."
+            )
+            st.stop()
+
+        _throttle = _load_auth_throttle()
         _now = _time.time()
-        if st.session_state.lockout_until > _now:
-            _wait = int(st.session_state.lockout_until - _now)
+        if _throttle["lockout_until"] > _now:
+            _wait = int(_throttle["lockout_until"] - _now)
             st.warning(f"⏳ Çok fazla deneme. {_wait} saniye bekleyin.")
         else:
             _pwd = st.text_input("Şifre:", type="password", key="login_password",
                                  placeholder="Şifreyi girin...")
             if st.button("Giriş Yap", type="primary", use_container_width=True):
-                if _pwd == _get_app_password():
+                if _pwd == _correct_pwd:
                     st.session_state.authenticated = True
-                    st.session_state.login_attempts = 0
+                    _reset_auth_throttle()
                     st.rerun()
                 else:
-                    st.session_state.login_attempts += 1
-                    if st.session_state.login_attempts >= 3:
-                        st.session_state.lockout_until = _time.time() + 30
-                        st.session_state.login_attempts = 0
-                        st.error("Çok fazla hatalı deneme. 30 saniye bekleyin.")
+                    _remaining, _lockout_until = _record_failed_attempt()
+                    if _lockout_until > _time.time():
+                        st.error(f"Çok fazla hatalı deneme. {_AUTH_LOCKOUT_SEC} saniye bekleyin.")
                     else:
-                        _remaining = 3 - st.session_state.login_attempts
                         st.error(f"Şifre hatalı. {_remaining} deneme hakkınız kaldı.")
     st.stop()
 
@@ -480,6 +535,12 @@ hr { border-color: rgba(197,162,62,0.20) !important; }
 # --- YARDIMCI FONKSİYONLAR ---
 
 _NOTIF_PREFS_PATH = Path("data/notification_prefs.json")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _is_valid_email(addr: str) -> bool:
+    return bool(addr) and bool(_EMAIL_RE.match(addr.strip()))
+
 
 def load_notification_prefs() -> dict:
     defaults = {
@@ -492,7 +553,19 @@ def load_notification_prefs() -> dict:
     try:
         if _NOTIF_PREFS_PATH.exists():
             saved = json.loads(_NOTIF_PREFS_PATH.read_text(encoding="utf-8"))
-            defaults.update(saved)
+            if not isinstance(saved, dict):
+                return defaults
+            # Tip-safe merge: bozuk veri uygulamayi cokertmesin
+            for key, default_val in defaults.items():
+                if key not in saved:
+                    continue
+                try:
+                    if isinstance(default_val, bool):
+                        defaults[key] = bool(saved[key])
+                    elif isinstance(default_val, str):
+                        defaults[key] = str(saved[key])
+                except (TypeError, ValueError):
+                    pass
     except Exception:
         pass
     return defaults
@@ -569,7 +642,9 @@ def action_text(action: str) -> str:
 
 # --- VERİ YÜKLEME ---
 
-@st.cache_data(ttl=get_smart_ttl())
+# NOT: ttl=get_smart_ttl() ile dekorator kullanma — modul import aninda bir kere
+# hesaplanir, piyasa acilis/kapanis gecisinde guncellenmez. Sabit 10 dakika kullan.
+@st.cache_data(ttl=600)
 def get_market_analysis():
     engine = RegimeEngineV2()
     return engine.compute_composite_score()
@@ -625,7 +700,7 @@ with st.sidebar:
     _mkt_open = is_market_hours()
     _mkt_clr  = "#4ade80" if _mkt_open else "#ef4444"
     _mkt_lbl  = "Açık" if _mkt_open else "Kapalı"
-    _next_upd = get_smart_ttl() // 60
+    _next_upd = 10  # get_market_analysis ttl=600s ile sabit
 
     _is_light   = st.session_state.get("theme") == "light"
     _c_label    = "rgba(13,46,22,0.45)"  if _is_light else "rgba(232,232,232,0.35)"
@@ -749,8 +824,16 @@ with st.sidebar:
             _new_name = st.text_input("Portföy adı:", placeholder="Eşimin BES'i",
                                       key="new_pf_name")
             if st.button("Oluştur", key="create_pf", type="primary",
-                         use_container_width=True, disabled=not bool(_new_name if "new_pf_name" in st.session_state else False)):
-                _slug = _pm.create_slug(_new_name)
+                         use_container_width=True,
+                         disabled=not (_new_name or "").strip()):
+                _slug_base = _pm.create_slug(_new_name)
+                # Slug cakismasini onle: ayni isimden iki portfoy yapilabilsin
+                _existing_slugs = {p["slug"] for p in _pm.list_portfolios()}
+                _slug = _slug_base
+                _slug_counter = 2
+                while _slug in _existing_slugs:
+                    _slug = f"{_slug_base}_{_slug_counter}"
+                    _slug_counter += 1
                 _pm.save_portfolio(_slug, _new_name, {})
                 st.session_state.active_portfolio = _slug
                 st.session_state.portfolio = {}
@@ -795,8 +878,11 @@ with st.sidebar:
     _ps += 20 if _ps_ic >= 0.5 else (15 if _ps_ic >= 0.3 else 5)
     try:
         _ps_as_of = result.get("data_quality", {}).get("as_of", "")
-        _ps_days_data = (datetime.now() - datetime.strptime(_ps_as_of[:10], "%Y-%m-%d")).days
-        _ps += 15 if _ps_days_data <= 7 else (10 if _ps_days_data <= 30 else 5)
+        if _ps_as_of and _ps_as_of != "N/A":
+            _ps_days_data = (datetime.now() - datetime.strptime(_ps_as_of[:10], "%Y-%m-%d")).days
+            _ps += 15 if _ps_days_data <= 7 else (10 if _ps_days_data <= 30 else 5)
+        else:
+            _ps += 5
     except Exception:
         _ps += 5
     try:
@@ -912,15 +998,18 @@ with st.sidebar:
             _critical  = st.checkbox("Kritik sinyal", value=_prefs["critical_signal"],
                                      key="notif_critical")
             if st.button("Kaydet", key="save_notif_prefs", use_container_width=True):
-                _ok = save_notification_prefs({
-                    "email_enabled": True, "email_address": _email_addr,
-                    "on_regime_change": _on_regime, "weekly_summary": _weekly,
-                    "critical_signal": _critical,
-                })
-                if _ok:
-                    st.success("Kaydedildi!")
+                if not _is_valid_email(_email_addr):
+                    st.error("Geçerli bir e-posta adresi gir (örn. ornek@gmail.com).")
                 else:
-                    st.error("Kayıt başarısız.")
+                    _ok = save_notification_prefs({
+                        "email_enabled": True, "email_address": _email_addr.strip(),
+                        "on_regime_change": _on_regime, "weekly_summary": _weekly,
+                        "critical_signal": _critical,
+                    })
+                    if _ok:
+                        st.success("Kaydedildi!")
+                    else:
+                        st.error("Kayıt başarısız.")
         else:
             if _prefs["email_enabled"]:
                 save_notification_prefs({**_prefs, "email_enabled": False})
@@ -941,6 +1030,10 @@ with st.sidebar:
 
     if st.button("Çıkış Yap", use_container_width=True, key="logout_btn"):
         st.session_state.authenticated = False
+        # Eski session-bazli rate-limit alanlarini da temizle (varsa)
+        st.session_state.pop("login_attempts", None)
+        st.session_state.pop("lockout_until", None)
+        st.session_state.pop("login_password", None)
         st.rerun()
 
     st.markdown(f"""

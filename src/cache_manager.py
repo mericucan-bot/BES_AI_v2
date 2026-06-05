@@ -76,6 +76,9 @@ class DiskCache:
             with open(path) as f:
                 cached = json.load(f)
             cached_at = datetime.fromisoformat(cached["timestamp"])
+            # Eski tz-naive timestamp'ler icin guvenli karsilastirma
+            if cached_at.tzinfo is None:
+                cached_at = cached_at.replace(tzinfo=TR_TZ)
             age = (datetime.now(TR_TZ) - cached_at).total_seconds()
             if age >= max_age_seconds:
                 logger.info(f"Cache expired: {key} (age={age:.0f}s, max={max_age_seconds}s)")
