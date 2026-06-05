@@ -917,7 +917,10 @@ with st.sidebar:
                     "on_regime_change": _on_regime, "weekly_summary": _weekly,
                     "critical_signal": _critical,
                 })
-                st.success("Kaydedildi!") if _ok else st.error("Kayıt başarısız.")
+                if _ok:
+                    st.success("Kaydedildi!")
+                else:
+                    st.error("Kayıt başarısız.")
         else:
             if _prefs["email_enabled"]:
                 save_notification_prefs({**_prefs, "email_enabled": False})
