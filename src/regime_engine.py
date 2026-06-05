@@ -1,11 +1,15 @@
 import logging
 import math
+import time
 import pandas as pd
 import numpy as np
 import yfinance as yf
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+# BIST kritik — eksikse hesaplama anlamsiz. Digerleri yumusak.
+REQUIRED_SYMBOLS = ("BIST",)
 
 
 class RegimeEngineV2:
@@ -80,32 +84,55 @@ class RegimeEngineV2:
         lookback_days: as_of_date'ten geriye kac gun veri cekilecek
         """
         data = {}
+        # yfinance Yahoo'yu scrape eder, rate-limit yer; gecici hatalarda 3 deneme
+        max_attempts = 3
+        backoff_seconds = (0.5, 1.0, 2.0)
+
         for name, ticker in self.symbols.items():
-            try:
-                if as_of_date is None:
-                    df = yf.download(ticker, period="1y", interval="1d", progress=False)
-                else:
-                    start = as_of_date - pd.Timedelta(days=lookback_days)
-                    end = as_of_date  # exclusive: yfinance end dahil degil
-                    df = yf.download(ticker, start=start, end=end, interval="1d", progress=False)
+            last_error: Optional[Exception] = None
+            for attempt in range(max_attempts):
+                try:
+                    if as_of_date is None:
+                        df = yf.download(ticker, period="1y", interval="1d", progress=False)
+                    else:
+                        start = as_of_date - pd.Timedelta(days=lookback_days)
+                        end = as_of_date  # exclusive: yfinance end dahil degil
+                        df = yf.download(ticker, start=start, end=end, interval="1d", progress=False)
 
-                if df.empty:
-                    raise ValueError(f"{ticker} icin bos veri dondu")
+                    if df.empty:
+                        raise ValueError(f"{ticker} icin bos veri dondu")
 
-                if isinstance(df.columns, pd.MultiIndex):
-                    close = df['Close'][ticker]
-                else:
-                    close = df['Close']
+                    if isinstance(df.columns, pd.MultiIndex):
+                        close = df['Close'][ticker]
+                    else:
+                        close = df['Close']
 
-                if close.isna().all():
-                    raise ValueError(f"{ticker} icin tum degerler NaN")
+                    if close.isna().all():
+                        raise ValueError(f"{ticker} icin tum degerler NaN")
 
-                logger.info(f"{name} ({ticker}): {len(close)} satir veri cekildi")
-                data[name] = close
+                    logger.info(f"{name} ({ticker}): {len(close)} satir veri cekildi (deneme {attempt + 1})")
+                    data[name] = close
+                    last_error = None
+                    break
 
-            except Exception as e:
-                logger.error(f"{name} ({ticker}) verisi cekilemedi: {e}")
-                continue
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_attempts - 1:
+                        logger.warning(
+                            f"{name} ({ticker}) deneme {attempt + 1}/{max_attempts} basarisiz: {e}, "
+                            f"{backoff_seconds[attempt]}s sonra tekrar"
+                        )
+                        time.sleep(backoff_seconds[attempt])
+                    else:
+                        logger.error(
+                            f"{name} ({ticker}) verisi {max_attempts} denemeden sonra cekilemedi: {e}"
+                        )
+
+        # Kritik sembol(ler) eksikse fallback — caller anlamli hata mesaji uretebilsin
+        missing_required = [s for s in REQUIRED_SYMBOLS if s not in data]
+        if missing_required:
+            logger.error(f"Kritik sembol(ler) cekilemedi: {missing_required}")
+            return pd.DataFrame(columns=["BIST", "USDTRY", "GOLD"])
 
         if not data:
             logger.error("Hiçbir piyasa verisi çekilemedi")
@@ -146,15 +173,31 @@ class RegimeEngineV2:
 
         market_data = self.fetch_live_data(as_of_date=as_of_date)
 
-        if market_data.empty or len(market_data) < 5:
-            logger.warning("Yetersiz piyasa verisi, varsayılan sonuç dönülüyor")
+        missing_required = [s for s in REQUIRED_SYMBOLS if s not in market_data.columns]
+        insufficient = market_data.empty or len(market_data) < 5
+
+        if insufficient or missing_required:
+            if missing_required:
+                error_msg = (
+                    f"Kritik piyasa verisi alınamadı ({', '.join(missing_required)}). "
+                    "Yahoo Finance kaynağı geçici olarak ulaşılamıyor olabilir."
+                )
+            else:
+                error_msg = "Yetersiz piyasa verisi, en az 5 işlem günü gerekli."
+
+            logger.warning(f"{error_msg} — varsayılan sonuç dönülüyor")
             return {
                 "detected": "STABLE",
                 "confidence": 0.0,
                 "scores": {"CRISIS": 0, "RISK_ON": 0, "RATE_HIKE": 0, "STABLE": 0},
                 "probabilities": {"CRISIS": 0.25, "RISK_ON": 0.25, "RATE_HIKE": 0.25, "STABLE": 0.25},
                 "metrics": {"dd": 0, "vol": 0, "usd_mom": 0, "gold_mom": 0, "bist_60d_return": 0},
-                "data_quality": {"rows_count": 0, "missing_pct": 1.0, "as_of": "N/A"},
+                "data_quality": {
+                    "rows_count": len(market_data),
+                    "missing_pct": 1.0,
+                    "as_of": "N/A",
+                    "error": error_msg,
+                },
                 "macro": macro_data if macro_data else {},
             }
 

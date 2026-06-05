@@ -604,6 +604,13 @@ regime = result["detected"]
 metrics = result["metrics"]
 my_data = load_my_portfolio()
 
+_dq_error = result.get("data_quality", {}).get("error")
+if _dq_error:
+    st.warning(
+        f"⚠️ {_dq_error} Gösterilen rejim ve metrikler varsayılan değerlerdir, "
+        "lütfen birkaç dakika sonra tekrar deneyin."
+    )
+
 # --- SIDEBAR ---
 with st.sidebar:
 
