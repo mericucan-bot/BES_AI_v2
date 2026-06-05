@@ -5,8 +5,29 @@ import numpy as np
 import json
 import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Atomic write: temp dosyaya yaz, sonra rename. Race condition / power
+    failure'da yarim yazilmis dosya birakmaz.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -65,8 +86,7 @@ def _load_auth_throttle() -> dict:
 
 def _save_auth_throttle(state: dict) -> None:
     try:
-        _AUTH_THROTTLE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _AUTH_THROTTLE_PATH.write_text(json.dumps(state), encoding="utf-8")
+        _atomic_write_text(_AUTH_THROTTLE_PATH, json.dumps(state))
     except Exception:
         pass
 
@@ -572,8 +592,10 @@ def load_notification_prefs() -> dict:
 
 def save_notification_prefs(prefs: dict) -> bool:
     try:
-        _NOTIF_PREFS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _NOTIF_PREFS_PATH.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+        _atomic_write_text(
+            _NOTIF_PREFS_PATH,
+            json.dumps(prefs, ensure_ascii=False, indent=2),
+        )
         return True
     except Exception:
         return False
@@ -1099,7 +1121,7 @@ if not st.session_state.onboarding_complete:
         try:
             _d = json.loads(_p.read_text(encoding="utf-8")) if _p.exists() else {}
             _d["onboarding_complete"] = True
-            _p.write_text(json.dumps(_d, ensure_ascii=False, indent=2), encoding="utf-8")
+            _atomic_write_text(_p, json.dumps(_d, ensure_ascii=False, indent=2))
         except Exception:
             pass
 

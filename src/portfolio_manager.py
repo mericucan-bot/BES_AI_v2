@@ -1,11 +1,37 @@
 import json
 import logging
+import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Yazimi atomic yap: temp dosyaya yaz, sonra rename ile yerine koy.
+
+    Race condition'da bozuk dosya kalmaz — ya eski hâli ya yeni hâli olur,
+    yarim yazilmis JSON olmaz.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 class PortfolioManager:
@@ -47,8 +73,7 @@ class PortfolioManager:
                     "holdings_tl": old_data.get("holdings_tl", {}),
                 }
 
-                with open(default_path, "w", encoding="utf-8") as f:
-                    json.dump(new_data, f, ensure_ascii=False, indent=2)
+                _atomic_write_json(default_path, new_data)
 
                 logger.info("Eski portföy varsayılan olarak taşındı")
             except Exception as e:
@@ -116,8 +141,7 @@ class PortfolioManager:
         }
 
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            _atomic_write_json(path, data)
             logger.info(f"Portföy kaydedildi: {name} ({slug})")
             return True
         except OSError as e:

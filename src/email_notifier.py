@@ -30,6 +30,16 @@ class EmailNotifier:
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587
 
+    _TR_MONTHS = {
+        1: "Ocak", 2: "Şubat", 3: "Mart", 4: "Nisan",
+        5: "Mayıs", 6: "Haziran", 7: "Temmuz", 8: "Ağustos",
+        9: "Eylül", 10: "Ekim", 11: "Kasım", 12: "Aralık",
+    }
+
+    @classmethod
+    def _tr_month_year(cls, dt: datetime) -> str:
+        return f"{cls._TR_MONTHS[dt.month]} {dt.year}"
+
     def __init__(
         self,
         sender: Optional[str] = None,
@@ -110,7 +120,7 @@ class EmailNotifier:
             return False
 
     def _build_subject(self, pipeline_result: Optional[Dict]) -> str:
-        month = datetime.now().strftime("%B %Y")
+        month = self._tr_month_year(datetime.now())
 
         if pipeline_result and pipeline_result.get("status") == "SUCCESS":
             regime = pipeline_result.get("regime", {}).get("detected", "?")

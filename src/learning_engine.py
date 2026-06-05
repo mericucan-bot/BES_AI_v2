@@ -3,7 +3,6 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, List, Optional
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -167,10 +166,11 @@ class LearningEngineV2:
                 stats[regime] = {"n": 0, "win_rate": None, "avg_alpha": None, "confidence": 0.0}
                 continue
             wins = sum(1 for h in obs if h["alpha_vs_benchmark"] > 0)
+            alphas = [h["alpha_vs_benchmark"] for h in obs]
             stats[regime] = {
                 "n": len(obs),
                 "win_rate": round(wins / len(obs), 3),
-                "avg_alpha": round(float(np.mean([h["alpha_vs_benchmark"] for h in obs])), 4),
+                "avg_alpha": round(sum(alphas) / len(alphas), 4),
                 "confidence": self.calculate_confidence_score(regime),
             }
         return stats

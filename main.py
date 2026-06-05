@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -349,7 +350,6 @@ Ornekler:
         try:
             from src.report_generator import ReportGenerator
             import pandas as pd
-            from pathlib import Path
 
             gen = ReportGenerator()
 
