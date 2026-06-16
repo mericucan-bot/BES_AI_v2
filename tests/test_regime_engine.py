@@ -130,8 +130,13 @@ class TestRegimeEngineDataQuality:
 class TestRegimeEngineEdgeCases:
     """Hatalı/eksik veri durumları."""
 
-    def test_insufficient_data_raises(self):
-        """fetch_live_data < 60 satırda ValueError fırlatmalı."""
+    def test_insufficient_data_warns_not_raises(self):
+        """fetch_live_data < 60 satırda ARTIK fırlatmaz: uyarır ve veriyi döner.
+
+        (Eski sözleşme ValueError fırlatıyordu; caller'lar kendi guard'larını
+        uyguladığı için tek eşik compute_composite_score'ta — fetch_live_data
+        yetersiz veride sadece warning basar. Bkz. regime_engine.py yorumu.)
+        """
         engine = RegimeEngineV2()
         # Sadece 3 satırlık yfinance yanıtı simüle et
         tiny_df = pd.DataFrame(
@@ -139,5 +144,6 @@ class TestRegimeEngineEdgeCases:
             index=pd.date_range("2024-01-01", periods=3),
         )
         with patch("yfinance.download", return_value=tiny_df):
-            with pytest.raises(ValueError, match="minimum 60"):
-                engine.fetch_live_data()
+            result = engine.fetch_live_data()  # fırlatmamalı
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) <= 3

@@ -46,8 +46,8 @@ class TestTCMBClient:
         monkeypatch.delenv("TCMB_API_KEY", raising=False)
         with patch("src.macro_engine.load_dotenv"):
             client = TCMBClient(api_key=None, cache_dir=str(tmp_path))
-        # evdspy kendi key yönetimini kullanıyor; api_key artık TCMBClient'ta saklanmıyor
-        assert not hasattr(client, "api_key")
+        # api_key constructor'da saklanir; verilmediyse None (explicit > env > dosya)
+        assert client.api_key is None
 
     def test_fetch_series_uses_cache(self, tmp_path):
         client = TCMBClient(api_key="dummy", cache_dir=str(tmp_path))
@@ -154,7 +154,10 @@ class TestMacroEngine:
         client = TCMBClient(api_key="dummy", cache_dir=str(tmp_path))
         engine = MacroEngine(tcmb_client=client)
 
-        with patch("evdspy.get_series", side_effect=Exception("Offline test")):
+        # "API down": hem dogrudan REST hem evdspy fallback basarisiz olsun
+        # (aksi halde gercek ag varsa REST gercek veri ceker — flaky test).
+        with patch.object(client, "_fetch_series_rest", return_value=[]), \
+             patch("evdspy.get_series", side_effect=Exception("Offline test")):
             snapshot = engine.get_macro_snapshot()
 
         assert "tcmb_rate_change" in snapshot
