@@ -44,6 +44,15 @@ class MonthlyPipeline:
         self.tracker = PerformanceTracker(history_dir=str(self.history_dir) + "/")
         self.cost_model = TransactionCostModel()
 
+        # Fon-bazli yeniden degerleme icin TEFAS collector (yalniz yerel cache okur).
+        # Yoksa pipeline yine calisir; piyasa getirisi hesaplanamaz, fallback olur.
+        try:
+            from src.data_collector import TEFASCollector
+            self.collector = TEFASCollector()
+        except Exception as e:
+            logger.warning(f"TEFAS collector baslatilamadi, piyasa getirisi devre disi: {e}")
+            self.collector = None
+
     def _load_portfolio(self) -> Optional[Dict]:
         if not self.portfolio_path.exists():
             logger.error(f"Portfoy dosyasi bulunamadi: {self.portfolio_path}")
@@ -107,7 +116,9 @@ class MonthlyPipeline:
             logger.error(f"Onceki snapshot okunamadi ({prev_path}): {e}")
             return None
 
-        prev_value = prev.get("portfolio_value", {}).get("total_value")
+        prev_pv = prev.get("portfolio_value", {})
+        prev_value = prev_pv.get("total_value")
+        prev_fund_weights = prev_pv.get("weights", {})  # fon kodu -> agirlik
         prev_regime = prev.get("regime", {}).get("detected")
         prev_weights = prev.get("recommendation", {}).get("target_weights", {})
         prev_run_date = prev.get("run_date")
@@ -116,9 +127,36 @@ class MonthlyPipeline:
             logger.warning(f"Onceki snapshot eksik veri ({prev_path.name}), atlaniyor")
             return None
 
-        monthly_return = (current_value - prev_value) / prev_value
-        benchmark_return = self._calculate_bist_benchmark(prev_run_date, current_date)
-        alpha = monthly_return - benchmark_return
+        # Kullanicinin bildirdigi toplam degisim (katki/cikislari da icerir)
+        nominal_monthly_return = (current_value - prev_value) / prev_value
+
+        # PIYASA getirisi: onceki fon bakiyelerini gerceklesen fon getirileriyle
+        # yeniden degerle. Katki/cikislardan arindirilmis — alfa icin daha dogru.
+        market_return = None
+        reval = self._compute_market_return(prev_value, prev_fund_weights)
+        if reval is not None:
+            market_return = reval["market_return"]
+            logger.info(
+                f"Piyasa getirisi (revalue): {market_return:+.2%} "
+                f"(kapsam %{reval['coverage']*100:.0f}), "
+                f"nominal toplam: {nominal_monthly_return:+.2%}"
+            )
+
+        # Alfa ve ogrenme sinyali piyasa getirisi uzerinden (varsa); yoksa nominal
+        return_for_alpha = market_return if market_return is not None else nominal_monthly_return
+        monthly_return = nominal_monthly_return  # gosterim/geriye uyum icin
+
+        # Benchmark: cok-varlikli BES portfoyu icin %100 BIST adil degil. Once
+        # backtest ile tutarli ESIT-AGIRLIK karma BES benchmark'i dene; yoksa
+        # (TEFAS verisi yoksa) BIST 100'e geri dus.
+        blended_bench = self._calculate_blended_benchmark(current_date)
+        if blended_bench is not None:
+            benchmark_return = blended_bench
+            benchmark_basis = "blended"
+        else:
+            benchmark_return = self._calculate_bist_benchmark(prev_run_date, current_date)
+            benchmark_basis = "bist100"
+        alpha = return_for_alpha - benchmark_return
 
         # Onceki rebalance maliyetini gross alpha'dan dus → net alpha
         prev_cost_pct = prev.get("recommendation", {}).get("cost_analysis", {}).get("total_cost_pct", 0.0)
@@ -128,7 +166,7 @@ class MonthlyPipeline:
             date=current_date.strftime("%Y-%m-%d"),
             regime=prev_regime,
             weights_used=prev_weights,
-            monthly_return=monthly_return,
+            monthly_return=return_for_alpha,
             alpha_vs_benchmark=net_alpha,
         )
 
@@ -139,7 +177,10 @@ class MonthlyPipeline:
             "previous_value": prev_value,
             "current_value": current_value,
             "monthly_return": round(monthly_return, 4),
+            "market_return": round(market_return, 4) if market_return is not None else None,
+            "return_basis": "market" if market_return is not None else "nominal",
             "benchmark_return": round(benchmark_return, 4),
+            "benchmark_basis": benchmark_basis,
             "gross_alpha": round(alpha, 4),
             "rebalance_cost_pct": round(prev_cost_pct, 6),
             "net_alpha": round(net_alpha, 4),
@@ -153,6 +194,55 @@ class MonthlyPipeline:
             f"brut α={alpha:+.2%}, maliyet={prev_cost_pct:.4%}, net α={net_alpha:+.2%})"
         )
         return evaluation
+
+    def _compute_market_return(
+        self, prev_total: float, prev_fund_weights: Dict[str, float]
+    ) -> Optional[Dict]:
+        """
+        Onceki fon bakiyelerini (toplam x agirlik) gerceklesen fon getirileriyle
+        yeniden degerleyerek piyasa-kaynaklı donem getirisini hesapla.
+        Collector/veri yoksa veya kapsam dusukse None.
+        """
+        if self.collector is None or not prev_fund_weights or not prev_total:
+            return None
+        try:
+            prev_holdings_tl = {
+                code: prev_total * w for code, w in prev_fund_weights.items()
+            }
+            fund_returns = self.collector.get_fund_returns(
+                codes=list(prev_fund_weights.keys()), period="return_1m"
+            )
+            if not fund_returns:
+                return None
+            return self.tracker.revalue_holdings(prev_holdings_tl, fund_returns)
+        except Exception as e:
+            logger.warning(f"Piyasa getirisi hesaplanamadi: {e}")
+            return None
+
+    # Esit-agirlik karma BES benchmark'i (backtest varsayilani ile tutarli)
+    _BLENDED_BENCHMARK_WEIGHTS = {"VEF": 0.25, "KTS": 0.25, "ALT": 0.25, "CASH": 0.25}
+
+    def _calculate_blended_benchmark(self, current_date: datetime) -> Optional[float]:
+        """
+        Esit-agirlik cok-varlikli BES benchmark getirisi (donem ~1 ay).
+        TEFAS sepet getirileri yoksa None — caller BIST 100'e duser.
+        """
+        try:
+            import pandas as pd
+            from src.backtest_engine import RealNavReturnProvider
+            provider = RealNavReturnProvider()
+            if not provider.has_data():
+                return None
+            real = provider.returns_asof(pd.Timestamp(current_date))
+            if real is None:
+                return None
+            return float(sum(
+                w * real.get(a, 0.0)
+                for a, w in self._BLENDED_BENCHMARK_WEIGHTS.items()
+            ))
+        except Exception as e:
+            logger.warning(f"Karma benchmark hesaplanamadi: {e}")
+            return None
 
     def _calculate_bist_benchmark(
         self, prev_date_str: Optional[str], current_date: datetime

@@ -16,6 +16,78 @@ class PerformanceTracker:
         weights = {k: (v / total_value) for k, v in holdings_tl.items()}
         return {"total_value": round(total_value, 2), "weights": weights, "date": datetime.now().isoformat()}
 
+    def revalue_holdings(
+        self,
+        prev_holdings_tl: Dict[str, float],
+        fund_returns: Dict[str, float],
+    ) -> Optional[Dict]:
+        """
+        Onceki donem fon-bazli TL bakiyelerini, her fonun GERCEKLESEN donem
+        getirisiyle yeniden degerle. Boylece portfoyun PIYASA getirisi (kullanici
+        katki/cikislarindan arindirilmis) elde edilir — alfa/ogrenme sinyali icin
+        elle girilen toplam farkindan daha dogru.
+
+        prev_holdings_tl: {fund_code: onceki donem TL bakiyesi}
+        fund_returns: {fund_code: oran} (TEFASCollector.get_fund_returns ciktisi)
+
+        Returns:
+          {
+            "revalued_holdings_tl": {...},   # yeniden degerlenmis bakiyeler
+            "prev_value": float,
+            "revalued_value": float,
+            "market_return": float,          # piyasa-kaynaklı donem getirisi (oran)
+            "coverage": float,               # getirisi bilinen TL orani [0,1]
+            "applied_codes": [...],
+            "missing_codes": [...],
+          }
+        Veri yetersizse (kapsam dusuk / bakiye yok) None doner — caller fallback yapar.
+        """
+        if not prev_holdings_tl:
+            return None
+
+        prev_value = sum(prev_holdings_tl.values())
+        if prev_value <= 0:
+            return None
+
+        revalued: Dict[str, float] = {}
+        applied, missing = [], []
+        covered_tl = 0.0
+
+        for code, tl in prev_holdings_tl.items():
+            key = str(code).upper()
+            if key in fund_returns:
+                r = fund_returns[key]
+                revalued[code] = tl * (1.0 + r)
+                applied.append(code)
+                covered_tl += tl
+            else:
+                # Getirisi bilinmeyen fon: bakiyeyi degistirmeden tasi
+                revalued[code] = tl
+                missing.append(code)
+
+        coverage = covered_tl / prev_value if prev_value > 0 else 0.0
+
+        # Kapsam cok dusukse market_return anlamsiz — caller'a fallback sinyali ver
+        if coverage < 0.5:
+            logger.warning(
+                f"revalue_holdings: dusuk kapsam (%{coverage*100:.0f}), "
+                f"piyasa getirisi guvenilmez — fallback onerilir"
+            )
+            return None
+
+        revalued_value = sum(revalued.values())
+        market_return = (revalued_value - prev_value) / prev_value
+
+        return {
+            "revalued_holdings_tl": {k: round(v, 2) for k, v in revalued.items()},
+            "prev_value": round(prev_value, 2),
+            "revalued_value": round(revalued_value, 2),
+            "market_return": round(market_return, 6),
+            "coverage": round(coverage, 4),
+            "applied_codes": applied,
+            "missing_codes": missing,
+        }
+
     def calculate_real_return(
         self,
         nominal_return: float,
