@@ -1,6 +1,9 @@
+import glob
 import logging
+import os
 from collections import Counter
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
@@ -15,6 +18,97 @@ from src.macro_engine import MacroEngine
 logger = logging.getLogger(__name__)
 
 
+# Soyut varlik sinifi -> TEFAS 'category' alani (kucuk-harf substring) eslemesi.
+# Her sinif, eslesen kategorilerdeki fonlarin GERCEK return_1m ortalamasiyla
+# temsil edilir (kategori-bazli sepet). Boylece backtest proxy yerine gercek
+# BES fon getirilerini kullanir; ayrica ALT otomatik olarak TL-bazli altin
+# fonu getirisini alir (USD ons altini proxy'sinin getirdigi sapma ortadan kalkar).
+ASSET_CATEGORY_MAP: Dict[str, List[str]] = {
+    "VEF":  ["stock fund", "equity", "index fund"],                 # Hisse
+    "KTS":  ["debt instruments", "government bonds", "govt. bonds"],  # Kamu borclanma
+    "ALT":  ["gold", "precious metals"],                            # Altin
+    "KCH":  ["mixed fund", "variable fund"],                        # Karma / degisken
+    "CASH": ["money market"],                                       # Para piyasasi
+}
+
+
+class RealNavReturnProvider:
+    """
+    TEFAS aylik snapshot cache'inden (data/tefas_cache/*.parquet) varlik sinifi
+    bazinda GERCEK aylik getiri saglar.
+
+    snapshot.return_1m = ilgili ay sonunda biten 1 aylik getiri (YUZDE). Her
+    varlik sinifi icin ASSET_CATEGORY_MAP'teki kategorilerin ortalamasi alinir
+    ve orana cevrilir.
+    """
+
+    def __init__(self, cache_dir: str = "data/tefas_cache", date_tolerance_days: int = 6):
+        self.cache_dir = cache_dir
+        self.date_tolerance = pd.Timedelta(days=date_tolerance_days)
+        self.basket_returns = self._build_basket_returns()  # index=tarih, kolon=varlik
+
+    def _build_basket_returns(self) -> pd.DataFrame:
+        files = sorted(glob.glob(os.path.join(self.cache_dir, "snapshot_EMK_*.parquet")))
+        if not files:
+            logger.warning(f"Gercek-NAV: snapshot bulunamadi ({self.cache_dir}), proxy'ye dusulecek")
+            return pd.DataFrame()
+
+        rows: Dict[pd.Timestamp, Dict[str, float]] = {}
+        for f in files:
+            try:
+                df = pd.read_parquet(f)
+            except Exception as e:
+                logger.warning(f"Snapshot okunamadi ({f}): {e}")
+                continue
+            if "category" not in df.columns or "return_1m" not in df.columns:
+                continue
+            snap_date = pd.Timestamp(df["date"].iloc[0])
+            cat = df["category"].astype(str).str.lower()
+            row: Dict[str, float] = {}
+            for asset, subs in ASSET_CATEGORY_MAP.items():
+                mask = cat.apply(lambda c: any(s in c for s in subs))
+                vals = pd.to_numeric(df.loc[mask, "return_1m"], errors="coerce").dropna()
+                row[asset] = float(vals.mean()) / 100.0 if len(vals) else np.nan
+            rows[snap_date] = row
+
+        if not rows:
+            return pd.DataFrame()
+        out = pd.DataFrame(rows).T.sort_index()
+        logger.info(
+            f"Gercek-NAV sepet getirileri: {len(out)} ay, "
+            f"{out.index.min().date()} -> {out.index.max().date()}"
+        )
+
+        # Veri butunlugu: farkli tarihlerin getirileri AYNI ise snapshot'lar
+        # muhtemelen kopya (placeholder). Boyle veriyle backtest gecersizdir —
+        # sessizce yaniltici sonuc uretmek yerine yuksek sesle uyar.
+        n_unique = out.round(6).drop_duplicates().shape[0]
+        if len(out) >= 3 and n_unique <= max(1, len(out) // 5):
+            logger.warning(
+                "UYARI: TEFAS snapshot'larinin %s ayindan yalniz %s benzersiz getiri "
+                "deseni var — snapshot'lar buyuk olasilikla KOPYA (placeholder). "
+                "Gercek-NAV backtest gecersiz olur; gercek tarihsel snapshot'lar "
+                "cekilmeli (TEFASCollector.fetch_fund_snapshot her ay sonu icin).",
+                len(out), n_unique,
+            )
+        return out
+
+    def has_data(self) -> bool:
+        return not self.basket_returns.empty
+
+    def returns_asof(self, period_end: pd.Timestamp) -> Optional[Dict[str, float]]:
+        """period_end'e en yakin (tolerans icinde) snapshot'in sepet getirileri."""
+        if self.basket_returns.empty:
+            return None
+        idx = self.basket_returns.index
+        diffs = (idx - period_end).to_series().abs()
+        nearest_pos = int(np.argmin(diffs.values))
+        if diffs.iloc[nearest_pos] > self.date_tolerance:
+            return None
+        row = self.basket_returns.iloc[nearest_pos]
+        return {a: (float(v) if pd.notna(v) else 0.0) for a, v in row.items()}
+
+
 @dataclass
 class BacktestConfig:
     """Backtest parametreleri."""
@@ -25,6 +119,8 @@ class BacktestConfig:
     benchmark_weights: Optional[Dict[str, float]] = None
     cost_config: Optional[CostConfig] = None
     use_learning: bool = False
+    use_real_nav: bool = True  # TEFAS gercek fon getirileri (False = eski proxy)
+    tefas_cache_dir: str = "data/tefas_cache"
 
 
 @dataclass
@@ -95,6 +191,15 @@ class BacktestEngine:
             logger.info("Statik prior agirliklar kullanilacak (use_learning=False)")
         self.cost_model = TransactionCostModel(self.config.cost_config or CostConfig())
 
+        self.real_nav: Optional[RealNavReturnProvider] = None
+        if self.config.use_real_nav:
+            provider = RealNavReturnProvider(cache_dir=self.config.tefas_cache_dir)
+            if provider.has_data():
+                self.real_nav = provider
+                logger.info("Gercek-NAV getiri saglayicisi aktif (TEFAS snapshot)")
+            else:
+                logger.warning("Gercek-NAV verisi yok — proxy getirilere dusuldu")
+
     def _generate_rebalance_dates(self) -> List[pd.Timestamp]:
         """Aylik rebalance tarihlerini uret (her ayin son is gunu)."""
         start = pd.Timestamp(self.config.start_date)
@@ -114,13 +219,29 @@ class BacktestEngine:
         """
         Verilen agirliklarla portfoyun bir sonraki aydaki getirisini hesapla.
 
-        BES fon proxy'leri:
+        Gercek-NAV modu (varsayilan): donemin sonundaki TEFAS snapshot'inda her
+        varlik sinifinin kategori-sepeti ortalama return_1m'i kullanilir.
+
+        Proxy modu (gercek-NAV yoksa fallback):
         - VEF (Hisse Fonu)      → BIST 100 getirisi
         - KTS (Kamu Borc)       → Sabit getiri (yillik %40/12)
         - ALT (Altin Fonu)      → Altin getirisi
         - KCH (Karma)           → BIST*0.5 + GOLD*0.3 + sabit*0.2
         - CASH (Para Piyasasi)  → Sabit getiri (dusuk)
         """
+        # 1) Gercek-NAV: donem sonu snapshot'indan sepet getirileri
+        if self.real_nav is not None:
+            real = self.real_nav.returns_asof(end_date)
+            if real is not None:
+                all_assets = set(list(weights.keys()) + list(real.keys()))
+                return float(sum(
+                    weights.get(a, 0) * real.get(a, 0.0) for a in all_assets
+                ))
+            logger.debug(
+                f"Gercek-NAV: {end_date.date()} icin snapshot yok, proxy'ye dusuluyor"
+            )
+
+        # 2) Proxy fallback (yfinance + sabit oranlar)
         try:
             market_data = self.regime_engine.fetch_live_data(as_of_date=end_date)
 
@@ -178,6 +299,22 @@ class BacktestEngine:
             return 0.0
         return (end_price - start_price) / start_price
 
+    @staticmethod
+    def _rate_change_asof(policy_series: List[Dict], as_of: pd.Timestamp) -> Optional[float]:
+        """
+        as_of tarihine KADAR olan politika faizi serisinden son 30 gunluk
+        degisimi oran olarak hesapla (look-ahead yok). Seri yoksa None.
+        """
+        if not policy_series:
+            return None
+        as_of_dt = pd.Timestamp(as_of).to_pydatetime()
+        # as_of'tan sonraki noktalari at — gecmise sizinti olmasin
+        past = [p for p in policy_series if datetime.fromisoformat(p["date"]) <= as_of_dt]
+        if len(past) < 2:
+            return None
+        pp = MacroEngine._calculate_rate_change(past, days=30)
+        return (pp / 100.0) if pp is not None else None
+
     def _weights_to_recommendations(
         self,
         current: Dict[str, float],
@@ -201,13 +338,28 @@ class BacktestEngine:
             logger.error("Yetersiz tarih araligi, en az 2 rebalance tarihi gerekli")
             return BacktestResult(config=self.config, steps=[])
 
-        # Macro'yu bir kez cek, tum adimlar icin yeniden kullan (N API cagrisini onler)
+        # Macro: temel snapshot'i bir kez cek; AMA tcmb_rate_change'i her karar
+        # tarihine gore TARIHSEL hesapla (look-ahead'i onle). Eskiden tek bir
+        # guncel rate_change tum gecmis aylara uygulaniyordu — 2024 kararinda
+        # 2026 faiz degisimini kullanmak gecmise sizinti yaratiyordu.
+        macro_data = {"tcmb_rate_change": 0}
+        policy_series: List[Dict] = []
         try:
-            macro_data = MacroEngine().get_macro_snapshot()
-            logger.info("Backtest macro snapshot alindi (tekrar kullanilacak)")
+            _me = MacroEngine()
+            macro_data = _me.get_macro_snapshot()
+            from src.macro_engine import TCMBClient as _TCMBClient
+            _series = _me.client.fetch_series(_TCMBClient.SERIES["policy_rate"])
+            # Mock/bos durumda liste gelmeyebilir — yalniz gercek seriyi kullan
+            if isinstance(_series, list) and _series and isinstance(_series[0], dict):
+                policy_series = _series
+                logger.info(
+                    f"Backtest: politika faizi serisi alindi ({len(policy_series)} nokta), "
+                    "rate_change tarihsel hesaplanacak"
+                )
+            else:
+                logger.info("Backtest: tarihsel faiz serisi yok, sabit rate_change kullanilacak")
         except Exception as e:
             logger.warning(f"Macro engine hatasi, fallback: {e}")
-            macro_data = {"tcmb_rate_change": 0}
 
         benchmark_weights = self.config.benchmark_weights or {
             "VEF": 0.25, "KTS": 0.25, "ALT": 0.25, "CASH": 0.25,
@@ -224,10 +376,14 @@ class BacktestEngine:
 
             logger.debug(f"Adim {i+1}: karar={decision_date.date()}, getiri -> {next_date.date()}")
 
-            # 1. Rejim tespiti — as_of_date ile look-ahead korumasi
+            # 1. Rejim tespiti — as_of_date + tarihsel macro ile look-ahead korumasi
+            step_macro = dict(macro_data)
+            rc = self._rate_change_asof(policy_series, decision_date)
+            if rc is not None:
+                step_macro["tcmb_rate_change"] = rc
             try:
                 regime_result = self.regime_engine.compute_composite_score(
-                    macro_data=macro_data,
+                    macro_data=step_macro,
                     as_of_date=decision_date,
                 )
             except Exception as e:
@@ -266,8 +422,12 @@ class BacktestEngine:
             gross_alpha = portfolio_return - benchmark_return
             net_alpha = gross_alpha - rebalance_cost_pct
 
-            portfolio_value *= (1 + portfolio_return - rebalance_cost_pct)
-            benchmark_value *= (1 + benchmark_return)
+            # Tasima maliyeti (fon yonetim gideri): YALNIZ proxy modunda. Gercek-NAV
+            # getirileri zaten net oldugu icin orada uygulanmaz (cift sayim olmaz).
+            holding_cost = 0.0 if self.real_nav is not None else self.cost_model.holding_cost_pct(1.0)
+
+            portfolio_value *= (1 + portfolio_return - rebalance_cost_pct - holding_cost)
+            benchmark_value *= (1 + benchmark_return - holding_cost)
 
             steps.append(MonthlyStep(
                 date=str(decision_date.date()),
