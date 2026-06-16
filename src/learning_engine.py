@@ -17,6 +17,7 @@ class LearningEngineV2:
     }
 
     MIN_OBSERVATIONS = 6  # Bir rejim icin en az kac gozlem olmali ki "ogrenildi" sayilsin
+    SHRINKAGE_K = 12      # Shrinkage gucu: n=K gozlemde ogrenilmis/prior yari-yari
 
     def __init__(self, history_path: str = "data/learning_history.json"):
         self.history_path = Path(history_path)
@@ -122,8 +123,27 @@ class LearningEngineV2:
                 if total_w > 0:
                     learned_weights = {k: v / total_w for k, v in learned_weights.items()}
 
-                logger.info(f"{regime} icin ogrenilmis agirliklar kullaniliyor (n={len(positive_obs)})")
-                base = learned_weights
+                # SHRINKAGE: kucuk orneklemde ogrenilmis agirliklar overfit eder.
+                # Prior'a dogru cek: lambda = n/(n+K). n buyudukce ogrenilmise,
+                # kucukken prior'a yaklasir (K gozlemde yari-yari). Boylece az
+                # veriyle asiri-konsantre/gurultulu agirliklar yumusatilir.
+                n = len(positive_obs)
+                lam = n / (n + self.SHRINKAGE_K)
+                prior = self.STATIC_PRIORS.get(regime, self.STATIC_PRIORS["STABLE"])
+                assets = set(learned_weights) | set(prior)
+                blended = {
+                    a: lam * learned_weights.get(a, 0.0) + (1 - lam) * prior.get(a, 0.0)
+                    for a in assets
+                }
+                total_b = sum(blended.values())
+                if total_b > 0:
+                    blended = {k: v / total_b for k, v in blended.items()}
+
+                logger.info(
+                    f"{regime} icin ogrenilmis agirliklar (n={n}, shrinkage λ={lam:.2f} "
+                    f"-> prior'a {(1-lam)*100:.0f}% cekildi)"
+                )
+                base = blended
 
         # Risk profiline göre çarpan uygula ve yeniden normalize et
         if risk_profile and risk_profile in self._RISK_MULTIPLIERS:

@@ -120,3 +120,37 @@ class TestLearningEngineStats:
         for regime in ["CRISIS", "RISK_ON", "RATE_HIKE", "STABLE"]:
             assert regime in stats
             assert stats[regime]["n"] == 0
+
+
+class TestShrinkage:
+    def test_learned_weights_shrunk_toward_prior(self, temp_history_path):
+        """Kucuk orneklemde ogrenilmis agirlik prior'a dogru cekilmeli (overfit'i azalt)."""
+        engine = LearningEngineV2(history_path=str(temp_history_path))
+        # RISK_ON icin 6 pozitif gozlem, hepsi %100 VEF (konsantre/overfit egilimi)
+        for i in range(6):
+            engine.record_observation(
+                date=f"2024-0{i+1}-01",
+                regime="RISK_ON",
+                weights_used={"VEF": 1.0},
+                monthly_return=0.05,
+                alpha_vs_benchmark=0.02,
+            )
+        w = engine.get_optimized_weights("RISK_ON")
+        prior_vef = LearningEngineV2.STATIC_PRIORS["RISK_ON"]["VEF"]
+        # Saf ogrenilmis %100 olurdu; shrinkage ile prior(<1) ile 1.0 arasinda olmali
+        assert prior_vef < w["VEF"] < 1.0, f"VEF shrink edilmedi: {w}"
+        assert abs(sum(w.values()) - 1.0) < 1e-9  # normalize
+
+    def test_more_observations_less_shrinkage(self, temp_history_path):
+        """n buyudukce ogrenilmise daha cok yaklasilmali (lambda artar)."""
+        def vef_after(n):
+            p = temp_history_path.parent / f"hist_{n}.json"
+            eng = LearningEngineV2(history_path=str(p))
+            for i in range(n):
+                eng.record_observation(
+                    date=f"2024-01-{i+1:02d}", regime="RISK_ON",
+                    weights_used={"VEF": 1.0}, monthly_return=0.05, alpha_vs_benchmark=0.02,
+                )
+            return eng.get_optimized_weights("RISK_ON")["VEF"]
+        # 24 gozlem, 6 gozlemden daha az shrink (VEF 1.0'a daha yakin)
+        assert vef_after(24) > vef_after(6)

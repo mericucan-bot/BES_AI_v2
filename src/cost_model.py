@@ -16,7 +16,11 @@ class CostConfig:
     slippage_pct: float = 0.002
     max_monthly_switches: int = 6
     min_switch_amount_tl: float = 100
+    # BES SISTEM-ICI fon degisikliklerinde stopaj YOKTUR; stopaj yalniz sistemden
+    # CIKISTA ve elde tutma suresine gore alinir. Aylik rebalance kapsaminda 0 dogru.
     stopaj_pct: float = 0.0
+    # Yillik fon yonetim gideri (tasima maliyeti). Gercek-NAV getirilerinde zaten
+    # net oldugu icin yalniz proxy modunda uygulanir — bkz. holding_cost_pct.
     management_fee_annual_pct: float = 0.018
 
 
@@ -103,6 +107,18 @@ class TransactionCostModel:
             "cost_breakdown": breakdown,
             "cost_effective": True,
         }
+
+    def holding_cost_pct(self, period_months: float = 1.0) -> float:
+        """
+        Donemsel TASIMA maliyeti (fon yonetim gideri), oran olarak.
+        annual_fee * (period_months/12).
+
+        ONEMLI: TEFAS return_1m gibi GERCEK fon getirileri zaten yonetim
+        gideri DUSULMUS (net) gelir — gercek-NAV modunda bu ek olarak
+        UYGULANMAMALI (cift sayim olur). Yalniz proxy/sentetik getirilerde
+        (fee iceremeyen) uygulanir.
+        """
+        return self.config.management_fee_annual_pct * (period_months / 12.0)
 
     def calculate_net_alpha(
         self,
