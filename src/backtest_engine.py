@@ -100,6 +100,12 @@ class RealNavReturnProvider:
         """period_end'e en yakin (tolerans icinde) snapshot'in sepet getirileri."""
         if self.basket_returns.empty:
             return None
+        # Snapshot tarihleri tz-naive; cagiran tz-aware verebilir (orn. pipeline
+        # run_date = datetime.now(TR_TZ)). tz'i dusurerek "Cannot subtract tz-naive
+        # and tz-aware" hatasini onle (aksi halde benchmark sessizce devre disi kalir).
+        period_end = pd.Timestamp(period_end)
+        if period_end.tzinfo is not None:
+            period_end = period_end.tz_localize(None)
         idx = self.basket_returns.index
         diffs = (idx - period_end).to_series().abs()
         nearest_pos = int(np.argmin(diffs.values))
