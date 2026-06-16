@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "bes-ai-dashboard",
-      "runtimeExecutable": "/Users/mericucan/AI Projects/BES_AI_v2/.venv/bin/streamlit",
+      "runtimeExecutable": "/Users/mericucan/AI_Projects/BES_AI_v2/.venv/bin/streamlit",
       "runtimeArgs": ["run", "app.py", "--server.port", "8501", "--server.headless", "true"],
-      "port": 8501
+      "port": 8501,
+      "env": { "DEV_BYPASS_AUTH": "true" }
     }
   ]
 }
