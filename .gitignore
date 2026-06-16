@@ -50,6 +50,14 @@ data/reports/
 # Streamlit secrets (API anahtarları)
 .streamlit/secrets.toml
 
+# Gecici dev/calistirma ciktilari (commit edilmemeli)
+output.txt
+error.txt
+verbose_out.txt
+streamlit_out.txt
+/test.json
+APIKEY_FOLDER/arch.txt
+
 # macOS
 .DS_Store
 **/.DS_Store
