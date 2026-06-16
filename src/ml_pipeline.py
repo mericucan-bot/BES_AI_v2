@@ -9,7 +9,6 @@ Mod, veri frekansina gore otomatik secilir.
 """
 import json
 import logging
-import pickle
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -401,21 +400,29 @@ class MLPipeline:
     # ------------------------------------------------------------------
 
     def _save_predictor(self, predictor: BESPredictor, target: str) -> None:
-        path = self.output_dir / f"predictor_{target}.pkl"
+        # joblib: sklearn modelleri icin konvansiyonel + numpy'da daha verimli.
+        # NOT: joblib/pickle GUVENLIK siniri DEGILDIR — yalniz GUVENILIR kaynaktan
+        # uretilen model dosyalari yuklenmeli (untrusted .joblib = kod calistirma riski).
+        import joblib
+        path = self.output_dir / f"predictor_{target}.joblib"
         try:
-            with open(path, "wb") as f:
-                pickle.dump(predictor, f)
+            joblib.dump(predictor, path)
             logger.info(f"Model kaydedildi: {path}")
         except Exception as e:
             logger.error(f"Model kaydetme hatasi: {e}")
 
     def _load_predictor(self, target: str) -> Optional[BESPredictor]:
-        path = self.output_dir / f"predictor_{target}.pkl"
+        import joblib
+        path = self.output_dir / f"predictor_{target}.joblib"
         if not path.exists():
-            return None
+            # Geriye uyum: eski .pkl varsa onu da kabul et
+            legacy = self.output_dir / f"predictor_{target}.pkl"
+            if legacy.exists():
+                path = legacy
+            else:
+                return None
         try:
-            with open(path, "rb") as f:
-                return pickle.load(f)
+            return joblib.load(path)
         except Exception as e:
             logger.error(f"Model yukleme hatasi: {e}")
             return None

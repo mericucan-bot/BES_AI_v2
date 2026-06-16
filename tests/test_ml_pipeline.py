@@ -10,14 +10,20 @@ from src.ml_pipeline import MLPipeline
 
 @pytest.fixture
 def mock_fund_navs():
-    """3 fonluk 300-gunluk gunluk NAV verisi (test icin)."""
+    """3 fonluk 600-gunluk gunluk NAV verisi (test icin).
+
+    NOT: Tarih-bazli purge'lu walk-forward (3 ay = 63 gun embargo) icin
+    yeterli gecmis gerekir; kisa seriler tum gozlemleri purge eder. Gercek
+    TEFAS verisinde 2+ yil mevcut oldugundan bu fikstur o kosulu temsil eder.
+    """
     np.random.seed(42)
-    dates = pd.date_range("2024-01-01", periods=300, freq="B")
+    n = 600
+    dates = pd.date_range("2024-01-01", periods=n, freq="B")
     navs = {}
     for code in ["FUND1", "FUND2", "FUND3"]:
         drift = np.random.uniform(0.0003, 0.001)
         vol = np.random.uniform(0.01, 0.02)
-        prices = 100 * np.cumprod(1 + np.random.normal(drift, vol, 300))
+        prices = 100 * np.cumprod(1 + np.random.normal(drift, vol, n))
         navs[code] = pd.Series(prices, index=dates)
     return navs
 
@@ -39,12 +45,13 @@ def mock_monthly_navs():
 @pytest.fixture
 def mock_market_data():
     np.random.seed(42)
-    dates = pd.date_range("2024-01-01", periods=300, freq="B")
+    n = 600
+    dates = pd.date_range("2024-01-01", periods=n, freq="B")
     return pd.DataFrame(
         {
-            "BIST": 10000 * np.cumprod(1 + np.random.normal(0.0005, 0.015, 300)),
-            "USDTRY": 30 * np.cumprod(1 + np.random.normal(0.001, 0.008, 300)),
-            "GOLD": 2000 * np.cumprod(1 + np.random.normal(0.0003, 0.010, 300)),
+            "BIST": 10000 * np.cumprod(1 + np.random.normal(0.0005, 0.015, n)),
+            "USDTRY": 30 * np.cumprod(1 + np.random.normal(0.001, 0.008, n)),
+            "GOLD": 2000 * np.cumprod(1 + np.random.normal(0.0003, 0.010, n)),
         },
         index=dates,
     )

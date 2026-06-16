@@ -110,53 +110,125 @@ class BESPredictor:
         self.feature_names: List[str] = []
         self.is_fitted = False
 
+    def _target_horizon_days(self) -> int:
+        """Forward-return hedefinin ufku (gun). Purge/embargo bunu kullanir."""
+        return 252 if "12m" in self.config.target else 63
+
     def _create_walk_forward_splits(
         self, X: pd.DataFrame, y: pd.Series
     ) -> List[Tuple[np.ndarray, np.ndarray]]:
         """
-        Walk-forward (expanding window) split'ler uret.
+        Walk-forward (expanding window) split'ler uret — TARIH BAZLI.
 
-          |--TRAIN--|--TEST--|
-          |----TRAIN----|--TEST--|
-          |------TRAIN------|--TEST--|
+          |--TRAIN--| <embargo> |--TEST--|
+          |----TRAIN----| <embargo> |--TEST--|
+          |------TRAIN------| <embargo> |--TEST--|
 
-        Anti-leakage garantisi: train her zaman test'ten once.
+        Anti-leakage garantileri:
+        1. Bolme TAKVIM TARIHINE gore yapilir, satir pozisyonuna gore degil.
+           Panel veride (cok fon x cok tarih) satirlar fon-fon siralidir; eski
+           pozisyon-bazli bolme ayni tarihteki fonlari train/test'e dagitip
+           cross-sectional sizinti yaratiyordu. Burada bir tarihin TUM satirlari
+           ya tamamen train'e ya da tamamen test'e gider.
+        2. Forward-return hedefi (orn. 3 ay) train'in son gunlerinden test
+           donemine sarkar. Bu yuzden train ile test arasina hedef ufku kadar
+           bir EMBARGO (purge) bosluk birakilir — train'in son gozlemi
+           test_start - horizon'dan once biter.
+
+        Index DatetimeIndex degilse, geriye uyumluluk icin eski pozisyon-bazli
+        bolmeye duser (tek-fon/sentetik veri icin esdeger sonuc).
         """
-        valid_mask = X.notna().all(axis=1) & y.notna()
-        valid_indices = np.where(valid_mask)[0]
+        valid_mask = (X.notna().all(axis=1) & y.notna()).values
+        valid_count = int(valid_mask.sum())
 
         min_needed = self.config.min_train_samples + self.config.test_size_weeks
-        if len(valid_indices) < min_needed:
+        if valid_count < min_needed:
             logger.warning(
-                f"Yetersiz veri: {len(valid_indices)} satir, minimum {min_needed} gerekli"
+                f"Yetersiz veri: {valid_count} satir, minimum {min_needed} gerekli"
             )
             return []
 
-        splits = []
-        total = len(valid_indices)
+        if not isinstance(X.index, pd.DatetimeIndex):
+            logger.warning(
+                "Index DatetimeIndex degil — pozisyon-bazli (eski) walk-forward "
+                "kullaniliyor. Tarih-bazli anti-leakage devre disi."
+            )
+            return self._position_based_splits(np.where(valid_mask)[0])
+
+        row_dates = X.index.values  # datetime64[ns], satir bazli (tekrarli olabilir)
+        valid_dates_sorted = np.unique(row_dates[valid_mask])  # benzersiz, artan
+        n_dates = len(valid_dates_sorted)
         test_size = self.config.test_size_weeks
+        embargo = np.timedelta64(self._target_horizon_days(), "D")
 
+        splits: List[Tuple[np.ndarray, np.ndarray]] = []
         for i in range(self.config.n_splits):
-            test_end = total - (i * test_size)
-            test_start = test_end - test_size
-
-            if test_start < self.config.min_train_samples:
+            test_end_i = n_dates - (i * test_size)
+            test_start_i = test_end_i - test_size
+            if test_start_i < 1:
                 break
 
-            train_idx = valid_indices[:test_start]
-            test_idx = valid_indices[test_start:test_end]
+            test_dates = valid_dates_sorted[test_start_i:test_end_i]
+            test_lo, test_hi = test_dates[0], test_dates[-1]
+            train_cutoff = test_lo - embargo  # purge: hedef ufku kadar bosluk
+
+            train_sel = valid_mask & (row_dates < train_cutoff)
+            test_sel = valid_mask & (row_dates >= test_lo) & (row_dates <= test_hi)
+
+            train_idx = np.where(train_sel)[0]
+            test_idx = np.where(test_sel)[0]
+
+            # Pozisyonlari tarihe gore sirala (panel'de pozisyon != tarih sirasi);
+            # FoldResult'taki train_start/end loglari ve testler dogru olsun.
+            train_idx = train_idx[np.argsort(row_dates[train_idx], kind="stable")]
+            test_idx = test_idx[np.argsort(row_dates[test_idx], kind="stable")]
 
             if len(train_idx) >= self.config.min_train_samples and len(test_idx) > 0:
                 splits.append((train_idx, test_idx))
 
         splits.reverse()
-        logger.info(f"Walk-forward: {len(splits)} fold olusturuldu")
+        logger.info(
+            f"Walk-forward (tarih-bazli, embargo={self._target_horizon_days()}g): "
+            f"{len(splits)} fold olusturuldu"
+        )
+        return splits
+
+    def _position_based_splits(
+        self, valid_indices: np.ndarray
+    ) -> List[Tuple[np.ndarray, np.ndarray]]:
+        """Eski pozisyon-bazli bolme (yalniz DatetimeIndex olmayan durumda)."""
+        splits = []
+        total = len(valid_indices)
+        test_size = self.config.test_size_weeks
+        for i in range(self.config.n_splits):
+            test_end = total - (i * test_size)
+            test_start = test_end - test_size
+            if test_start < self.config.min_train_samples:
+                break
+            train_idx = valid_indices[:test_start]
+            test_idx = valid_indices[test_start:test_end]
+            if len(train_idx) >= self.config.min_train_samples and len(test_idx) > 0:
+                splits.append((train_idx, test_idx))
+        splits.reverse()
         return splits
 
     def _evaluate_fold(
-        self, y_true: np.ndarray, y_pred: np.ndarray
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        dates: Optional[np.ndarray] = None,
     ) -> Tuple[float, float, float, float]:
-        """MAE, RMSE, directional accuracy, IC hesapla."""
+        """
+        MAE, RMSE, directional accuracy, IC hesapla.
+
+        IC (Information Coefficient): `dates` verilirse ve en az bir tarihte
+        ≥2 fon varsa, her tarih icin KESITSEL (cross-sectional) Spearman
+        korelasyonu hesaplanip ortalanir — kantitatif standart. Aksi halde
+        (tek-fon / tek tarih / tarih yok) tum havuzda Spearman'a duser.
+
+        Bu ayrim onemli: panel veride havuz-IC zaman + kesit korelasyonunu
+        karistirir ve degeri yapay sisirir.
+        """
         from scipy.stats import spearmanr
 
         mae = mean_absolute_error(y_true, y_pred)
@@ -167,13 +239,38 @@ class BESPredictor:
         else:
             directional_acc = 0.0
 
-        if len(y_true) > 2:
-            ic, _ = spearmanr(y_true, y_pred)
-            ic = 0.0 if np.isnan(ic) else float(ic)
-        else:
-            ic = 0.0
-
+        ic = self._compute_ic(y_true, y_pred, dates, spearmanr)
         return mae, rmse, directional_acc, ic
+
+    @staticmethod
+    def _compute_ic(y_true, y_pred, dates, spearmanr) -> float:
+        """Kesitsel IC (varsa) yoksa havuz IC."""
+        def _pooled(yt, yp):
+            if len(yt) > 2:
+                val, _ = spearmanr(yt, yp)
+                return 0.0 if np.isnan(val) else float(val)
+            return 0.0
+
+        if dates is None:
+            return _pooled(y_true, y_pred)
+
+        unique_dates, counts = np.unique(dates, return_counts=True)
+        # Kesitsel IC ancak en az bir tarihte birden fazla fon varsa anlamli
+        if counts.max() < 2:
+            return _pooled(y_true, y_pred)
+
+        per_date_ic = []
+        for d in unique_dates:
+            m = dates == d
+            if m.sum() < 2:
+                continue
+            val, _ = spearmanr(y_true[m], y_pred[m])
+            if not np.isnan(val):
+                per_date_ic.append(float(val))
+
+        if not per_date_ic:
+            return _pooled(y_true, y_pred)
+        return float(np.mean(per_date_ic))
 
     def _build_model(self, model_name: str):
         """Model instance olustur."""
@@ -229,12 +326,14 @@ class BESPredictor:
             y_tr = y.iloc[train_idx].values
             X_te = X_num.iloc[test_idx].values
             y_te = y.iloc[test_idx].values
+            te_dates_full = X_num.index[test_idx].values  # kesitsel IC icin
 
             # Son NaN temizleme
             tr_ok = ~(np.isnan(X_tr).any(axis=1) | np.isnan(y_tr))
             te_ok = ~(np.isnan(X_te).any(axis=1) | np.isnan(y_te))
             X_tr, y_tr = X_tr[tr_ok], y_tr[tr_ok]
             X_te, y_te = X_te[te_ok], y_te[te_ok]
+            te_dates = te_dates_full[te_ok]
 
             if len(X_tr) < self.config.min_train_samples or len(X_te) == 0:
                 continue
@@ -244,16 +343,12 @@ class BESPredictor:
             X_te_s = scaler.transform(X_te)
 
             model = self._build_model(model_name)
-            if model_name == "xgboost" and HAS_XGBOOST:
-                model.fit(
-                    X_tr_s, y_tr,
-                    eval_set=[(X_te_s, y_te)],
-                    verbose=False,
-                )
-            else:
-                model.fit(X_tr_s, y_tr)
+            # NOT: eval_set olarak test seti VERILMEZ — early_stopping yapilandirilmadigi
+            # icin egitimi etkilemese de test setini egitime sokmak kotu pratik ve
+            # ileride early stopping eklenirse leakage'a kapi acar.
+            model.fit(X_tr_s, y_tr)
             y_pred = model.predict(X_te_s)
-            mae, rmse, dir_acc, ic = self._evaluate_fold(y_te, y_pred)
+            mae, rmse, dir_acc, ic = self._evaluate_fold(y_te, y_pred, dates=te_dates)
 
             train_dates = X_num.index[train_idx]
             test_dates = X_num.index[test_idx]
