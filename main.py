@@ -327,6 +327,14 @@ Ornekler:
         if _tc_main.is_cache_stale(max_age_days=7):
             logger.info("TEFAS cache eski — otomatik güncelleniyor...")
             _tc_main.auto_refresh_cache(max_age_days=7)
+        # Gercek gunluk NAV gecmisini artimli guncelle (backtest + piyasa getirisi
+        # icin). Genelde 1-2 pencere; her ay calistikca gercek gecmis birikir.
+        try:
+            _added = _tc_main.update_nav_history()
+            if _added:
+                logger.info(f"nav_history: +{_added} satir eklendi")
+        except Exception as _e2:
+            logger.warning(f"nav_history güncelleme hatası: {_e2}")
     except Exception as _e:
         logger.warning(f"TEFAS cache kontrol hatası: {_e}")
 

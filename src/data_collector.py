@@ -532,6 +532,56 @@ class TEFASCollector:
         )
         return df
 
+    def update_nav_history(
+        self,
+        path: Optional[str] = None,
+        fund_type: str = "EMK",
+        full_start: str = "2024-06-01",
+    ) -> int:
+        """
+        nav_history.parquet'i ARTIMLI guncelle: mevcut dosyadaki son tarihten
+        bugune kadarki gunleri cekip ekler (aylik cron icin ideal — genelde 1-2
+        pencere). Dosya yoksa full_start'tan tam cekim yapar.
+
+        Returns: eklenen yeni (fon x gun) satir sayisi.
+        """
+        path = Path(path) if path else (self.cache_dir / "nav_history.parquet")
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        existing = pd.DataFrame()
+        if path.exists():
+            try:
+                existing = pd.read_parquet(path)
+            except Exception as e:
+                logger.warning(f"nav_history okunamadi, tam cekim yapilacak: {e}")
+
+        if not existing.empty and "date" in existing.columns:
+            last = pd.to_datetime(existing["date"]).max()
+            # Kucuk ortusme ile bosluk kalmasin
+            start = (last - pd.Timedelta(days=3)).strftime("%Y-%m-%d")
+        else:
+            start = full_start
+
+        new = self.fetch_nav_history(start, today, fund_type=fund_type)
+        if new.empty:
+            logger.info("nav_history guncel — yeni veri yok")
+            return 0
+
+        before = len(existing)
+        merged = (
+            pd.concat([existing, new], ignore_index=True)
+            .drop_duplicates(subset=["fund_code", "date"])
+            .sort_values(["fund_code", "date"])
+            .reset_index(drop=True)
+        )
+        merged.to_parquet(path, index=False)
+        added = len(merged) - before
+        logger.info(
+            f"nav_history guncellendi: +{added} satir (toplam {len(merged)}, "
+            f"{merged['date'].max() if 'date' in merged else '?'})"
+        )
+        return added
+
     def latest_snapshot_date(self) -> Optional[datetime]:
         """En son snapshot dosyasının tarihini döner. Dosya yoksa None."""
         files = sorted(self.cache_dir.glob("snapshot_*.parquet"))

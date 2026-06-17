@@ -321,3 +321,37 @@ class TestFetchNavHistory:
         with patch("src.data_collector.requests.Session", return_value=sess):
             df = c.fetch_nav_history("2025-01-01", "2025-01-20", sleep_sec=0)
         assert df.empty
+
+
+class TestUpdateNavHistory:
+    def test_incremental_merge(self, tmp_path):
+        from unittest.mock import patch
+        import pandas as pd
+        with patch.object(TEFASCollector, "_init_session"):
+            c = TEFASCollector(cache_dir=str(tmp_path))
+        navp = tmp_path / "nav_history.parquet"
+        pd.DataFrame({"fund_code":["AAA","AAA"],"fund_name":["A","A"],
+                      "date":pd.to_datetime(["2025-01-01","2025-01-02"]),
+                      "price":[1.0,1.1]}).to_parquet(navp)
+        # Yeni çekim: bir örtüşen + bir yeni gün
+        new = pd.DataFrame({"fund_code":["AAA","AAA"],"fund_name":["A","A"],
+                            "date":pd.to_datetime(["2025-01-02","2025-01-03"]),
+                            "price":[1.1,1.2]})
+        with patch.object(c, "fetch_nav_history", return_value=new):
+            added = c.update_nav_history(path=str(navp))
+        merged = pd.read_parquet(navp)
+        assert added == 1                       # yalnız 2025-01-03 yeni
+        assert len(merged) == 3
+        assert merged["date"].nunique() == 3
+
+    def test_no_new_data_returns_zero(self, tmp_path):
+        from unittest.mock import patch
+        import pandas as pd
+        with patch.object(TEFASCollector, "_init_session"):
+            c = TEFASCollector(cache_dir=str(tmp_path))
+        navp = tmp_path / "nav_history.parquet"
+        pd.DataFrame({"fund_code":["AAA"],"fund_name":["A"],
+                      "date":pd.to_datetime(["2025-01-01"]),"price":[1.0]}).to_parquet(navp)
+        with patch.object(c, "fetch_nav_history", return_value=pd.DataFrame()):
+            added = c.update_nav_history(path=str(navp))
+        assert added == 0

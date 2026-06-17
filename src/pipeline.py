@@ -144,32 +144,27 @@ class MonthlyPipeline:
             )
 
         # PIYASA getirisi: onceki fon bakiyelerini gerceklesen fon getirileriyle
-        # yeniden degerle. Katki/cikislardan arindirilmis — alfa icin daha dogru.
-        market_return = None
-        if is_monthly:
-            reval = self._compute_market_return(prev_value, prev_fund_weights)
-            if reval is not None:
-                market_return = reval["market_return"]
-                logger.info(
-                    f"Piyasa getirisi (revalue): {market_return:+.2%} "
-                    f"(kapsam %{reval['coverage']*100:.0f}), "
-                    f"nominal toplam: {nominal_monthly_return:+.2%}"
-                )
+        # yeniden degerle (katki/cikislardan arindirilmis — alfa icin daha dogru).
+        # Once gercek gunluk NAV'dan TAM DONEM (her periyotta gecerli), yoksa
+        # ~aylik snapshot return_1m'i (yalniz is_monthly).
+        market_return = self._compute_market_return(
+            prev_value, prev_fund_weights, prev_run_date, current_date, is_monthly
+        )
+        if market_return is not None:
+            logger.info(
+                f"Piyasa getirisi: {market_return:+.2%} (nominal toplam: {nominal_monthly_return:+.2%})"
+            )
 
         # Alfa ve ogrenme sinyali piyasa getirisi uzerinden (varsa); yoksa nominal
         return_for_alpha = market_return if market_return is not None else nominal_monthly_return
         monthly_return = nominal_monthly_return  # gosterim/geriye uyum icin
 
-        # Benchmark: cok-varlikli BES portfoyu icin %100 BIST adil degil. ~1 aylik
-        # periyotta backtest ile tutarli ESIT-AGIRLIK karma BES benchmark'i kullan;
-        # periyot uymuyorsa veya TEFAS verisi yoksa periyot-dogru BIST 100'e dus.
-        blended_bench = self._calculate_blended_benchmark(current_date) if is_monthly else None
-        if blended_bench is not None:
-            benchmark_return = blended_bench
-            benchmark_basis = "blended"
-        else:
-            benchmark_return = self._calculate_bist_benchmark(prev_run_date, current_date)
-            benchmark_basis = "bist100"
+        # Benchmark: cok-varlikli BES portfoyu icin %100 BIST adil degil. Once
+        # gercek-NAV tam-donem karma BES sepeti, yoksa ~aylik snapshot, o da yoksa
+        # periyot-dogru BIST 100.
+        benchmark_return, benchmark_basis = self._resolve_benchmark(
+            prev_run_date, current_date, is_monthly
+        )
         alpha = return_for_alpha - benchmark_return
 
         # Onceki rebalance maliyetini gross alpha'dan dus → net alpha
@@ -221,52 +216,93 @@ class MonthlyPipeline:
         except (ValueError, TypeError, AttributeError):
             return None
 
-    def _compute_market_return(
-        self, prev_total: float, prev_fund_weights: Dict[str, float]
-    ) -> Optional[Dict]:
-        """
-        Onceki fon bakiyelerini (toplam x agirlik) gerceklesen fon getirileriyle
-        yeniden degerleyerek piyasa-kaynaklı donem getirisini hesapla.
-        Collector/veri yoksa veya kapsam dusukse None.
-        """
-        if self.collector is None or not prev_fund_weights or not prev_total:
-            return None
-        try:
-            prev_holdings_tl = {
-                code: prev_total * w for code, w in prev_fund_weights.items()
-            }
-            fund_returns = self.collector.get_fund_returns(
-                codes=list(prev_fund_weights.keys()), period="return_1m"
-            )
-            if not fund_returns:
-                return None
-            return self.tracker.revalue_holdings(prev_holdings_tl, fund_returns)
-        except Exception as e:
-            logger.warning(f"Piyasa getirisi hesaplanamadi: {e}")
-            return None
+    def _get_nav_provider(self):
+        """RealNavReturnProvider'i tek sefer kur ve onbellekle (yoksa None)."""
+        if not hasattr(self, "_nav_provider_cached"):
+            try:
+                from src.backtest_engine import RealNavReturnProvider
+                p = RealNavReturnProvider()
+                self._nav_provider_cached = p if p.has_data() else None
+            except Exception as e:
+                logger.warning(f"NAV provider kurulamadi: {e}")
+                self._nav_provider_cached = None
+        return self._nav_provider_cached
 
-    def _calculate_blended_benchmark(self, current_date: datetime) -> Optional[float]:
+    def _compute_market_return(
+        self,
+        prev_total: float,
+        prev_fund_weights: Dict[str, float],
+        prev_date: Optional[str],
+        current_date: datetime,
+        is_monthly: bool,
+    ) -> Optional[float]:
         """
-        Esit-agirlik cok-varlikli BES benchmark getirisi (donem ~1 ay).
-        Agirliklar backtest ile ortak (DEFAULT_BENCHMARK_WEIGHTS).
-        TEFAS sepet getirileri yoksa None — caller BIST 100'e duser.
+        Portfoyun PIYASA getirisi (katki/cikislardan arindirilmis), oran.
+        Oncelik: (1) gercek gunluk NAV'dan TAM DONEM getirisi — her periyotta
+        gecerli; (2) ~aylik snapshot return_1m (yalniz is_monthly). Yoksa None.
         """
-        try:
-            import pandas as pd
-            from src.backtest_engine import RealNavReturnProvider, DEFAULT_BENCHMARK_WEIGHTS
-            provider = RealNavReturnProvider()
-            if not provider.has_data():
-                return None
-            real = provider.returns_asof(pd.Timestamp(current_date))
-            if real is None:
-                return None
-            return float(sum(
-                w * real.get(a, 0.0)
-                for a, w in DEFAULT_BENCHMARK_WEIGHTS.items()
-            ))
-        except Exception as e:
-            logger.warning(f"Karma benchmark hesaplanamadi: {e}")
+        if not prev_fund_weights or not prev_total:
             return None
+        codes = list(prev_fund_weights.keys())
+        prev_holdings_tl = {c: prev_total * w for c, w in prev_fund_weights.items()}
+
+        # 1) NAV tam-donem
+        nav = self._get_nav_provider()
+        if nav is not None and nav.has_nav_history() and prev_date:
+            try:
+                fr = nav.fund_returns_between(codes, prev_date, current_date)
+                if fr:
+                    res = self.tracker.revalue_holdings(prev_holdings_tl, fr)
+                    if res is not None:
+                        return res["market_return"]
+            except Exception as e:
+                logger.warning(f"NAV tam-donem getiri hatasi: {e}")
+
+        # 2) Snapshot return_1m (yalniz ~aylik)
+        if is_monthly and self.collector is not None:
+            try:
+                fr = self.collector.get_fund_returns(codes=codes, period="return_1m")
+                if fr:
+                    res = self.tracker.revalue_holdings(prev_holdings_tl, fr)
+                    if res is not None:
+                        return res["market_return"]
+            except Exception as e:
+                logger.warning(f"return_1m piyasa getirisi hatasi: {e}")
+        return None
+
+    def _resolve_benchmark(
+        self, prev_date: Optional[str], current_date: datetime, is_monthly: bool
+    ):
+        """
+        Karma BES benchmark getirisi + bazi. Oncelik: (1) gercek-NAV tam-donem
+        esit-agirlik sepet; (2) ~aylik snapshot sepet; (3) periyot-dogru BIST 100.
+        Donus: (oran, bazi).
+        """
+        from src.backtest_engine import DEFAULT_BENCHMARK_WEIGHTS
+
+        def _blend(real):
+            return float(sum(w * real.get(a, 0.0) for a, w in DEFAULT_BENCHMARK_WEIGHTS.items()))
+
+        nav = self._get_nav_provider()
+        # 1) NAV tam-donem
+        if nav is not None and nav.has_nav_history() and prev_date:
+            try:
+                real = nav.returns_between(prev_date, current_date)
+                if real is not None:
+                    return _blend(real), "blended_nav"
+            except Exception as e:
+                logger.warning(f"NAV tam-donem benchmark hatasi: {e}")
+        # 2) Snapshot return_1m sepet (yalniz ~aylik)
+        if is_monthly and nav is not None:
+            try:
+                import pandas as pd
+                real = nav.returns_asof(pd.Timestamp(current_date))
+                if real is not None:
+                    return _blend(real), "blended_1m"
+            except Exception as e:
+                logger.warning(f"Snapshot benchmark hatasi: {e}")
+        # 3) Periyot-dogru BIST 100
+        return self._calculate_bist_benchmark(prev_date, current_date), "bist100"
 
     def _calculate_bist_benchmark(
         self, prev_date_str: Optional[str], current_date: datetime
