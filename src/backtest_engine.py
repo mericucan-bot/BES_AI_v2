@@ -195,6 +195,28 @@ class RealNavReturnProvider:
             out[asset] = float(np.mean(rets)) if rets else 0.0
         return out
 
+    def fund_returns_between(self, codes, start, end) -> Optional[Dict[str, float]]:
+        """
+        Belirli FONLARIN [start, end] araligindaki GERCEK getirisi (NAV'dan).
+        {fon_kodu: oran}. NAV gecmisi yoksa None. Pipeline'da portfoy piyasa
+        getirisini tam dönem hesaplamak icin (return_1m yaklasimina gerek kalmaz).
+        """
+        if not self.has_nav_history():
+            return None
+        p0 = self._asof_prices(start)
+        p1 = self._asof_prices(end)
+        if p0 is None or p1 is None:
+            return None
+        out: Dict[str, float] = {}
+        for c in codes:
+            for key in (str(c), str(c).upper()):
+                if key in p0.index and key in p1.index:
+                    a, b = p0[key], p1[key]
+                    if pd.notna(a) and pd.notna(b) and a > 0:
+                        out[str(c)] = float(b / a - 1.0)
+                    break
+        return out or None
+
     def has_data(self) -> bool:
         return (not self.basket_returns.empty) or self.has_nav_history()
 
