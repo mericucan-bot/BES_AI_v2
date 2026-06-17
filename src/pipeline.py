@@ -219,17 +219,15 @@ class MonthlyPipeline:
             logger.warning(f"Piyasa getirisi hesaplanamadi: {e}")
             return None
 
-    # Esit-agirlik karma BES benchmark'i (backtest varsayilani ile tutarli)
-    _BLENDED_BENCHMARK_WEIGHTS = {"VEF": 0.25, "KTS": 0.25, "ALT": 0.25, "CASH": 0.25}
-
     def _calculate_blended_benchmark(self, current_date: datetime) -> Optional[float]:
         """
         Esit-agirlik cok-varlikli BES benchmark getirisi (donem ~1 ay).
+        Agirliklar backtest ile ortak (DEFAULT_BENCHMARK_WEIGHTS).
         TEFAS sepet getirileri yoksa None — caller BIST 100'e duser.
         """
         try:
             import pandas as pd
-            from src.backtest_engine import RealNavReturnProvider
+            from src.backtest_engine import RealNavReturnProvider, DEFAULT_BENCHMARK_WEIGHTS
             provider = RealNavReturnProvider()
             if not provider.has_data():
                 return None
@@ -238,7 +236,7 @@ class MonthlyPipeline:
                 return None
             return float(sum(
                 w * real.get(a, 0.0)
-                for a, w in self._BLENDED_BENCHMARK_WEIGHTS.items()
+                for a, w in DEFAULT_BENCHMARK_WEIGHTS.items()
             ))
         except Exception as e:
             logger.warning(f"Karma benchmark hesaplanamadi: {e}")

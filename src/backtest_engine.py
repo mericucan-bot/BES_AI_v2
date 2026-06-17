@@ -31,6 +31,12 @@ ASSET_CATEGORY_MAP: Dict[str, List[str]] = {
     "CASH": ["money market"],                                       # Para piyasasi
 }
 
+# Esit-agirlik cok-varlikli BES benchmark'i. Hem backtest'in varsayilan
+# benchmark'i hem pipeline'in karma benchmark'i bunu kullanir (tek kaynak).
+DEFAULT_BENCHMARK_WEIGHTS: Dict[str, float] = {
+    "VEF": 0.25, "KTS": 0.25, "ALT": 0.25, "CASH": 0.25,
+}
+
 
 class RealNavReturnProvider:
     """
@@ -367,9 +373,7 @@ class BacktestEngine:
         except Exception as e:
             logger.warning(f"Macro engine hatasi, fallback: {e}")
 
-        benchmark_weights = self.config.benchmark_weights or {
-            "VEF": 0.25, "KTS": 0.25, "ALT": 0.25, "CASH": 0.25,
-        }
+        benchmark_weights = self.config.benchmark_weights or DEFAULT_BENCHMARK_WEIGHTS
 
         steps: List[MonthlyStep] = []
         portfolio_value = self.config.initial_capital
