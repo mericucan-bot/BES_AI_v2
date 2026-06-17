@@ -283,3 +283,41 @@ class TestGetFundReturns:
         with patch.object(TEFASCollector, "_init_session"):
             c = TEFASCollector(cache_dir=str(tmp_path))
         assert c.get_fund_returns() == {}
+
+
+class TestFetchNavHistory:
+    def test_parses_and_merges_windows(self, tmp_path):
+        from unittest.mock import MagicMock, patch
+        with patch.object(TEFASCollector, "_init_session"):
+            c = TEFASCollector(cache_dir=str(tmp_path))
+
+        def fake_post(url, json=None, timeout=None):
+            bas = json["basTarih"]
+            resp = MagicMock(); resp.status_code = 200; resp.raise_for_status = lambda: None
+            # pencereye göre farklı gün döndür (örtüşme dedup edilmeli)
+            d = "2025-01-02" if bas <= "20250102" else "2025-01-30"
+            resp.json = lambda: {"resultList": [
+                {"fonKodu":"AAA","fonUnvan":"A","tarih":d,"fiyat":1.5,
+                 "tedPaySayisi":1,"kisiSayisi":2,"portfoyBuyukluk":3},
+            ]}
+            return resp
+        sess = MagicMock(); sess.post.side_effect = fake_post; sess.get.return_value = MagicMock()
+        with patch("src.data_collector.requests.Session", return_value=sess):
+            df = c.fetch_nav_history("2025-01-01", "2025-02-15", sleep_sec=0)
+
+        assert not df.empty
+        assert set(df.columns) >= {"fund_code","fund_name","date","price"}
+        assert df["price"].iloc[0] == 1.5
+        # iki pencere -> iki farklı tarih, dedup sonrası 2 satır
+        assert df["date"].nunique() == 2
+
+    def test_empty_resultList_returns_empty_df(self, tmp_path):
+        from unittest.mock import MagicMock, patch
+        with patch.object(TEFASCollector, "_init_session"):
+            c = TEFASCollector(cache_dir=str(tmp_path))
+        resp = MagicMock(); resp.status_code = 200; resp.raise_for_status = lambda: None
+        resp.json = lambda: {"resultList": []}
+        sess = MagicMock(); sess.post.return_value = resp; sess.get.return_value = MagicMock()
+        with patch("src.data_collector.requests.Session", return_value=sess):
+            df = c.fetch_nav_history("2025-01-01", "2025-01-20", sleep_sec=0)
+        assert df.empty
