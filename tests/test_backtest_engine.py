@@ -352,3 +352,53 @@ class TestRealNavProviderTz:
         prov = self._provider(tmp_path)
         res = prov.returns_asof(pd.Timestamp("2026-06-16"))
         assert isinstance(res, dict)
+
+
+class TestRealNavHistory:
+    """nav_history.parquet'ten tam-dönem gerçek getiri (returns_between)."""
+
+    def _cache(self, tmp_path):
+        import pandas as pd
+        # Kategori haritası (snapshot): AAA=Stock(VEF), BBB=Gold(ALT)
+        snap = pd.DataFrame({
+            "date": ["2026-06-16"] * 2,
+            "fund_code": ["AAA", "BBB"],
+            "fund_name": ["A", "B"],
+            "category": ["Stock Fund", "Gold Fund"],
+            "return_1m": [1.0, 2.0],
+        })
+        snap.to_parquet(tmp_path / "snapshot_EMK_20260616.parquet")
+        # Günlük NAV: AAA 100->110 (+%10), BBB 50->45 (-%10)
+        nav = pd.DataFrame({
+            "fund_code": ["AAA","AAA","AAA","BBB","BBB","BBB"],
+            "date": ["2025-01-02","2025-01-15","2025-01-31"]*2,
+            "price": [100.0,105.0,110.0, 50.0,48.0,45.0],
+        })
+        nav.to_parquet(tmp_path / "nav_history.parquet")
+        return str(tmp_path)
+
+    def _provider(self, tmp_path):
+        from src.backtest_engine import RealNavReturnProvider
+        return RealNavReturnProvider(cache_dir=self._cache(tmp_path))
+
+    def test_nav_history_loaded(self, tmp_path):
+        p = self._provider(tmp_path)
+        assert p.has_nav_history()
+        assert "AAA" in p._asset_funds["VEF"]
+        assert "BBB" in p._asset_funds["ALT"]
+
+    def test_returns_between_exact(self, tmp_path):
+        p = self._provider(tmp_path)
+        r = p.returns_between("2025-01-02", "2025-01-31")
+        assert r["VEF"] == pytest.approx(0.10)   # 100->110
+        assert r["ALT"] == pytest.approx(-0.10)  # 50->45
+
+    def test_returns_between_asof(self, tmp_path):
+        # Aralik disi/asof: 2025-01-20 -> en son <= o tarih (105)
+        p = self._provider(tmp_path)
+        r = p.returns_between("2025-01-02", "2025-01-20")
+        assert r["VEF"] == pytest.approx(0.05)   # 100->105
+
+    def test_before_data_returns_none(self, tmp_path):
+        p = self._provider(tmp_path)
+        assert p.returns_between("2020-01-01", "2020-02-01") is None

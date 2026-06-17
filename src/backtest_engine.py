@@ -52,6 +52,8 @@ class RealNavReturnProvider:
         self.cache_dir = cache_dir
         self.date_tolerance = pd.Timedelta(days=date_tolerance_days)
         self.basket_returns = self._build_basket_returns()  # index=tarih, kolon=varlik
+        # Gercek gunluk NAV gecmisi (varsa): tam-donem getirisi icin (returns_between)
+        self._nav_pivot, self._asset_funds = self._build_nav()
 
     def _build_basket_returns(self) -> pd.DataFrame:
         files = sorted(glob.glob(os.path.join(self.cache_dir, "snapshot_EMK_*.parquet")))
@@ -99,8 +101,102 @@ class RealNavReturnProvider:
             )
         return out
 
+    # ------------------------------------------------------------------
+    # Gercek gunluk NAV gecmisi (nav_history.parquet) — tam-donem getirisi
+    # ------------------------------------------------------------------
+
+    def _load_category_map(self) -> Dict[str, str]:
+        """fund_code -> kategori (kucuk harf), en guncel snapshot'tan."""
+        files = sorted(glob.glob(os.path.join(self.cache_dir, "snapshot_EMK_*.parquet")))
+        if not files:
+            return {}
+        try:
+            df = pd.read_parquet(files[-1])
+        except Exception:
+            return {}
+        if "category" not in df.columns or "fund_code" not in df.columns:
+            return {}
+        return {
+            str(c): str(k).lower()
+            for c, k in zip(df["fund_code"], df["category"])
+        }
+
+    def _build_nav(self):
+        """nav_history.parquet -> (NAV pivotu [tarih x fon], {varlik: [fon_kodlari]})."""
+        path = os.path.join(self.cache_dir, "nav_history.parquet")
+        if not os.path.exists(path):
+            return None, {}
+        try:
+            nav = pd.read_parquet(path)
+        except Exception as e:
+            logger.warning(f"nav_history okunamadi: {e}")
+            return None, {}
+        if not {"fund_code", "date", "price"}.issubset(nav.columns):
+            return None, {}
+
+        cat_map = self._load_category_map()
+        if not cat_map:
+            logger.warning("NAV gecmisi var ama kategori haritasi yok (snapshot) — atlandi")
+            return None, {}
+
+        # Her fonu ilk eslesen varlik sinifina ata
+        asset_funds: Dict[str, List[str]] = {a: [] for a in ASSET_CATEGORY_MAP}
+        for code, cat in cat_map.items():
+            for asset, subs in ASSET_CATEGORY_MAP.items():
+                if any(s in cat for s in subs):
+                    asset_funds[asset].append(code)
+                    break
+
+        nav["date"] = pd.to_datetime(nav["date"], errors="coerce")
+        pivot = nav.pivot_table(
+            index="date", columns="fund_code", values="price", aggfunc="last"
+        ).sort_index()
+        logger.info(
+            f"Gercek-NAV gecmisi: {pivot.shape[1]} fon, {pivot.shape[0]} gun, "
+            f"{pivot.index.min().date()} -> {pivot.index.max().date()} | "
+            f"sinif fon sayilari: { {a: len(f) for a, f in asset_funds.items()} }"
+        )
+        return pivot, asset_funds
+
+    def has_nav_history(self) -> bool:
+        return self._nav_pivot is not None and not self._nav_pivot.empty
+
+    def _asof_prices(self, d) -> Optional[pd.Series]:
+        """d tarihinde veya oncesindeki en son NAV satiri (asof)."""
+        px = self._nav_pivot
+        d = pd.Timestamp(d)
+        if d.tzinfo is not None:
+            d = d.tz_localize(None)
+        pos = px.index.searchsorted(d, side="right") - 1
+        if pos < 0:
+            return None
+        return px.iloc[pos]
+
+    def returns_between(self, start, end) -> Optional[Dict[str, float]]:
+        """
+        [start, end] araliginda her varlik sinifinin GERCEK getirisi (NAV'dan).
+        Her fon icin NAV(end)/NAV(start)-1, sinif icinde ortalanir. Tam dönem —
+        return_1m yaklasimindaki periyot-uyumsuzlugu olmaz.
+        """
+        if not self.has_nav_history():
+            return None
+        p0 = self._asof_prices(start)
+        p1 = self._asof_prices(end)
+        if p0 is None or p1 is None:
+            return None
+        out: Dict[str, float] = {}
+        for asset, codes in self._asset_funds.items():
+            rets = []
+            for c in codes:
+                if c in p0.index and c in p1.index:
+                    a, b = p0[c], p1[c]
+                    if pd.notna(a) and pd.notna(b) and a > 0:
+                        rets.append(b / a - 1.0)
+            out[asset] = float(np.mean(rets)) if rets else 0.0
+        return out
+
     def has_data(self) -> bool:
-        return not self.basket_returns.empty
+        return (not self.basket_returns.empty) or self.has_nav_history()
 
     def returns_asof(self, period_end: pd.Timestamp) -> Optional[Dict[str, float]]:
         """period_end'e en yakin (tolerans icinde) snapshot'in sepet getirileri."""
@@ -241,16 +337,21 @@ class BacktestEngine:
         - KCH (Karma)           → BIST*0.5 + GOLD*0.3 + sabit*0.2
         - CASH (Para Piyasasi)  → Sabit getiri (dusuk)
         """
-        # 1) Gercek-NAV: donem sonu snapshot'indan sepet getirileri
+        # 1) Gercek-NAV: once gunluk NAV gecmisinden TAM DONEM getirisi (en dogru),
+        #    yoksa donem sonu snapshot return_1m'i, o da yoksa proxy.
         if self.real_nav is not None:
-            real = self.real_nav.returns_asof(end_date)
+            real = None
+            if self.real_nav.has_nav_history():
+                real = self.real_nav.returns_between(start_date, end_date)
+            if real is None:
+                real = self.real_nav.returns_asof(end_date)
             if real is not None:
                 all_assets = set(list(weights.keys()) + list(real.keys()))
                 return float(sum(
                     weights.get(a, 0) * real.get(a, 0.0) for a in all_assets
                 ))
             logger.debug(
-                f"Gercek-NAV: {end_date.date()} icin snapshot yok, proxy'ye dusuluyor"
+                f"Gercek-NAV: {end_date.date()} icin veri yok, proxy'ye dusuluyor"
             )
 
         # 2) Proxy fallback (yfinance + sabit oranlar)

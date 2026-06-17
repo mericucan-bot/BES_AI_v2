@@ -19,12 +19,22 @@ class TEFASCollector:
       Content-Type: application/json
       Body: {format, listingType, fundType, locale, fonKodu, basTarih, bitTarih, calismaTipi}
 
-    Bu endpoint EMK fon listesi + donem getirileri donduruyor.
-    Eski BindHistoryInfo/BindHistoryAllocation endpointleri kalici olarak kapanmistir.
+    Bu endpoint EMK fon listesi + GUNCEL donem getirileri donduruyor (tarihi
+    yok sayar — tarihsel snapshot icin kullanilamaz).
+
+    GERCEK tarihsel gunluk NAV icin fetch_nav_history() kullanilir:
+      POST https://www.tefas.gov.tr/api/funds/fonGnlBlgSiraliGetir (tarihe saygi
+      duyar, ~1 ay pencere siniri). Eski /api/DB/BindHistoryInfo kapanmistir.
     """
 
     BASE_URL = "https://fundturkey.com.tr"
     EXPORT_ENDPOINT = "/api/fund-returns/export"
+
+    # Gercek tarihsel gunluk NAV — tefas.gov.tr resmi SPA API'si (canli dogrulandi).
+    # Tarihe SAYGI duyar; ~1 ay sert pencere siniri (ay-ay cekilmeli).
+    TEFAS_API_BASE = "https://www.tefas.gov.tr"
+    NAV_HISTORY_ENDPOINT = "/api/funds/fonGnlBlgSiraliGetir"
+    _NAV_WINDOW_DAYS = 28  # ~1 ay siniri altinda kalmak icin guvenli pencere
 
     DEFAULT_HEADERS = {
         "User-Agent": (
@@ -395,6 +405,132 @@ class TEFASCollector:
             df.to_parquet(self._cache_path(key), index=False)
         except Exception as e:
             logger.error(f"Cache yazma hatasi ({key}): {e}")
+
+    def fetch_nav_history(
+        self,
+        start: str,
+        end: str,
+        fund_type: str = "EMK",
+        fund_code: Optional[str] = None,
+        sleep_sec: float = 0.4,
+    ) -> pd.DataFrame:
+        """
+        Gercek tarihsel gunluk NAV cek (tefas.gov.tr fonGnlBlgSiraliGetir).
+
+        Endpoint ~1 ay sert pencere siniri uyguladigindan tarih araligi
+        otomatik olarak _NAV_WINDOW_DAYS'lik pencerelere bolunup birlestirilir.
+        fund_code=None ise o pencerede TUM fonlar tek cagrida gelir.
+
+        start/end: "YYYY-MM-DD" / "YYYYMMDD"
+        Returns: DataFrame(fund_code, fund_name, date, price,
+                           ted_pay, kisi_sayisi, portfoy_buyukluk)
+        """
+        start_dt = pd.Timestamp(self._normalize_date_iso(start))
+        end_dt = pd.Timestamp(self._normalize_date_iso(end))
+        url = f"{self.TEFAS_API_BASE}{self.NAV_HISTORY_ENDPOINT}"
+        headers = {
+            "User-Agent": self.DEFAULT_HEADERS["User-Agent"],
+            "Referer": f"{self.TEFAS_API_BASE}/tr/fon-verileri?fundType={fund_type}",
+            "Origin": self.TEFAS_API_BASE,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+        }
+
+        sess = requests.Session()
+        sess.headers.update(headers)
+        # Anti-bot challenge cerezleri icin once sayfayi ziyaret et
+        try:
+            sess.get(f"{self.TEFAS_API_BASE}/tr/fon-verileri?fundType={fund_type}", timeout=15)
+        except Exception as e:
+            logger.warning(f"NAV history warmup basarisiz (devam): {e}")
+
+        all_rows: List[Dict] = []
+        cur = start_dt
+        window = pd.Timedelta(days=self._NAV_WINDOW_DAYS)
+        n_win = 0
+        while cur <= end_dt:
+            win_end = min(cur + window, end_dt)
+            payload = {
+                "fonTipi": fund_type,
+                "fonKodu": fund_code,
+                "aramaMetni": None,
+                "basSira": 1,
+                "bitSira": 200000,
+                "basTarih": cur.strftime("%Y%m%d"),
+                "bitTarih": win_end.strftime("%Y%m%d"),
+                "dil": "TR",
+                "fonGrubu": None,
+                "fonTurAciklama": None,
+                "fonTurKod": None,
+                "kurucuKod": None,
+                "sfonTurKod": None,
+            }
+            # 429/gecici hatalara karsi ustel backoff'lu yeniden deneme
+            rows = []
+            for attempt in range(5):
+                try:
+                    r = sess.post(url, json=payload, timeout=60)
+                    if r.status_code == 429:
+                        wait = min(60, 5 * (2 ** attempt))
+                        logger.warning(
+                            f"429 rate-limit ({cur.date()}→{win_end.date()}), "
+                            f"{wait}s bekleniyor (deneme {attempt+1}/5)"
+                        )
+                        time.sleep(wait)
+                        continue
+                    r.raise_for_status()
+                    rows = r.json().get("resultList") or []
+                    logger.info(
+                        f"NAV history [{cur.date()}→{win_end.date()}]: {len(rows)} satir"
+                    )
+                    break
+                except Exception as e:
+                    if attempt < 4:
+                        wait = min(60, 5 * (2 ** attempt))
+                        logger.warning(
+                            f"NAV history gecici hata ({cur.date()}→{win_end.date()}): {e}, "
+                            f"{wait}s sonra tekrar"
+                        )
+                        time.sleep(wait)
+                    else:
+                        logger.error(
+                            f"NAV history hata ({cur.date()}→{win_end.date()}): {e}"
+                        )
+            all_rows.extend(rows)
+            n_win += 1
+            cur = win_end + pd.Timedelta(days=1)
+            if cur <= end_dt and sleep_sec:
+                time.sleep(sleep_sec)
+
+        if not all_rows:
+            logger.error("NAV history: hicbir satir alinamadi")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(all_rows).rename(columns={
+            "fonKodu": "fund_code",
+            "fonUnvan": "fund_name",
+            "tarih": "date",
+            "fiyat": "price",
+            "tedPaySayisi": "ted_pay",
+            "kisiSayisi": "kisi_sayisi",
+            "portfoyBuyukluk": "portfoy_buyukluk",
+        })
+        keep = [c for c in ["fund_code", "fund_name", "date", "price",
+                            "ted_pay", "kisi_sayisi", "portfoy_buyukluk"] if c in df.columns]
+        df = df[keep].copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["price"] = pd.to_numeric(df["price"], errors="coerce")
+        df = df.dropna(subset=["fund_code", "date", "price"])
+        # Pencere sinirlarinda olusabilecek tekrarlari temizle
+        df = df.drop_duplicates(subset=["fund_code", "date"]).sort_values(
+            ["fund_code", "date"]
+        ).reset_index(drop=True)
+        logger.info(
+            f"NAV history toplam: {len(df)} satir, {df['fund_code'].nunique()} fon, "
+            f"{df['date'].nunique()} gun ({n_win} pencere)"
+        )
+        return df
 
     def latest_snapshot_date(self) -> Optional[datetime]:
         """En son snapshot dosyasının tarihini döner. Dosya yoksa None."""
