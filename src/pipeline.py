@@ -130,26 +130,40 @@ class MonthlyPipeline:
         # Kullanicinin bildirdigi toplam degisim (katki/cikislari da icerir)
         nominal_monthly_return = (current_value - prev_value) / prev_value
 
+        # return_1m tabanli hesaplar (piyasa getirisi + karma benchmark) yalnizca
+        # ~1 aylik degerlendirme periyodunda gecerli. Pipeline aylik kosmuyorsa
+        # (orn. 2 ay arayla) 1-aylik getiriyi kullanmak periyodu yanlis temsil eder
+        # — bu durumda periyot-dogru olan nominal/BIST'e duser. Periyot
+        # cozumlenemezse (eski/eksik tarih) mevcut davranis korunur (is_monthly=True).
+        elapsed_days = self._period_days(prev_run_date, current_date)
+        is_monthly = elapsed_days is None or (20 <= elapsed_days <= 45)
+        if elapsed_days is not None and not is_monthly:
+            logger.info(
+                f"Degerlendirme periyodu ~1 ay degil ({elapsed_days}g) — return_1m "
+                f"tabanli piyasa getirisi/karma benchmark atlandi, nominal/BIST kullanildi"
+            )
+
         # PIYASA getirisi: onceki fon bakiyelerini gerceklesen fon getirileriyle
         # yeniden degerle. Katki/cikislardan arindirilmis — alfa icin daha dogru.
         market_return = None
-        reval = self._compute_market_return(prev_value, prev_fund_weights)
-        if reval is not None:
-            market_return = reval["market_return"]
-            logger.info(
-                f"Piyasa getirisi (revalue): {market_return:+.2%} "
-                f"(kapsam %{reval['coverage']*100:.0f}), "
-                f"nominal toplam: {nominal_monthly_return:+.2%}"
-            )
+        if is_monthly:
+            reval = self._compute_market_return(prev_value, prev_fund_weights)
+            if reval is not None:
+                market_return = reval["market_return"]
+                logger.info(
+                    f"Piyasa getirisi (revalue): {market_return:+.2%} "
+                    f"(kapsam %{reval['coverage']*100:.0f}), "
+                    f"nominal toplam: {nominal_monthly_return:+.2%}"
+                )
 
         # Alfa ve ogrenme sinyali piyasa getirisi uzerinden (varsa); yoksa nominal
         return_for_alpha = market_return if market_return is not None else nominal_monthly_return
         monthly_return = nominal_monthly_return  # gosterim/geriye uyum icin
 
-        # Benchmark: cok-varlikli BES portfoyu icin %100 BIST adil degil. Once
-        # backtest ile tutarli ESIT-AGIRLIK karma BES benchmark'i dene; yoksa
-        # (TEFAS verisi yoksa) BIST 100'e geri dus.
-        blended_bench = self._calculate_blended_benchmark(current_date)
+        # Benchmark: cok-varlikli BES portfoyu icin %100 BIST adil degil. ~1 aylik
+        # periyotta backtest ile tutarli ESIT-AGIRLIK karma BES benchmark'i kullan;
+        # periyot uymuyorsa veya TEFAS verisi yoksa periyot-dogru BIST 100'e dus.
+        blended_bench = self._calculate_blended_benchmark(current_date) if is_monthly else None
         if blended_bench is not None:
             benchmark_return = blended_bench
             benchmark_basis = "blended"
@@ -194,6 +208,18 @@ class MonthlyPipeline:
             f"brut α={alpha:+.2%}, maliyet={prev_cost_pct:.4%}, net α={net_alpha:+.2%})"
         )
         return evaluation
+
+    @staticmethod
+    def _period_days(prev_date_str: Optional[str], current_date: datetime) -> Optional[int]:
+        """Onceki snapshot ile su an arasi gun sayisi (tz-guvenli; yalniz tarih).
+        Cozumlenemezse None."""
+        if not prev_date_str:
+            return None
+        try:
+            prev_dt = datetime.fromisoformat(prev_date_str.replace("Z", "+00:00"))
+            return abs((current_date.date() - prev_dt.date()).days)
+        except (ValueError, TypeError, AttributeError):
+            return None
 
     def _compute_market_return(
         self, prev_total: float, prev_fund_weights: Dict[str, float]
