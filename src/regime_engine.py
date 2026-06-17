@@ -238,19 +238,25 @@ class RegimeEngineV2:
         dd_score = self._normalize_drawdown(bist_dd)
         vol_score = self._normalize_volatility(vol)
         usd_mom_score = self._normalize_momentum(usd_mom, threshold=0.15)
-        gold_mom_score = self._normalize_momentum(gold_mom, threshold=0.15)  # noqa: F841
+        gold_mom_score = self._normalize_momentum(gold_mom, threshold=0.15)
+
+        # Yon-kosullu sinyaller: yalniz YUKARI hareket risk-off/kriz isaretidir
+        usd_up = usd_mom_score if usd_mom > 0 else 0.0
+        gold_up = gold_mom_score if gold_mom > 0 else 0.0  # yukselen altin = risk-off hedge
 
         # 5pp artis (0.05) tam sinyal; clip ile [0,1]'de tut
         rate_hike_signal = float(np.clip(max(0.0, tcmb_trend / 0.05), 0, 1))
 
         # --- Skorlama: her rejim [0, 1] araliginda, kiyaslanabilir ---
-        # TODO: agirliklar backtest kalibrasyonuyla guncellenecek
+        # NOT: agirliklar uzman-sezgisel; backtest kalibrasyonu ileride.
+        # Altin momentumu (gold_up) CRISIS sinyaline dahil — TR'de guvenli liman talebi.
         scores_raw = {
-            "CRISIS":    0.5 * dd_score
-                         + 0.3 * vol_score
-                         + 0.2 * (usd_mom_score if usd_mom > 0 else 0),
+            "CRISIS":    0.45 * dd_score
+                         + 0.25 * vol_score
+                         + 0.15 * usd_up
+                         + 0.15 * gold_up,
             "RATE_HIKE": 0.7 * rate_hike_signal
-                         + 0.3 * (usd_mom_score if usd_mom > 0 else 0),
+                         + 0.3 * usd_up,
             "RISK_ON":   0.6 * float(np.clip(bist_60d_return / 0.20, 0, 1))
                          + 0.4 * (1 - vol_score),
             "STABLE":    1.0 - max(dd_score, vol_score, usd_mom_score),

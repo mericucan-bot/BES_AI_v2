@@ -2,32 +2,13 @@ import streamlit as st
 import pandas as pd
 
 import numpy as np
+import hmac
 import json
 import os
-import re
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
 
-def _atomic_write_text(path: Path, content: str) -> None:
-    """Atomic write: temp dosyaya yaz, sonra rename. Race condition / power
-    failure'da yarim yazilmis dosya birakmaz.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(content)
-        os.replace(tmp, path)
-    except Exception:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -37,6 +18,24 @@ from src.learning_engine import LearningEngineV2
 from src.cache_manager import get_smart_ttl, is_market_hours
 from src.logging_config import configure_logging
 from src.data_collector import POPULAR_BES_FUNDS
+
+# Saf mantik src/ modullerine cikarildi (test edilebilirlik + dusuk hata yayilimi).
+# app.py UI/render katmani olarak kalir; davranis birebir korunur.
+from src.io_utils import atomic_write_text as _atomic_write_text
+from src.auth import (
+    get_app_password,
+    load_auth_throttle as _load_auth_throttle,
+    save_auth_throttle as _save_auth_throttle,
+    record_failed_attempt as _record_failed_attempt,
+    reset_auth_throttle as _reset_auth_throttle,
+    AUTH_LOCKOUT_SEC as _AUTH_LOCKOUT_SEC,
+)
+from src.notification_prefs import (
+    is_valid_email as _is_valid_email,
+    load_notification_prefs,
+    save_notification_prefs,
+)
+from src.ui_format import explain_regime, confidence_to_text, format_tl, action_text
 
 # Streamlit Cloud secrets → env vars (TCMB_API_KEY ve EVDS_API_KEY)
 try:
@@ -54,62 +53,15 @@ st.set_page_config(page_title="BES Fon Önerisi", page_icon="images/favicon_32.p
 
 
 # --- ŞİFRE KORUMASI ---
+# Auth + throttle mantigi src.auth'a tasindi (yukarida import edildi). Burada
+# yalnizca st.secrets'i enjekte eden ince bir sarmalayici kaliyor.
 def _get_app_password() -> str:
     """Secret/env'den sifreyi al. Tanimli degilse bos string doner."""
     try:
-        if hasattr(st, "secrets") and "APP_PASSWORD" in st.secrets:
-            return st.secrets["APP_PASSWORD"]
+        secrets = st.secrets if hasattr(st, "secrets") else None
     except Exception:
-        pass
-    return os.environ.get("APP_PASSWORD", "")
-
-
-# Sunucu tarafi rate-limit: tum oturumlar/tablar icin ortak sayim
-_AUTH_THROTTLE_PATH = Path("data/auth_throttle.json")
-_AUTH_WINDOW_SEC    = 300   # 5 dakikalik kayar pencere
-_AUTH_MAX_FAILED    = 5     # Pencere icinde 5 hata = lockout
-_AUTH_LOCKOUT_SEC   = 60    # Lockout suresi
-
-
-def _load_auth_throttle() -> dict:
-    if not _AUTH_THROTTLE_PATH.exists():
-        return {"failed_attempts": [], "lockout_until": 0.0}
-    try:
-        data = json.loads(_AUTH_THROTTLE_PATH.read_text(encoding="utf-8"))
-        return {
-            "failed_attempts": [float(t) for t in data.get("failed_attempts", [])],
-            "lockout_until": float(data.get("lockout_until", 0.0)),
-        }
-    except Exception:
-        return {"failed_attempts": [], "lockout_until": 0.0}
-
-
-def _save_auth_throttle(state: dict) -> None:
-    try:
-        _atomic_write_text(_AUTH_THROTTLE_PATH, json.dumps(state))
-    except Exception:
-        pass
-
-
-def _record_failed_attempt() -> tuple:
-    """Bir hatali deneme kaydet. Donus: (kalan_deneme, lockout_until)."""
-    now = _time.time()
-    state = _load_auth_throttle()
-    # Eski denemeleri pencereden cikar
-    state["failed_attempts"] = [
-        t for t in state["failed_attempts"] if now - t < _AUTH_WINDOW_SEC
-    ]
-    state["failed_attempts"].append(now)
-    if len(state["failed_attempts"]) >= _AUTH_MAX_FAILED:
-        state["lockout_until"] = now + _AUTH_LOCKOUT_SEC
-        state["failed_attempts"] = []
-    _save_auth_throttle(state)
-    remaining = max(0, _AUTH_MAX_FAILED - len(state["failed_attempts"]))
-    return remaining, state["lockout_until"]
-
-
-def _reset_auth_throttle() -> None:
-    _save_auth_throttle({"failed_attempts": [], "lockout_until": 0.0})
+        secrets = None
+    return get_app_password(secrets)
 
 
 if "authenticated" not in st.session_state:
@@ -151,7 +103,7 @@ if not st.session_state.authenticated:
             _pwd = st.text_input("Şifre:", type="password", key="login_password",
                                  placeholder="Şifreyi girin...")
             if st.button("Giriş Yap", type="primary", use_container_width=True):
-                if _pwd == _correct_pwd:
+                if hmac.compare_digest(str(_pwd), str(_correct_pwd)):
                     st.session_state.authenticated = True
                     _reset_auth_throttle()
                     st.rerun()
@@ -553,113 +505,9 @@ hr { border-color: rgba(197,162,62,0.20) !important; }
 
 
 # --- YARDIMCI FONKSİYONLAR ---
-
-_NOTIF_PREFS_PATH = Path("data/notification_prefs.json")
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-
-def _is_valid_email(addr: str) -> bool:
-    return bool(addr) and bool(_EMAIL_RE.match(addr.strip()))
-
-
-def load_notification_prefs() -> dict:
-    defaults = {
-        "email_enabled": False,
-        "email_address": "",
-        "on_regime_change": True,
-        "weekly_summary": False,
-        "critical_signal": True,
-    }
-    try:
-        if _NOTIF_PREFS_PATH.exists():
-            saved = json.loads(_NOTIF_PREFS_PATH.read_text(encoding="utf-8"))
-            if not isinstance(saved, dict):
-                return defaults
-            # Tip-safe merge: bozuk veri uygulamayi cokertmesin
-            for key, default_val in defaults.items():
-                if key not in saved:
-                    continue
-                try:
-                    if isinstance(default_val, bool):
-                        defaults[key] = bool(saved[key])
-                    elif isinstance(default_val, str):
-                        defaults[key] = str(saved[key])
-                except (TypeError, ValueError):
-                    pass
-    except Exception:
-        pass
-    return defaults
-
-def save_notification_prefs(prefs: dict) -> bool:
-    try:
-        _atomic_write_text(
-            _NOTIF_PREFS_PATH,
-            json.dumps(prefs, ensure_ascii=False, indent=2),
-        )
-        return True
-    except Exception:
-        return False
-
-
-def explain_regime(regime: str) -> dict:
-    explanations = {
-        "STABLE": {
-            "symbol": "◎",
-            "label": "Sakin Piyasa",
-            "color": "blue",
-            "border": "#3b82f6",
-            "summary": "Piyasalarda belirgin bir yön yok. Dengeli bir dağılım mantıklı.",
-            "action": "Portföyünü dengeli tut, panik yapma.",
-            "detail": "Volatilite düşük, BIST belirgin bir trend göstermiyor, döviz sakin. Bu ortamda aşırı agresif veya defansif olmaya gerek yok.",
-        },
-        "CRISIS": {
-            "symbol": "▼",
-            "label": "Kriz Modu",
-            "color": "red",
-            "border": "#ef4444",
-            "summary": "Piyasalarda ciddi düşüş veya belirsizlik var. Korunma öncelikli.",
-            "action": "Altın ve sabit getirili fonlara ağırlık ver, hisse oranını azalt.",
-            "detail": "BIST'te sert düşüş, dövizde hızlı yükseliş veya yüksek volatilite tespit edildi. Bu dönemlerde sermayeyi korumak önceliklidir.",
-        },
-        "RISK_ON": {
-            "symbol": "▲",
-            "label": "Yükseliş Trendi",
-            "color": "green",
-            "border": "#22c55e",
-            "summary": "Piyasalar yukarı yönlü. Hisse ağırlığını artırma fırsatı.",
-            "action": "Hisse ve karma fonlara ağırlık ver.",
-            "detail": "BIST güçlü momentum gösteriyor, volatilite makul seviyelerde. Tarihsel olarak bu dönemlerde hisse fonları iyi performans gösterir.",
-        },
-        "RATE_HIKE": {
-            "symbol": "≡",
-            "label": "Faiz Artışı Dönemi",
-            "color": "orange",
-            "border": "#f59e0b",
-            "summary": "Merkez bankası faiz artırıyor. Sabit getirili fonlar öne çıkıyor.",
-            "action": "Kamu borçlanma (KTS) fonlarına ağırlık ver.",
-            "detail": "TCMB politika faizini artırma eğiliminde. Yüksek faiz ortamında tahvil/bono fonları cazip getiri sunuyor.",
-        },
-    }
-    return explanations.get(regime, explanations["STABLE"])
-
-
-def confidence_to_text(confidence: float) -> str:
-    if confidence >= 0.80:
-        return "Yüksek güven — sinyal güçlü"
-    elif confidence >= 0.60:
-        return "Orta güven — makul sinyal"
-    elif confidence >= 0.40:
-        return "Düşük güven — belirsiz ortam"
-    else:
-        return "Çok düşük güven — dikkatli ol"
-
-
-def format_tl(value: float) -> str:
-    return f"{value:,.0f} TL".replace(",", ".")
-
-
-def action_text(action: str) -> str:
-    return {"BUY": "EKLE", "SELL": "AZALT", "HOLD": "DEĞİŞTİRME"}.get(action, action)
+# Saf yardimcilar src/ modullerine tasindi (yukarida import edildi):
+#   - is_valid_email / load_notification_prefs / save_notification_prefs → src.notification_prefs
+#   - explain_regime / confidence_to_text / format_tl / action_text       → src.ui_format
 
 
 # --- VERİ YÜKLEME ---

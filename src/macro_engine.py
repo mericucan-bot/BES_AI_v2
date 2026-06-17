@@ -36,7 +36,9 @@ class TCMBClient:
     }
 
     def __init__(self, api_key: Optional[str] = None, cache_dir: str = "data/cache"):
-        # evdspy kendi key yönetimini kullanıyor (APIKEY_FOLDER/api_key.txt)
+        # Explicit verilen key onceliklidir; yoksa env/APIKEY_FOLDER'a duser
+        # (bkz. _get_api_key). Eskiden bu parametre tamamen yok sayiliyordu.
+        self.api_key = api_key
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,7 +90,10 @@ class TCMBClient:
             return None
 
     def _get_api_key(self) -> Optional[str]:
-        """Env var veya APIKEY_FOLDER dosyasindan API keyini al."""
+        """Explicit key > env var > APIKEY_FOLDER dosyasi."""
+        # 0) Constructor'a acikca verilen key
+        if getattr(self, "api_key", None):
+            return self.api_key
         # 1) Env var
         env_key = os.environ.get("TCMB_API_KEY") or os.environ.get("EVDS_API_KEY")
         if env_key:

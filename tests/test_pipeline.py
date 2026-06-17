@@ -183,3 +183,32 @@ class TestPipelineIdempotency:
         assert r1["snapshot_path"] == r2["snapshot_path"]
         snapshots = list(Path(pipeline_dirs["history_dir"]).glob("*_snapshot.json"))
         assert len(snapshots) == 1
+
+
+class TestPeriodDays:
+    """return_1m tabanli hesaplar icin ~1 ay periyot gate'i."""
+
+    def _now(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        return datetime(2026, 6, 30, tzinfo=ZoneInfo("Europe/Istanbul"))
+
+    def test_monthly_gap(self):
+        # ~1 ay onceki snapshot -> gate acik (20..45 arasi)
+        d = MonthlyPipeline._period_days("2026-05-31T10:00:00+03:00", self._now())
+        assert d == 30
+        assert 20 <= d <= 45
+
+    def test_two_month_gap_outside_window(self):
+        d = MonthlyPipeline._period_days("2026-04-30T10:00:00+03:00", self._now())
+        assert d == 61
+        assert not (20 <= d <= 45)
+
+    def test_naive_prev_date_no_tz_error(self):
+        # tz-naive onceki tarih, tz-aware current: tarih-bazli oldugu icin patlamaz
+        d = MonthlyPipeline._period_days("2026-05-31", self._now())
+        assert d == 30
+
+    def test_unparseable_returns_none(self):
+        assert MonthlyPipeline._period_days("not-a-date", self._now()) is None
+        assert MonthlyPipeline._period_days(None, self._now()) is None

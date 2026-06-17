@@ -182,3 +182,46 @@ class TestPortfolioHistory:
 
         df = PerformanceTracker().get_portfolio_history(str(tmp_path))
         assert len(df) == 1
+
+
+class TestRevalueHoldings:
+    def _tracker(self):
+        return PerformanceTracker()
+
+    def test_market_return_from_fund_returns(self):
+        t = self._tracker()
+        prev = {"AHS": 100.0, "BGL": 100.0}  # esit agirlik
+        # AHS +%10, BGL -%2 -> piyasa getirisi = +%4
+        res = t.revalue_holdings(prev, {"AHS": 0.10, "BGL": -0.02})
+        assert res is not None
+        assert abs(res["market_return"] - 0.04) < 1e-9
+        assert res["coverage"] == 1.0
+        assert set(res["applied_codes"]) == {"AHS", "BGL"}
+
+    def test_case_insensitive_codes(self):
+        t = self._tracker()
+        res = t.revalue_holdings({"ahs": 200.0}, {"AHS": 0.05})
+        assert res is not None
+        assert abs(res["market_return"] - 0.05) < 1e-9
+
+    def test_low_coverage_returns_none(self):
+        t = self._tracker()
+        # Bilinen getiri yalniz %20'lik TL -> kapsam < 0.5 -> None (fallback)
+        prev = {"A": 20.0, "B": 80.0}
+        res = t.revalue_holdings(prev, {"A": 0.10})
+        assert res is None
+
+    def test_missing_codes_held_flat(self):
+        t = self._tracker()
+        prev = {"A": 60.0, "B": 40.0}
+        res = t.revalue_holdings(prev, {"A": 0.10})  # B bilinmiyor
+        assert res is not None
+        # A: 60*1.1=66, B: 40 (degismez) -> toplam 106 -> %6
+        assert abs(res["market_return"] - 0.06) < 1e-9
+        assert res["missing_codes"] == ["B"]
+        assert res["coverage"] == 0.6
+
+    def test_empty_or_zero_returns_none(self):
+        t = self._tracker()
+        assert t.revalue_holdings({}, {"A": 0.1}) is None
+        assert t.revalue_holdings({"A": 0.0}, {"A": 0.1}) is None

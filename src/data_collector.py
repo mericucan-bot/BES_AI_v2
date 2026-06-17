@@ -195,7 +195,19 @@ class TEFASCollector:
         start/end: "YYYY-MM-DD" veya "YYYYMMDD"
         Returns: DataFrame(date, fund_code, fund_name, category, return_1m, ...)
                  uzun format — her satir bir fon x tarih kombinasyonu
+
+        ⚠️ ONEMLI VERI KISITI: fundturkey.com.tr export endpoint'i istenen
+        TARIHI YOK SAYAR ve her cagrida GUNCEL donem getirilerini dondurur
+        (canli dogrulandi: 3 farkli tarih araligi ayni getiriyi verdi). Dolayisiyla
+        bu metot GERCEK tarihsel seri URETEMEZ — tum satirlar ayni (guncel) getiriyi
+        tasir, yalniz 'date' etiketi degisir. Gercek tarihsel veri icin tek
+        gercekci yol: her ay sonu CANLI snapshot biriktirmek (ileriye dogru).
         """
+        logger.warning(
+            "fetch_monthly_series: TEFAS export endpoint'i gecmis tarihi yok sayar; "
+            "uretilen 'tarihsel' seri AYNI guncel getirinin kopyalaridir. Gercek "
+            "backtest icin ay-ay canli snapshot biriktirin."
+        )
         dates = self._generate_month_end_dates(start, end)
         logger.info(f"Aylik seri: {len(dates)} snapshot x {fund_type}")
 
@@ -436,6 +448,46 @@ class TEFASCollector:
         except Exception as e:
             logger.warning(f"Otomatik cache güncelleme başarısız: {e}")
             return False
+
+    def get_fund_returns(
+        self,
+        codes: Optional[List[str]] = None,
+        period: str = "return_1m",
+    ) -> Dict[str, float]:
+        """
+        En son TEFAS snapshot'indan fon-bazli donem getirilerini ORAN olarak don.
+
+        codes: Yalniz bu fon kodlari (None = hepsi).
+        period: 'return_1m' | 'return_3m' | ... (snapshot kolon adi)
+        Returns: {fund_code: oran}  (yuzde -> oran, orn. 3.51 -> 0.0351)
+
+        NOT: Tek-donemlik gercek getiri verir; cok-aylik tarihsel seri icin
+        kullanilmamali (snapshot cache'i tarihsel olarak guvenilir degil —
+        bkz. RealNavReturnProvider kopya uyarisi).
+        """
+        files = sorted(self.cache_dir.glob("snapshot_*.parquet"))
+        if not files:
+            logger.warning("get_fund_returns: snapshot bulunamadi")
+            return {}
+        try:
+            df = pd.read_parquet(files[-1])
+        except Exception as e:
+            logger.warning(f"get_fund_returns: snapshot okunamadi ({files[-1]}): {e}")
+            return {}
+        if "fund_code" not in df.columns or period not in df.columns:
+            logger.warning(f"get_fund_returns: gerekli kolon yok ({period})")
+            return {}
+
+        if codes is not None:
+            want = {c.upper() for c in codes}
+            df = df[df["fund_code"].str.upper().isin(want)]
+
+        out: Dict[str, float] = {}
+        for _, row in df.iterrows():
+            val = pd.to_numeric(row[period], errors="coerce")
+            if pd.notna(val):
+                out[str(row["fund_code"]).upper()] = float(val) / 100.0
+        return out
 
     def cache_age_str(self) -> str:
         """Sidebar için okunabilir cache yaşı metni."""

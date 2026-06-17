@@ -249,3 +249,37 @@ def requests_exception():
 
 
 import requests  # noqa: E402 — needed for requests_exception helper
+
+
+class TestGetFundReturns:
+    def _make_snapshot(self, tmp_path):
+        import pandas as pd
+        df = pd.DataFrame({
+            "date": ["2026-05-15", "2026-05-15"],
+            "fund_code": ["AHS", "BGL"],
+            "fund_name": ["A", "B"],
+            "category": ["Stock Fund", "Gold Fund"],
+            "return_1m": [3.5, -1.2],
+            "return_3m": [10.0, 2.0],
+        })
+        df.to_parquet(tmp_path / "snapshot_EMK_20260515.parquet")
+
+    def test_returns_as_fraction(self, tmp_path):
+        with patch.object(TEFASCollector, "_init_session"):
+            c = TEFASCollector(cache_dir=str(tmp_path))
+        self._make_snapshot(tmp_path)
+        out = c.get_fund_returns(period="return_1m")
+        assert abs(out["AHS"] - 0.035) < 1e-9
+        assert abs(out["BGL"] - (-0.012)) < 1e-9
+
+    def test_filter_by_codes(self, tmp_path):
+        with patch.object(TEFASCollector, "_init_session"):
+            c = TEFASCollector(cache_dir=str(tmp_path))
+        self._make_snapshot(tmp_path)
+        out = c.get_fund_returns(codes=["ahs"], period="return_1m")
+        assert set(out.keys()) == {"AHS"}
+
+    def test_no_snapshot_returns_empty(self, tmp_path):
+        with patch.object(TEFASCollector, "_init_session"):
+            c = TEFASCollector(cache_dir=str(tmp_path))
+        assert c.get_fund_returns() == {}

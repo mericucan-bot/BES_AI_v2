@@ -320,3 +320,35 @@ class TestBacktestVisualization:
         assert "Win Rate" in summary
         assert "Rejim Dagilimi" in summary
         assert "Equity Curve" in summary
+
+
+class TestRealNavProviderTz:
+    """returns_asof tz-aware girdiyle (pipeline run_date gibi) cokmemeli."""
+
+    def _provider(self, tmp_path):
+        import pandas as pd
+        from src.backtest_engine import RealNavReturnProvider
+        df = pd.DataFrame({
+            "date": ["2026-06-16"] * 3,
+            "fund_code": ["AAA", "BBB", "CCC"],
+            "category": ["Stock Fund", "Gold Fund", "Money Market Fund"],
+            "return_1m": [5.0, -1.0, 3.0],
+        })
+        df.to_parquet(tmp_path / "snapshot_EMK_20260616.parquet")
+        return RealNavReturnProvider(cache_dir=str(tmp_path))
+
+    def test_tz_aware_timestamp_does_not_raise(self, tmp_path):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        import pandas as pd
+        prov = self._provider(tmp_path)
+        ts = pd.Timestamp(datetime(2026, 6, 16, tzinfo=ZoneInfo("Europe/Istanbul")))
+        res = prov.returns_asof(ts)
+        assert isinstance(res, dict)
+        assert res["VEF"] == pytest.approx(0.05)  # Stock Fund return_1m/100
+
+    def test_tz_naive_still_works(self, tmp_path):
+        import pandas as pd
+        prov = self._provider(tmp_path)
+        res = prov.returns_asof(pd.Timestamp("2026-06-16"))
+        assert isinstance(res, dict)
