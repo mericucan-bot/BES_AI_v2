@@ -5,12 +5,12 @@ Yapay zeka destekli Bireysel Emeklilik Sistemi (BES) portföy yönetim ve analiz
 ## Özellikler
 
 - **Piyasa Analizi:** BIST 100, USD/TRY, Altın, TCMB makro verileri ile piyasa rejimi tespiti
-- **AI Fon Tahminleri:** XGBoost ile 390 BES fonunun 3 aylık getiri tahmini (IC=0.80)
+- **AI Fon Tahminleri:** XGBoost ile ~400 BES fonunun getiri tahmini — tarih-bazlı + embargo'lu (purged) walk-forward CV, kesitsel IC ile değerlendirilir (look-ahead'siz)
 - **Portföy Önerisi:** Kişisel portföye göre AL/SAT/TUT önerileri
 - **Reel Getiri:** Enflasyon düzeltmeli performans analizi (Fisher denklemi)
-- **Backtest:** 21 aylık walk-forward geriye dönük test
+- **Backtest:** Gerçek günlük NAV (TEFAS tarihsel verisi) ile walk-forward geriye dönük test; karma BES benchmark'ı, look-ahead'siz makro
 - **PDF Rapor:** Otomatik aylık profesyonel rapor üretimi
-- **200 Test:** Kapsamlı test suite ile doğrulanmış
+- **~300 Test:** Kapsamlı test suite ile doğrulanmış
 
 ## Dashboard
 
@@ -51,23 +51,30 @@ streamlit run app.py
 # Aylık pipeline
 python main.py
 
-# ML model eğitimi (390 BES fonu)
+# ML model eğitimi (~400 BES fonu)
 python main.py --ml-train
 
 # 12 aylık model de eğit
 python main.py --ml-train --ml-12m
 
-# Backtest
-python main.py --backtest --bt-start 2024-06-01 --bt-end 2026-04-01
+# Backtest (gerçek NAV ile)
+python main.py --backtest --bt-start 2024-06-01 --bt-end 2026-06-01
 
 # PDF rapor
 python main.py --report
+
+# Gerçek tarihsel günlük NAV'ı çek/güncelle (backtest verisi)
+python -c "from src.data_collector import TEFASCollector; TEFASCollector().update_nav_history()"
 ```
+
+## Mimari
+
+Detaylı mimari için [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Testler
 
 ```bash
-pytest tests/ -q  # 200 test
+pytest tests/ -q  # ~300 test
 ```
 
 ## Yasal Uyarı
