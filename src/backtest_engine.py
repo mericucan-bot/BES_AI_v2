@@ -14,22 +14,16 @@ from src.regime_engine import RegimeEngineV2
 from src.learning_engine import LearningEngineV2
 from src.cost_model import TransactionCostModel, CostConfig
 from src.macro_engine import MacroEngine
+from src.asset_mapping import ASSET_CATEGORY_MAP  # tek kaynak: asset_mapping (re-export)
 
 logger = logging.getLogger(__name__)
 
 
-# Soyut varlik sinifi -> TEFAS 'category' alani (kucuk-harf substring) eslemesi.
-# Her sinif, eslesen kategorilerdeki fonlarin GERCEK return_1m ortalamasiyla
-# temsil edilir (kategori-bazli sepet). Boylece backtest proxy yerine gercek
-# BES fon getirilerini kullanir; ayrica ALT otomatik olarak TL-bazli altin
-# fonu getirisini alir (USD ons altini proxy'sinin getirdigi sapma ortadan kalkar).
-ASSET_CATEGORY_MAP: Dict[str, List[str]] = {
-    "VEF":  ["stock fund", "equity", "index fund"],                 # Hisse
-    "KTS":  ["debt instruments", "government bonds", "govt. bonds"],  # Kamu borclanma
-    "ALT":  ["gold", "precious metals"],                            # Altin
-    "KCH":  ["mixed fund", "variable fund"],                        # Karma / degisken
-    "CASH": ["money market"],                                       # Para piyasasi
-}
+# NOT: ASSET_CATEGORY_MAP tanimi src/asset_mapping.py'ye tasindi (tek kaynak) ve
+# yukarida re-export edildi (geriye uyum icin backtest_engine.ASSET_CATEGORY_MAP
+# hala calisir). Kategori-bazli sepet mantigi bu modulde kullanilir
+# (RealNavReturnProvider): backtest proxy yerine gercek BES fon getirilerini
+# kullanir ve ALT otomatik olarak TL-bazli altin fonu getirisini alir.
 
 # Esit-agirlik cok-varlikli BES benchmark'i. Hem backtest'in varsayilan
 # benchmark'i hem pipeline'in karma benchmark'i bunu kullanir (tek kaynak).

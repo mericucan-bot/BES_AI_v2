@@ -520,6 +520,13 @@ def get_market_analysis():
     return engine.compute_composite_score()
 
 
+@st.cache_data(ttl=3600)
+def _get_fund_class_map():
+    """Fon kodu -> varlik sinifi haritasi (en guncel TEFAS snapshot'indan)."""
+    from src.asset_mapping import load_fund_class_map
+    return load_fund_class_map()
+
+
 def load_my_portfolio():
     """Geriye uyumlu portföy yükleme. Önce PortfolioManager, yoksa eski dosya."""
     try:
@@ -1788,14 +1795,18 @@ with tab2:
     if total_value == 0:
         st.warning("Portföy değeri 0 TL. Yukarıdaki formu kullanarak fon tutarlarını gir.")
     else:
-        current_weights = {k: v / total_value for k, v in holdings.items() if v > 0}
+        # Fon kodu -> varlik sinifi: oneriler SINIF uzayinda uretilir (hedef
+        # agirliklar sinif kodlu; portfoy gercek TEFAS fon kodlu olabilir).
+        from src.asset_mapping import holdings_to_class, funds_by_class
+        _fcm = _get_fund_class_map()
+        _class_tl, _unmapped_tl = holdings_to_class(holdings, _fcm)
+        _mapped_total = sum(_class_tl.values())
+        _funds_in_class = funds_by_class(holdings, _fcm)
 
         learning       = LearningEngineV2()
         _user_rp       = st.session_state.get("risk_profile")
         target_weights = learning.get_optimized_weights(regime, risk_profile=_user_rp)
         regime_info    = explain_regime(regime)
-
-        asset_names = POPULAR_BES_FUNDS.copy()
 
         # === ANA MESAJ ===
         st.markdown(f"""
@@ -1851,12 +1862,14 @@ with tab2:
 
         analysis_data   = []
         recommendations = []
-        all_assets = sorted(set(list(target_weights.keys()) + list(holdings.keys())))
+        # Oneriler SINIF uzayinda: hedef sinif agirliklari vs kullanicinin sinif
+        # bazli dagilimi. Eslenmeyen fonlar (_unmapped_tl) HARIC (_mapped_total uzerinden).
+        all_assets = sorted(set(target_weights.keys()) | set(_class_tl.keys()))
 
         for asset in all_assets:
-            curr_w  = current_weights.get(asset, 0)
+            curr_w   = (_class_tl.get(asset, 0) / _mapped_total) if _mapped_total > 0 else 0
             target_w = target_weights.get(asset, 0)
-            diff_tl  = (target_w - curr_w) * total_value
+            diff_tl  = (target_w - curr_w) * _mapped_total
 
             if abs(diff_tl) < 100:
                 action = "HOLD"
@@ -1867,8 +1880,8 @@ with tab2:
 
             analysis_data.append({
                 "asset":      asset,
-                "name":       asset_names.get(asset, asset),
-                "current_tl": holdings.get(asset, 0),
+                "name":       _asset_labels.get(asset, asset),
+                "current_tl": _class_tl.get(asset, 0),
                 "current_w":  curr_w,
                 "target_w":   target_w,
                 "diff_tl":    diff_tl,
@@ -1886,6 +1899,13 @@ with tab2:
             st.info(f"Risk profilin: **{_rp_display[_user_rp]}** — Öneriler buna göre kişiselleştirildi.")
         else:
             st.caption("Risk profilini belirleyerek kişiselleştirilmiş öneriler alabilirsin. ↑ Yukarıdaki anketi doldur.")
+
+        if _unmapped_tl:
+            _um_str = ", ".join(sorted(_unmapped_tl.keys()))
+            st.warning(
+                f"Şu fonlar kategoriye eşlenemedi ve önerilere dahil edilmedi: **{_um_str}**. "
+                "Güncel fon verisi çekildiğinde otomatik eşlenecektir."
+            )
         st.markdown('<div class="section-heading">Bu Ay Yapman Gerekenler</div>', unsafe_allow_html=True)
 
         has_action = False
@@ -1893,16 +1913,26 @@ with tab2:
             if item["action"] == "HOLD":
                 continue
             has_action = True
+            _cls_funds = _funds_in_class.get(item["asset"], [])
             if item["action"] == "BUY":
+                if _cls_funds:
+                    _buy_hint = f"\n\nBu sınıftaki fonun: **{', '.join(_cls_funds)}**"
+                else:
+                    _buy_hint = (
+                        "\n\nBu sınıftan bir fon eklemen gerekir "
+                        "(AI Tahmin sekmesinden seçebilirsin)."
+                    )
                 st.success(
-                    f"▲ **{item['name']}** ({item['asset']}) fonuna "
+                    f"▲ **{item['name']}** ({item['asset']}) sınıfına "
                     f"**{format_tl(abs(item['diff_tl']))}** ekle\n\n"
                     f"Şu an: %{item['current_w']*100:.0f} → Hedef: %{item['target_w']*100:.0f}"
+                    f"{_buy_hint}"
                 )
             else:
+                _sell_hint = f" (portföyündeki: {', '.join(_cls_funds)})" if _cls_funds else ""
                 st.error(
-                    f"▼ **{item['name']}** ({item['asset']}) fonundan "
-                    f"**{format_tl(abs(item['diff_tl']))}** azalt\n\n"
+                    f"▼ **{item['name']}** ({item['asset']}) sınıfından "
+                    f"**{format_tl(abs(item['diff_tl']))}** azalt{_sell_hint}\n\n"
                     f"Şu an: %{item['current_w']*100:.0f} → Hedef: %{item['target_w']*100:.0f}"
                 )
 

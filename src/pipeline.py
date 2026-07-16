@@ -33,10 +33,12 @@ class MonthlyPipeline:
         portfolio_path: str = "data/my_portfolio.json",
         history_dir: str = "data/history",
         learning_path: str = "data/learning_history.json",
+        tefas_cache_dir: str = "data/tefas_cache",
     ):
         self.portfolio_path = Path(portfolio_path)
         self.history_dir = Path(history_dir)
         self.learning_path = Path(learning_path)
+        self.tefas_cache_dir = tefas_cache_dir
         self.history_dir.mkdir(parents=True, exist_ok=True)
 
         self.regime_engine = RegimeEngineV2()
@@ -388,6 +390,25 @@ class MonthlyPipeline:
         portfolio_value = self.tracker.calculate_current_portfolio_value(holdings)
         logger.info(f"Toplam deger: {portfolio_value['total_value']:,.2f} TL")
 
+        # 2b. Fon kodu -> varlik sinifi eslemesi (oneriler sinif uzayinda uretilir).
+        # Gercek portfoy TEFAS fon kodlari icerir (AHS/BGL/...); hedef agirliklar
+        # ise soyut sinif kodlari (VEF/KTS/...). Karsilastirma sinif uzayinda yapilir;
+        # portfolio_value["weights"] fon-bazli KALIR (piyasa getirisi icin gerekli).
+        from src.asset_mapping import load_fund_class_map, holdings_to_class, funds_by_class
+        fund_class_map = load_fund_class_map(self.tefas_cache_dir)
+        class_tl, unmapped_tl = holdings_to_class(holdings, fund_class_map)
+        mapped_total = sum(class_tl.values())
+        class_weights = (
+            {k: v / mapped_total for k, v in class_tl.items()} if mapped_total > 0 else {}
+        )
+        portfolio_value["class_weights"] = {k: round(v, 4) for k, v in class_weights.items()}
+        if unmapped_tl:
+            portfolio_value["unmapped_tl"] = unmapped_tl
+            logger.warning(
+                f"Sinifa eslenemeyen fonlar (onerilerde HARIC): {list(unmapped_tl)} "
+                f"— guncel snapshot cekilirse (auto_refresh_cache) eslenebilir"
+            )
+
         # 3. ONCE onceki gozlemi degerlendir (snapshot YAZILMADAN!)
         evaluation = self._evaluate_previous_observation(
             current_value=portfolio_value["total_value"],
@@ -418,12 +439,26 @@ class MonthlyPipeline:
         target_weights = self.learning_engine.get_optimized_weights(detected_regime)
         regime_confidence = self.learning_engine.calculate_confidence_score(detected_regime)
 
-        # 6. Oneriler
-        recommendations = self._generate_recommendations(
-            current_weights=portfolio_value["weights"],
-            target_weights=target_weights,
-            total_value=portfolio_value["total_value"],
-        )
+        # 6. Oneriler — SINIF uzayinda (fon kodlari degil). Kenar durum: hicbir fon
+        # sinifa eslenemediyse (snapshot yok) sessizce "her seyi sat" URETME.
+        recommendation_note = None
+        if not class_weights and unmapped_tl:
+            recommendations = []
+            recommendation_note = "fon-sinif haritasi yok, oneri uretilemedi"
+            logger.error(
+                "Fon-sinif haritasi bos ve tum fonlar eslenemedi — oneri uretilmedi. "
+                "Guncel TEFAS snapshot'i cekilmeli (snapshot_EMK_*.parquet)."
+            )
+        else:
+            recommendations = self._generate_recommendations(
+                current_weights=class_weights,
+                target_weights=target_weights,
+                total_value=mapped_total,
+            )
+            # Her oneriye kullanicinin o siniftaki gercek fonlarini ipucu ekle
+            _fbc = funds_by_class(holdings, fund_class_map)
+            for rec in recommendations:
+                rec["funds_in_class"] = _fbc.get(rec["asset"], [])
 
         # 6b. Aylik limit filtresi
         recommendations = self.cost_model.filter_recommendations_by_limit(recommendations)
@@ -465,6 +500,7 @@ class MonthlyPipeline:
                 "actions": recommendations,
                 "cost_analysis": cost_analysis,
             },
+            "recommendation_note": recommendation_note,
             "previous_evaluation": evaluation,
             "real_portfolio": real_portfolio,
         }

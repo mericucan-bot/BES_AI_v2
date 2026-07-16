@@ -212,3 +212,86 @@ class TestPeriodDays:
     def test_unparseable_returns_none(self):
         assert MonthlyPipeline._period_days("not-a-date", self._now()) is None
         assert MonthlyPipeline._period_days(None, self._now()) is None
+
+
+class TestPipelineFundClassMapping:
+    """PLAN-03: gercek TEFAS fon kodlu portfoy -> oneriler SINIF uzayinda uretilir."""
+
+    def _write_snapshot(self, cache_dir: Path) -> None:
+        df = pd.DataFrame({
+            "fund_code": ["AHS", "BGL", "GMF"],
+            "category":  ["Stock Fund", "Gold Fund", "Money Market Fund"],
+        })
+        df.to_parquet(cache_dir / "snapshot_EMK_2026_05.parquet")
+
+    def _make_pipeline(self, tmp_path, holdings, with_snapshot):
+        portfolio_path = tmp_path / "portfolio.json"
+        history_dir    = tmp_path / "history"
+        learning_path  = tmp_path / "learning.json"
+        cache_dir      = tmp_path / "cache"
+        history_dir.mkdir()
+        cache_dir.mkdir()
+        portfolio_path.write_text(json.dumps({"holdings_tl": holdings}), encoding="utf-8")
+        if with_snapshot:
+            self._write_snapshot(cache_dir)
+        return MonthlyPipeline(
+            portfolio_path=str(portfolio_path),
+            history_dir=str(history_dir),
+            learning_path=str(learning_path),
+            tefas_cache_dir=str(cache_dir),
+        )
+
+    def test_real_fund_codes_map_to_classes(self, tmp_path, mock_regime_result):
+        from src.asset_mapping import ASSET_CLASSES
+
+        pipeline = self._make_pipeline(
+            tmp_path, {"AHS": 30000, "BGL": 30000, "GMF": 40000}, with_snapshot=True
+        )
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result):
+            result = pipeline.run()
+
+        assert result["status"] == "SUCCESS"
+        actions = result["recommendation"]["actions"]
+        assert actions, "sinif bazinda oneri uretilmeli"
+        # Tum oneriler SINIF kodu; hicbir gercek fon kodu (ozellikle SAT) yok
+        assert all(r["asset"] in ASSET_CLASSES for r in actions)
+        assert not any(r["asset"] in {"AHS", "BGL", "GMF"} for r in actions)
+        # class_weights snapshot'a yazildi; fon-bazli weights korundu
+        assert result["portfolio_value"]["class_weights"] == {"VEF": 0.3, "ALT": 0.3, "CASH": 0.4}
+        assert set(result["portfolio_value"]["weights"]) == {"AHS", "BGL", "GMF"}
+        # Her oneriye o siniftaki gercek fon ipucu eklendi
+        by_asset = {r["asset"]: r for r in actions}
+        assert by_asset["CASH"]["funds_in_class"] == ["GMF"]
+
+    def test_no_snapshot_no_recommendations(self, tmp_path, mock_regime_result):
+        pipeline = self._make_pipeline(
+            tmp_path, {"AHS": 30000, "BGL": 30000, "GMF": 40000}, with_snapshot=False
+        )
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result):
+            result = pipeline.run()
+
+        assert result["status"] == "SUCCESS"
+        # Sessizce "her seyi sat" URETME — oneri yok + not mevcut
+        assert result["recommendation"]["actions"] == []
+        assert result["recommendation_note"]
+        assert set(result["portfolio_value"]["unmapped_tl"]) == {"AHS", "BGL", "GMF"}
+
+    def test_demo_class_codes_unchanged(self, tmp_path, mock_regime_result):
+        """Sinif kodlu (demo) portfoy davranisi degismez — kendine eslenir."""
+        from src.asset_mapping import ASSET_CLASSES
+
+        pipeline = self._make_pipeline(
+            tmp_path,
+            {"VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000},
+            with_snapshot=True,
+        )
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result):
+            result = pipeline.run()
+
+        assert result["status"] == "SUCCESS"
+        assert "unmapped_tl" not in result["portfolio_value"]
+        assert result["recommendation_note"] is None
+        assert all(r["asset"] in ASSET_CLASSES for r in result["recommendation"]["actions"])
