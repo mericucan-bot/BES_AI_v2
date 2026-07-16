@@ -78,7 +78,7 @@ Bu, **kendi kendini denetleyen kapalı döngü**: her ay önceki tahminin tutup 
 `python main.py --ml-train` ile, portföy pipeline'ından bağımsız:
 
 ```
-1. Fon NAV verisi topla   →  2. Piyasa verisi  →  3. Feature matrisi (FeatureEngineer)
+1. Fon NAV verisi topla (gerçek günlük NAV: nav_history.parquet)   →  2. Piyasa verisi  →  3. Feature matrisi (FeatureEngineer)
 4. Model eğit (BESPredictor: XGBoost / RandomForest / Ridge, tarih-bazlı walk-forward)
 5. En iyi modeli IC ile seç  →  6. Tahminler + model (.joblib) + özet kaydet
 ```

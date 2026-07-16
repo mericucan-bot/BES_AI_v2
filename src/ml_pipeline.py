@@ -1,10 +1,11 @@
 """
 ML Pipeline — TEFAS BES fon getiri tahmini.
 
-VERİ NOTU: TEFAS API gunluk NAV degil, ay-sonu aggregate getiriler dondurur
-(return_1m, return_3m, return_1y...). Bu pipeline iki mod destekler:
-- snapshot_mode: Aylik TEFAS snapshot'larindan feature uretir (gercek TEFAS verisi)
-- nav_mode: Gunluk NAV serisinden FeatureEngineer kullanir (mock/test verisi)
+VERİ NOTU: Birincil kaynak GERCEK gunluk NAV gecmisidir (nav_history.parquet).
+Bu pipeline iki mod destekler:
+- nav_mode (birincil): Gunluk NAV serisinden FeatureEngineer kullanir (gercek veri)
+- snapshot_mode (legacy fallback): Aylik TEFAS snapshot'larindan feature uretir;
+  endpoint gecmis tarihi yok sayar (GUVENILMEZ, yalniz allow_synthetic=True ile).
 Mod, veri frekansina gore otomatik secilir.
 """
 import json
@@ -60,6 +61,95 @@ class MLPipeline:
     # ------------------------------------------------------------------
 
     def collect_fund_data(
+        self,
+        fund_codes: Optional[List[str]] = None,
+        lookback_days: int = 730,
+        max_funds: Optional[int] = None,
+        allow_synthetic: bool = False,
+    ) -> Dict[str, pd.Series]:
+        """
+        Oncelik: gercek gunluk NAV (nav_history.parquet). Yoksa ve
+        allow_synthetic=True ise eski sentetik snapshot moduna duser (GUVENILMEZ:
+        endpoint gecmis tarihi yok sayar, tum aylar ayni getiri olur).
+        """
+        navs = self._collect_fund_data_nav(fund_codes, max_funds=max_funds)
+        if navs:
+            return navs
+
+        if allow_synthetic:
+            logger.warning(
+                "UYARI: nav_history yok — SENTETIK snapshot moduna dusuluyor. "
+                "Bu veriyle egitilen model GECERSIZDIR (placeholder kopyalar)."
+            )
+            return self._collect_fund_data_snapshot_legacy(fund_codes, lookback_days, max_funds)
+
+        logger.error(
+            "nav_history.parquet yok/bos. Once su komutu calistirin: "
+            "python -c \"from src.data_collector import TEFASCollector; "
+            "TEFASCollector().update_nav_history()\""
+        )
+        return {}
+
+    def _collect_fund_data_nav(
+        self,
+        fund_codes: Optional[List[str]] = None,
+        max_funds: Optional[int] = None,
+        min_days: int = 126,
+    ) -> Dict[str, pd.Series]:
+        """
+        Gercek gunluk NAV gecmisinden (nav_history.parquet) fon serileri uret.
+        Returns: {fund_code: Series(index=gunluk tarih, values=NAV fiyati)}
+        """
+        path = self.collector.cache_dir / "nav_history.parquet"
+        if not path.exists():
+            # Ilk kurulumda otomatik cekmeyi dene (aylik cron da bunu yapiyor)
+            try:
+                self.collector.update_nav_history()
+            except Exception as e:
+                logger.warning(f"nav_history otomatik cekilemedi: {e}")
+        if not path.exists():
+            return {}
+
+        try:
+            nav = pd.read_parquet(path)
+        except Exception as e:
+            logger.error(f"nav_history okunamadi: {e}")
+            return {}
+        if not {"fund_code", "date", "price"}.issubset(nav.columns):
+            logger.error("nav_history beklenen kolonlari icermiyor")
+            return {}
+
+        nav["date"] = pd.to_datetime(nav["date"], errors="coerce")
+        pivot = nav.pivot_table(
+            index="date", columns="fund_code", values="price", aggfunc="last"
+        ).sort_index()
+
+        if fund_codes:
+            codes = [str(c).upper() for c in fund_codes]
+        else:
+            codes = list(pivot.columns)
+        if max_funds and len(codes) > max_funds:
+            codes = codes[:max_funds]
+
+        out: Dict[str, pd.Series] = {}
+        skipped = 0
+        for c in codes:
+            if c not in pivot.columns:
+                skipped += 1
+                continue
+            s = pivot[c].dropna()
+            if len(s) < min_days:
+                skipped += 1
+                continue
+            out[c] = s
+
+        logger.info(
+            f"Gercek NAV verisi: {len(out)} fon yuklendi, {skipped} atlandi "
+            f"(min {min_days} gun sarti)"
+        )
+        return out
+
+    def _collect_fund_data_snapshot_legacy(
         self,
         fund_codes: Optional[List[str]] = None,
         lookback_days: int = 730,
@@ -203,14 +293,22 @@ class MLPipeline:
         market_data: pd.DataFrame,
     ) -> pd.DataFrame:
         """
-        Aylik NAV (return_1m bileşigi) serisinden feature matrisi uret.
+        [LEGACY / FALLBACK] Aylik NAV (return_1m bileşigi) serisinden feature matrisi uret.
 
         FeatureEngineer gunluk pencere boyutlari yerine aylik pencereler kullanir:
         - vol_3m = son 3 ayin return_1m std'si
         - momentum = kisa vs uzun vade karsilastirmasi
         - sharpe = aylik Sharpe
         - Target = bir sonraki ayin return_1m (normalize)
+
+        DIKKAT: Bu moddaki 'fwd_return_3m' hedefi aslinda 1 AYLIK ileri getiridir
+        (shift(-1)), yalnizca acil fallback icin tutulur. Yeni birincil yol olan
+        FeatureEngineer'da etiket dogrudur: 63 gunluk gercek ileri getiri.
         """
+        logger.warning(
+            "LEGACY snapshot feature modu: 'fwd_return_3m' burada 1 AYLIK ileri "
+            "getiridir (gercek 63 gunluk degil). Sadece acil fallback icin."
+        )
         macro = self.macro_engine.get_macro_snapshot()
         cpi = float(macro.get("cpi_yoy") or 0.30) if macro else 0.30
         annual_rate = float(macro.get("current_policy_rate") or 42.5) / 100 if macro else 0.425
@@ -271,14 +369,16 @@ class MLPipeline:
                 ("gold_return_1m", mkt_gold),
             ]:
                 if series is not None:
-                    df[col] = series.reindex(nav.index, method="nearest")
+                    # ffill: gecmise bakar (nearest zamanda ILERIYE sizabilir — leakage)
+                    df[col] = series.reindex(nav.index, method="ffill")
 
             df["cpi_yoy"] = cpi
             df["policy_rate"] = annual_rate
 
             # Target: bir sonraki ayin normalized getirisi
             df[_TARGET_3M] = (ret / 100).shift(-1)
-            df[_TARGET_12M] = (nav.pct_change(12) / 100).shift(-12)
+            # pct_change(12) zaten oran dondurur; /100 fazlaydi (100x kucultuyordu)
+            df[_TARGET_12M] = nav.pct_change(12).shift(-12)
 
             df["fund_code"] = code
             all_rows.append(df)

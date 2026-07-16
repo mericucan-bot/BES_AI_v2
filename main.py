@@ -177,13 +177,8 @@ Ornekler:
 
         fund_codes = None
         if args.ml_funds == -1:
-            logger.info("Tum BES fonlari kesifediliyor (TEFAS EMK listesi)...")
-            all_funds_df = ml.collector.discover_all_bes_funds()
-            if not all_funds_df.empty:
-                fund_codes = all_funds_df["fund_code"].tolist()
-                logger.info(f"Tum BES fonlari: {len(fund_codes)} fon kesfedildi")
-            else:
-                logger.warning("Fon kesfi basarisiz, POPULAR_BES_FUNDS kullanilacak")
+            fund_codes = None  # nav_history'deki tum fonlar
+            logger.info("Tum fonlar: nav_history.parquet icindeki tum EMK fonlari kullanilacak")
         elif args.ml_funds:
             fund_codes = list(POPULAR_BES_FUNDS.keys())[: args.ml_funds]
             logger.info(f"Test modu: sadece {len(fund_codes)} fon ({fund_codes})")
