@@ -1,3 +1,7 @@
+import os
+import time
+from datetime import datetime
+
 import pytest
 import pandas as pd
 from unittest.mock import patch, MagicMock
@@ -106,6 +110,8 @@ class TestFetchFundSnapshot:
             self.collector = TEFASCollector(rate_limit_sec=0)
 
     def test_success(self, tmp_path):
+        # Guncel tarih: gecmis tarihler artik ag fetch'i yapmaz (PLAN-01)
+        today = datetime.now().strftime("%Y%m%d")
         self.collector.cache_dir = tmp_path
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -115,12 +121,14 @@ class TestFetchFundSnapshot:
         mock_resp.raise_for_status.return_value = None
 
         with patch.object(self.collector.session, "post", return_value=mock_resp):
-            df = self.collector.fetch_fund_snapshot("20250115", use_cache=False)
+            df = self.collector.fetch_fund_snapshot(today, use_cache=False)
 
         assert df is not None
         assert len(df) == 1
 
     def test_empty_response_returns_none(self, tmp_path):
+        # Guncel tarih: gecmis tarihler artik ag fetch'i yapmaz (PLAN-01)
+        today = datetime.now().strftime("%Y%m%d")
         self.collector.cache_dir = tmp_path
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -128,18 +136,22 @@ class TestFetchFundSnapshot:
         mock_resp.raise_for_status.return_value = None
 
         with patch.object(self.collector.session, "post", return_value=mock_resp):
-            df = self.collector.fetch_fund_snapshot("20250115", use_cache=False)
+            df = self.collector.fetch_fund_snapshot(today, use_cache=False)
 
         assert df is None
 
     def test_http_error_returns_none(self, tmp_path):
+        # Guncel tarih: gecmis tarihler artik ag fetch'i yapmaz (PLAN-01)
+        today = datetime.now().strftime("%Y%m%d")
         self.collector.cache_dir = tmp_path
         with patch.object(self.collector.session, "post",
                           side_effect=requests_exception()):
-            df = self.collector.fetch_fund_snapshot("20250115", use_cache=False)
+            df = self.collector.fetch_fund_snapshot(today, use_cache=False)
         assert df is None
 
     def test_cache_used_on_second_call(self, tmp_path):
+        # Guncel tarih: gecmis tarihler artik ag fetch'i yapmaz (PLAN-01)
+        today = datetime.now().strftime("%Y%m%d")
         self.collector.cache_dir = tmp_path
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -149,9 +161,87 @@ class TestFetchFundSnapshot:
         mock_resp.raise_for_status.return_value = None
 
         with patch.object(self.collector.session, "post", return_value=mock_resp) as mock_post:
-            self.collector.fetch_fund_snapshot("20250115", use_cache=True)
-            self.collector.fetch_fund_snapshot("20250115", use_cache=True)
+            self.collector.fetch_fund_snapshot(today, use_cache=True)
+            self.collector.fetch_fund_snapshot(today, use_cache=True)
             assert mock_post.call_count == 1
+
+
+class TestHistoricalSnapshotProtection:
+    """PLAN-01: gecmis tarihli snapshot'lar guncel veriyle ezilmemeli."""
+
+    def setup_method(self):
+        with patch.object(TEFASCollector, "_init_session"):
+            self.collector = TEFASCollector(rate_limit_sec=0)
+
+    def _write_snapshot(self, tmp_path, filename, date_iso):
+        df = pd.DataFrame({
+            "date": [pd.Timestamp(date_iso)],
+            "fund_code": ["AEA"],
+            "fund_name": ["Test Fon"],
+            "category": ["Altin"],
+            "return_1m": [2.5],
+        })
+        path = tmp_path / filename
+        df.to_parquet(path, index=False)
+        return path
+
+    def test_historical_cache_never_expires(self, tmp_path):
+        # 10 gunluk mtime normal TTL'yi (24h) coktan asmis olsa bile
+        # gecmis tarihli cache okunmali ve aga cikilmamali.
+        self.collector.cache_dir = tmp_path
+        path = self._write_snapshot(tmp_path, "snapshot_EMK_20240115.parquet", "2024-01-15")
+        old = time.time() - 10 * 24 * 3600
+        os.utime(path, (old, old))
+
+        with patch.object(self.collector.session, "post") as mock_post:
+            df = self.collector.fetch_fund_snapshot("2024-01-15")
+
+        assert df is not None
+        assert not df.empty
+        assert df.iloc[0]["fund_code"] == "AEA"
+        mock_post.assert_not_called()
+
+    def test_historical_miss_refuses_network(self, tmp_path):
+        # Cache'te olmayan gecmis tarih: None donmeli, aga cikilmamali.
+        self.collector.cache_dir = tmp_path
+        with patch.object(self.collector.session, "post") as mock_post:
+            df = self.collector.fetch_fund_snapshot("2024-03-29")
+        assert df is None
+        mock_post.assert_not_called()
+
+    def test_historical_refuses_network_even_without_cache(self, tmp_path):
+        # use_cache=False bile olsa gecmis tarih icin ag fetch'i yapilmamali
+        # (aksi halde _write_cache eski dosyayi guncel veriyle ezerdi).
+        self.collector.cache_dir = tmp_path
+        self._write_snapshot(tmp_path, "snapshot_EMK_20240115.parquet", "2024-01-15")
+        with patch.object(self.collector.session, "post") as mock_post:
+            df = self.collector.fetch_fund_snapshot("2024-01-15", use_cache=False)
+        assert df is None
+        mock_post.assert_not_called()
+        # Dosya icerigi degismemis olmali
+        untouched = pd.read_parquet(tmp_path / "snapshot_EMK_20240115.parquet")
+        assert untouched.iloc[0]["fund_code"] == "AEA"
+
+    def test_recent_date_still_fetches(self, tmp_path):
+        # Guncel tarih + cache yok: ag fetch'i calismali ve df donmeli.
+        self.collector.cache_dir = tmp_path
+        today = datetime.now().strftime("%Y-%m-%d")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = [
+            {"fonKodu": "AEA", "fonUnvan": "Test", "getiri1a": "2.5"}
+        ]
+        mock_resp.raise_for_status.return_value = None
+
+        with patch.object(self.collector.session, "post", return_value=mock_resp) as mock_post:
+            df = self.collector.fetch_fund_snapshot(today, use_cache=True)
+
+        assert df is not None
+        assert len(df) == 1
+        mock_post.assert_called_once()
+        # Guncel tarih icin cache yazimi da korunmus olmali
+        cache_file = tmp_path / f"snapshot_EMK_{today.replace('-', '')}.parquet"
+        assert cache_file.exists()
 
 
 class TestCacheOperations:

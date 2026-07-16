@@ -36,6 +36,11 @@ class TEFASCollector:
     NAV_HISTORY_ENDPOINT = "/api/funds/fonGnlBlgSiraliGetir"
     _NAV_WINDOW_DAYS = 28  # ~1 ay siniri altinda kalmak icin guvenli pencere
 
+    # Endpoint gecmis tarihi desteklemez (guncel veriyi doner). Bu esikten eski
+    # tarihler icin ag fetch'i yapilmaz ve cache suresiz gecerli sayilir —
+    # aksi halde gercek tarihsel snapshot'lar guncel veriyle ezilir.
+    _MAX_BACKFETCH_DAYS = 7
+
     DEFAULT_HEADERS = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -84,10 +89,20 @@ class TEFASCollector:
         date_fmt = self._normalize_date(date)
         cache_key = f"snapshot_{fund_type}_{date_fmt}"
 
+        snap_dt = datetime.strptime(date_fmt, "%Y%m%d")
+        is_historical = (datetime.now() - snap_dt).days > self._MAX_BACKFETCH_DAYS
+
         if use_cache:
-            cached = self._read_cache(cache_key)
+            cached = self._read_cache(cache_key, max_age_hours=None if is_historical else 24)
             if cached is not None:
                 return cached
+
+        if is_historical:
+            logger.warning(
+                f"TEFAS snapshot {date_fmt}: gecmis tarih icin cache yok ve endpoint "
+                f"tarihsel veri desteklemiyor — sahte veri yazmamak icin fetch atlandi"
+            )
+            return None
 
         payload = {
             "format": "json",
@@ -212,6 +227,8 @@ class TEFASCollector:
         bu metot GERCEK tarihsel seri URETEMEZ — tum satirlar ayni (guncel) getiriyi
         tasir, yalniz 'date' etiketi degisir. Gercek tarihsel veri icin tek
         gercekci yol: her ay sonu CANLI snapshot biriktirmek (ileriye dogru).
+        Gecmis tarihler (bugunden > _MAX_BACKFETCH_DAYS gun eski) yalnizca yerel
+        cache'ten gelir; cache'te olmayan gecmis aylar None olarak atlanir.
         """
         logger.warning(
             "fetch_monthly_series: TEFAS export endpoint'i gecmis tarihi yok sayar; "
@@ -385,14 +402,15 @@ class TEFASCollector:
         safe = key.replace("/", "_").replace(":", "_")
         return self.cache_dir / f"{safe}.parquet"
 
-    def _read_cache(self, key: str, max_age_hours: int = 24) -> Optional[pd.DataFrame]:
+    def _read_cache(self, key: str, max_age_hours: Optional[int] = 24) -> Optional[pd.DataFrame]:
         path = self._cache_path(key)
         if not path.exists():
             return None
         try:
-            mtime = datetime.fromtimestamp(path.stat().st_mtime)
-            if datetime.now() - mtime > timedelta(hours=max_age_hours):
-                return None
+            if max_age_hours is not None:
+                mtime = datetime.fromtimestamp(path.stat().st_mtime)
+                if datetime.now() - mtime > timedelta(hours=max_age_hours):
+                    return None
             df = pd.read_parquet(path)
             logger.debug(f"Cache HIT: {key} ({len(df)} satir)")
             return df
