@@ -2,11 +2,13 @@
 # BES AI Aylık Otomatik Pipeline
 # launchd tarafından her ayın 1'inde çalıştırılır
 
-PROJECT_DIR="$HOME/Desktop/BES_AI_v2"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 VENV="$PROJECT_DIR/.venv/bin/python"
 LOG="$PROJECT_DIR/logs/monthly_cron.log"
 
 cd "$PROJECT_DIR" || exit 1
+mkdir -p "$PROJECT_DIR/logs"
 source "$PROJECT_DIR/.venv/bin/activate"
 
 echo "========================================" >> "$LOG"
