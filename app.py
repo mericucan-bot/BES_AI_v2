@@ -124,6 +124,10 @@ def _get_tefas_collector():
     from src.data_collector import TEFASCollector
     return TEFASCollector()
 
+@st.cache_data(ttl=1800)
+def _get_fund_list_df():
+    return _get_tefas_collector().get_fund_list()
+
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
@@ -527,34 +531,9 @@ def _get_fund_class_map():
     return load_fund_class_map()
 
 
-def load_my_portfolio():
-    """Geriye uyumlu portföy yükleme. Önce PortfolioManager, yoksa eski dosya."""
-    try:
-        from src.portfolio_manager import PortfolioManager
-        pm = PortfolioManager()
-        portfolios = pm.list_portfolios()
-        if portfolios:
-            pf = pm.get_portfolio(portfolios[0]["slug"])
-            if pf:
-                return pf
-    except Exception:
-        pass
-
-    try:
-        with open("data/my_portfolio.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {
-            "holdings_tl": {
-                "VEF": 30000, "ALT": 25000, "KTS": 20000, "KCH": 15000, "CASH": 10000,
-            }
-        }
-
-
 result = get_market_analysis()
 regime = result["detected"]
 metrics = result["metrics"]
-my_data = load_my_portfolio()
 
 _dq_error = result.get("data_quality", {}).get("error")
 if _dq_error:
@@ -660,6 +639,12 @@ with st.sidebar:
 
     if "active_portfolio" not in st.session_state:
         st.session_state.active_portfolio = _portfolios[0]["slug"] if _portfolios else "varsayilan"
+
+    # Portfoy session'ini erken yukle — sidebar skoru ilk render'da dogru olsun
+    if "portfolio" not in st.session_state:
+        _init_pf = _pm.get_portfolio(st.session_state.active_portfolio)
+        st.session_state.portfolio = _init_pf.get("holdings_tl", {}) if _init_pf else {}
+
     if "pf_change_source" not in st.session_state:
         st.session_state.pf_change_source = None
 
@@ -1588,9 +1573,8 @@ with tab2:
 
     with st.expander(f"{active_pf_name} — Düzenle", expanded=False):
 
-        from src.data_collector import TEFASCollector
-        collector = TEFASCollector()
-        fund_list_df = collector.get_fund_list()
+        collector = _get_tefas_collector()
+        fund_list_df = _get_fund_list_df()
 
         if not fund_list_df.empty:
             fund_options = {
@@ -2806,9 +2790,8 @@ with tab4:
         st.divider()
         st.markdown('<div class="section-heading">Fon Karşılaştırma</div>', unsafe_allow_html=True)
 
-        from src.data_collector import TEFASCollector as _TC_CMP
-        _cmp_tc   = _TC_CMP()
-        _cmp_df   = _cmp_tc.get_fund_list()
+        _cmp_tc   = _get_tefas_collector()
+        _cmp_df   = _get_fund_list_df()
         _cmp_opts = {f"{r['code']} — {r['title']}": r['code'] for _, r in _cmp_df.iterrows()}
 
         _sel_labels = st.multiselect(
