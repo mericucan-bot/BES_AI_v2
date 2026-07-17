@@ -295,3 +295,72 @@ class TestPipelineFundClassMapping:
         assert "unmapped_tl" not in result["portfolio_value"]
         assert result["recommendation_note"] is None
         assert all(r["asset"] in ASSET_CLASSES for r in result["recommendation"]["actions"])
+
+
+class TestPipelineLearningDedupAndWeights:
+    """PLAN-06: ayni-ay dedup + gerceklesen sinif agirliklariyla ogrenme."""
+
+    def _make_prev_snapshot(self, history_dir: Path, class_weights=None) -> None:
+        pv = {"total_value": 95000, "weights": {}, "date": "2026-03-30"}
+        if class_weights is not None:
+            pv["class_weights"] = class_weights
+        prev = {
+            "run_date": "2026-03-30T10:00:00+03:00",
+            "portfolio_value": pv,
+            "regime": {"detected": "CRISIS"},
+            "recommendation": {"target_weights": {"ALT": 0.6, "KTS": 0.3, "CASH": 0.1}},
+        }
+        (history_dir / "2026_03_snapshot.json").write_text(json.dumps(prev), encoding="utf-8")
+
+    def test_pipeline_rerun_no_duplicate(self, pipeline_dirs, mock_regime_result):
+        """Ayni ay 2 kez kosu -> onceki ay icin TEK gozlem (duplicate yok)."""
+        self._make_prev_snapshot(Path(pipeline_dirs["history_dir"]))
+        pipeline = MonthlyPipeline(**pipeline_dirs)
+
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result), \
+             patch.object(pipeline.regime_engine, "fetch_live_data",
+                          return_value=pd.DataFrame()):
+            pipeline.run()
+            pipeline.run()  # ayni ay ikinci kosu
+
+        with open(Path(pipeline_dirs["learning_path"]), encoding="utf-8") as f:
+            history = json.load(f)
+        from_prev = [h for h in history if h.get("source_id") == "2026_03_snapshot.json"]
+        assert len(from_prev) == 1
+        assert len(history) == 1
+
+    def test_weights_used_prefers_actual(self, pipeline_dirs, mock_regime_result):
+        """class_weights varsa gozlem ONU kullanir (onerilen target'i degil)."""
+        self._make_prev_snapshot(
+            Path(pipeline_dirs["history_dir"]),
+            class_weights={"VEF": 0.7, "CASH": 0.3},
+        )
+        pipeline = MonthlyPipeline(**pipeline_dirs)
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result), \
+             patch.object(pipeline.regime_engine, "fetch_live_data",
+                          return_value=pd.DataFrame()):
+            result = pipeline.run()
+
+        with open(Path(pipeline_dirs["learning_path"]), encoding="utf-8") as f:
+            history = json.load(f)
+        assert len(history) == 1
+        assert history[0]["weights_used"] == {"VEF": 0.7, "CASH": 0.3}
+        assert result["previous_evaluation"]["weights_basis"] == "actual_class"
+
+    def test_weights_used_falls_back_to_target(self, pipeline_dirs, mock_regime_result):
+        """class_weights YOKSA onerilen target_weights'a duser."""
+        self._make_prev_snapshot(Path(pipeline_dirs["history_dir"]), class_weights=None)
+        pipeline = MonthlyPipeline(**pipeline_dirs)
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result), \
+             patch.object(pipeline.regime_engine, "fetch_live_data",
+                          return_value=pd.DataFrame()):
+            result = pipeline.run()
+
+        with open(Path(pipeline_dirs["learning_path"]), encoding="utf-8") as f:
+            history = json.load(f)
+        assert len(history) == 1
+        assert history[0]["weights_used"] == {"ALT": 0.6, "KTS": 0.3, "CASH": 0.1}
+        assert result["previous_evaluation"]["weights_basis"] == "recommended_target"

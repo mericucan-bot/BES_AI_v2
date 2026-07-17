@@ -173,12 +173,18 @@ class MonthlyPipeline:
         prev_cost_pct = prev.get("recommendation", {}).get("cost_analysis", {}).get("total_cost_pct", 0.0)
         net_alpha = alpha - prev_cost_pct
 
+        # Gercekleseni tercih et (PLAN-03 sonrasi snapshot'larda var); yoksa
+        # onerilen hedefe geri dus (eski snapshot'lar icin).
+        actual_class_weights = prev_pv.get("class_weights") or {}
+        weights_for_learning = actual_class_weights if actual_class_weights else prev_weights
+
         self.learning_engine.record_observation(
             date=current_date.strftime("%Y-%m-%d"),
             regime=prev_regime,
-            weights_used=prev_weights,
+            weights_used=weights_for_learning,
             monthly_return=return_for_alpha,
             alpha_vs_benchmark=net_alpha,
+            source_id=prev_path.name,
         )
 
         status = "WIN" if net_alpha > 0.005 else "LOSS" if net_alpha < -0.005 else "NEUTRAL"
@@ -196,6 +202,7 @@ class MonthlyPipeline:
             "rebalance_cost_pct": round(prev_cost_pct, 6),
             "net_alpha": round(net_alpha, 4),
             "alpha_vs_benchmark": round(net_alpha, 4),
+            "weights_basis": "actual_class" if actual_class_weights else "recommended_target",
             "previous_regime": prev_regime,
             "status": status,
         }

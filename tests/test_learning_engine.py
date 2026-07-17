@@ -189,3 +189,72 @@ class TestStaticOnly:
         after = temp_history_path.read_text(encoding="utf-8")
         assert before == after, "record_observation static_only modunda dosyayi degistirmemeli"
         assert engine.history == []
+
+
+class TestRecordObservationSourceId:
+    """PLAN-06: source_id ile ayni-kaynak dedup (replace) davranisi."""
+
+    def test_record_observation_replaces_same_source(self, temp_history_path):
+        engine = LearningEngineV2(history_path=str(temp_history_path))
+        engine.record_observation(
+            date="2026-06-30", regime="STABLE",
+            weights_used={"VEF": 0.3, "ALT": 0.3, "KTS": 0.3, "CASH": 0.1},
+            monthly_return=0.02, alpha_vs_benchmark=0.01,
+            source_id="2026_06_snapshot.json",
+        )
+        engine.record_observation(
+            date="2026-06-30", regime="STABLE",
+            weights_used={"VEF": 0.3, "ALT": 0.3, "KTS": 0.3, "CASH": 0.1},
+            monthly_return=0.03, alpha_vs_benchmark=0.02,
+            source_id="2026_06_snapshot.json",
+        )
+        # Ayni source -> ikinci gozlem birincinin YERINE gecer
+        assert len(engine.history) == 1
+        assert engine.history[0]["alpha_vs_benchmark"] == pytest.approx(0.02)
+        # Diske de yansimali
+        with open(temp_history_path) as f:
+            data = json.load(f)
+        assert len(data) == 1
+        assert data[0]["alpha_vs_benchmark"] == pytest.approx(0.02)
+
+    def test_record_observation_without_source_appends(self, temp_history_path):
+        engine = LearningEngineV2(history_path=str(temp_history_path))
+        engine.record_observation(
+            date="2026-06-30", regime="STABLE",
+            weights_used={"VEF": 1.0},
+            monthly_return=0.02, alpha_vs_benchmark=0.01,
+        )
+        engine.record_observation(
+            date="2026-06-30", regime="STABLE",
+            weights_used={"VEF": 1.0},
+            monthly_return=0.03, alpha_vs_benchmark=0.02,
+        )
+        # source_id yok -> eski davranis: iki kayit birikir
+        assert len(engine.history) == 2
+
+    def test_source_id_never_deletes_legacy_records(self, temp_history_path):
+        """Eski (source_id'siz) kayitlar hicbir kosulda silinmemeli/degismemeli."""
+        legacy = [{
+            "date": "2024-01-01", "regime": "CRISIS",
+            "weights_used": {"ALT": 0.6, "KTS": 0.3, "CASH": 0.1},
+            "monthly_return": 0.01, "alpha_vs_benchmark": 0.005,
+        }]
+        with open(temp_history_path, "w", encoding="utf-8") as f:
+            json.dump(legacy, f)
+
+        engine = LearningEngineV2(history_path=str(temp_history_path))
+        engine.record_observation(
+            date="2026-06-30", regime="STABLE", weights_used={"VEF": 1.0},
+            monthly_return=0.02, alpha_vs_benchmark=0.01,
+            source_id="2026_06_snapshot.json",
+        )
+        engine.record_observation(
+            date="2026-06-30", regime="STABLE", weights_used={"VEF": 1.0},
+            monthly_return=0.03, alpha_vs_benchmark=0.02,
+            source_id="2026_06_snapshot.json",
+        )
+        # 1 legacy (dokunulmadi) + 1 source (replace edildi)
+        assert len(engine.history) == 2
+        legacy_kept = [h for h in engine.history if h.get("source_id") is None]
+        assert len(legacy_kept) == 1
+        assert legacy_kept[0] == legacy[0]

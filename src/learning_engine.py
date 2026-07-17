@@ -59,18 +59,32 @@ class LearningEngineV2:
         weights_used: Dict[str, float],
         monthly_return: float,
         alpha_vs_benchmark: float,
+        source_id: Optional[str] = None,
     ) -> None:
-        """Yeni bir performans gozlemi kaydet."""
+        """Yeni bir performans gozlemi kaydet.
+
+        source_id: gozlemin kaynagi (orn. onceki snapshot dosya adi). Ayni
+        source_id ile ikinci cagri ESKISININ YERINE GECER (ayni ay iki kez
+        kosulursa duplicate olusmaz). None ise eski davranis (sadece ekle).
+        """
         if self.static_only:
             logger.warning("static_only modunda gozlem kaydedilmez — atlandi")
             return
-        self.history.append({
+        if source_id:
+            before = len(self.history)
+            self.history = [h for h in self.history if h.get("source_id") != source_id]
+            if len(self.history) < before:
+                logger.info(f"Ayni kaynakli eski gozlem degistirildi: {source_id}")
+        obs = {
             "date": date,
             "regime": regime,
             "weights_used": weights_used,
             "monthly_return": float(monthly_return),
             "alpha_vs_benchmark": float(alpha_vs_benchmark),
-        })
+        }
+        if source_id:
+            obs["source_id"] = source_id
+        self.history.append(obs)
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.history_path, "w", encoding="utf-8") as f:
             json.dump(self.history, f, ensure_ascii=False, indent=2)
