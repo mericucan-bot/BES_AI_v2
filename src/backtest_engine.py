@@ -15,6 +15,7 @@ from src.learning_engine import LearningEngineV2
 from src.cost_model import TransactionCostModel, CostConfig
 from src.macro_engine import MacroEngine
 from src.asset_mapping import ASSET_CATEGORY_MAP  # tek kaynak: asset_mapping (re-export)
+from src.io_utils import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -685,8 +686,7 @@ class BacktestEngine:
         combined = existing + new_obs
         combined.sort(key=lambda x: x["date"])
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(combined, f, ensure_ascii=False, indent=2, default=str)
+        atomic_write_text(path, json.dumps(combined, ensure_ascii=False, indent=2, default=str))
 
         logger.info(
             f"Learning history guncellendi: {len(new_obs)} yeni gozlem eklendi, "

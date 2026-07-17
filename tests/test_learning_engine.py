@@ -39,6 +39,23 @@ class TestLearningEngineRecording:
             data = json.load(f)
         assert len(data) == len(sample_observations)
 
+    def test_record_observation_leaves_no_tmp(self, temp_history_path):
+        """PLAN-09: atomic_write_text kullanimi sonrasi gecici (.tmp) dosya kalmamali."""
+        engine = LearningEngineV2(history_path=str(temp_history_path))
+        engine.record_observation(
+            date="2024-01-01",
+            regime="CRISIS",
+            weights_used={"ALT": 0.6, "KTS": 0.3, "CASH": 0.1},
+            monthly_return=0.02,
+            alpha_vs_benchmark=0.01,
+        )
+        assert temp_history_path.exists()
+        assert list(temp_history_path.parent.glob("*.tmp")) == []
+        with open(temp_history_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert len(data) == 1
+        assert data[0]["regime"] == "CRISIS"
+
 
 class TestLearningEngineLearning:
     def test_below_threshold_uses_static(self, temp_history_path, sample_observations):

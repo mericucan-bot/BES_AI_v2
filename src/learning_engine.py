@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from src.io_utils import atomic_write_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,8 +88,7 @@ class LearningEngineV2:
             obs["source_id"] = source_id
         self.history.append(obs)
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.history_path, "w", encoding="utf-8") as f:
-            json.dump(self.history, f, ensure_ascii=False, indent=2)
+        atomic_write_text(self.history_path, json.dumps(self.history, ensure_ascii=False, indent=2))
         logger.info(f"Gozlem kaydedildi: {date} / {regime} / alpha={alpha_vs_benchmark:.4f}")
 
     # Risk profiline göre varlık ağırlığı çarpanları

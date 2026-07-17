@@ -23,6 +23,7 @@ from src.feature_engineer import FeatureEngineer
 from src.ml_model import BESPredictor, ModelConfig, ModelResult
 from src.regime_engine import RegimeEngineV2
 from src.macro_engine import MacroEngine
+from src.io_utils import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -623,8 +624,7 @@ class MLPipeline:
                 "predictions_count": len(predictions),
             }
             target_summary_path = self.output_dir / f"latest_run_summary_{target}.json"
-            with open(target_summary_path, "w", encoding="utf-8") as f:
-                json.dump(target_summary, f, indent=2, ensure_ascii=False, default=str)
+            atomic_write_text(target_summary_path, json.dumps(target_summary, indent=2, ensure_ascii=False, default=str))
 
         if not all_model_results:
             return {"status": "ERROR", "message": "Hicbir target icin model egitimi basarisiz"}
@@ -666,8 +666,7 @@ class MLPipeline:
         }
 
         summary_path = self.output_dir / "latest_run_summary.json"
-        with open(summary_path, "w", encoding="utf-8") as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False, default=str)
+        atomic_write_text(summary_path, json.dumps(summary, indent=2, ensure_ascii=False, default=str))
 
         logger.info("=" * 60)
         logger.info(f"ML PIPELINE TAMAMLANDI ({summary['run_time_sec']}s)")

@@ -9,6 +9,7 @@ from src.regime_engine import RegimeEngineV2
 from src.learning_engine import LearningEngineV2
 from src.performance_tracker import PerformanceTracker
 from src.cost_model import TransactionCostModel, CostConfig
+from src.io_utils import atomic_write_text
 
 logger = logging.getLogger(__name__)
 TR_TZ = ZoneInfo("Europe/Istanbul")
@@ -85,8 +86,7 @@ class MonthlyPipeline:
             except OSError as e:
                 logger.error(f"Snapshot yedeklenemedi, uzerine yazilacak: {e}")
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(snapshot, f, ensure_ascii=False, indent=2, default=str)
+        atomic_write_text(path, json.dumps(snapshot, ensure_ascii=False, indent=2, default=str))
         logger.info(f"Snapshot kaydedildi: {path}")
         return path
 
