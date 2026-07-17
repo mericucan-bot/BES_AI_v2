@@ -311,7 +311,7 @@ class BacktestEngine:
             self.learning_engine = LearningEngineV2(history_path="data/learning_history.json")
             logger.info("Ogrenilmis agirliklar kullanilacak (use_learning=True)")
         else:
-            self.learning_engine = LearningEngineV2()
+            self.learning_engine = LearningEngineV2(static_only=True)
             logger.info("Statik prior agirliklar kullanilacak (use_learning=False)")
         self.cost_model = TransactionCostModel(self.config.cost_config or CostConfig())
 

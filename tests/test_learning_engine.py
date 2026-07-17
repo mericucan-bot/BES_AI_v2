@@ -154,3 +154,38 @@ class TestShrinkage:
             return eng.get_optimized_weights("RISK_ON")["VEF"]
         # 24 gozlem, 6 gozlemden daha az shrink (VEF 1.0'a daha yakin)
         assert vef_after(24) > vef_after(6)
+
+
+class TestStaticOnly:
+    def test_static_only_ignores_history_file(self, temp_history_path):
+        """static_only=True: diskte kazanan gozlemler olsa bile yoksayilmali
+        (backtest'in use_learning=False dalinin look-ahead'siz calismasi icin)."""
+        winning_obs = [
+            {
+                "date": f"2024-{i + 1:02d}-01",
+                "regime": "STABLE",
+                "weights_used": {"VEF": 0.30, "ALT": 0.30, "KTS": 0.30, "CASH": 0.10},
+                "monthly_return": 0.02 + i * 0.001,
+                "alpha_vs_benchmark": 0.01 + i * 0.001,
+            }
+            for i in range(7)
+        ]
+        with open(temp_history_path, "w", encoding="utf-8") as f:
+            json.dump(winning_obs, f)
+
+        engine = LearningEngineV2(history_path=str(temp_history_path), static_only=True)
+        assert engine.history == []
+        weights = engine.get_optimized_weights("STABLE")
+        assert weights == LearningEngineV2.STATIC_PRIORS["STABLE"]
+
+        before = temp_history_path.read_text(encoding="utf-8")
+        engine.record_observation(
+            date="2024-08-01",
+            regime="STABLE",
+            weights_used={"VEF": 1.0},
+            monthly_return=0.05,
+            alpha_vs_benchmark=0.03,
+        )
+        after = temp_history_path.read_text(encoding="utf-8")
+        assert before == after, "record_observation static_only modunda dosyayi degistirmemeli"
+        assert engine.history == []

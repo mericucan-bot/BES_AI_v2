@@ -402,3 +402,33 @@ class TestRealNavHistory:
     def test_before_data_returns_none(self, tmp_path):
         p = self._provider(tmp_path)
         assert p.returns_between("2020-01-01", "2020-02-01") is None
+
+
+class TestBacktestStaticOnlyMode:
+    """use_learning=False dalinin gercekten statik prior kullandigini dogrular (PLAN-05)."""
+
+    def test_backtest_static_mode_uses_priors(self, tmp_path, monkeypatch):
+        import json
+        from src.learning_engine import LearningEngineV2
+
+        monkeypatch.chdir(tmp_path)
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        winning_obs = [
+            {
+                "date": f"2024-{i + 1:02d}-01",
+                "regime": "STABLE",
+                "weights_used": {"VEF": 0.30, "ALT": 0.30, "KTS": 0.30, "CASH": 0.10},
+                "monthly_return": 0.02 + i * 0.001,
+                "alpha_vs_benchmark": 0.01 + i * 0.001,
+            }
+            for i in range(7)
+        ]
+        with open(data_dir / "learning_history.json", "w", encoding="utf-8") as f:
+            json.dump(winning_obs, f)
+
+        # Ağa çıkmamak için run() ÇAĞIRMA — sadece init ve ağırlık kontrolü.
+        engine = BacktestEngine(BacktestConfig(use_learning=False, use_real_nav=False))
+
+        assert engine.learning_engine.static_only is True
+        assert engine.learning_engine.get_optimized_weights("STABLE") == LearningEngineV2.STATIC_PRIORS["STABLE"]

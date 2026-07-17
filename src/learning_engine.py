@@ -19,9 +19,13 @@ class LearningEngineV2:
     MIN_OBSERVATIONS = 6  # Bir rejim icin en az kac gozlem olmali ki "ogrenildi" sayilsin
     SHRINKAGE_K = 12      # Shrinkage gucu: n=K gozlemde ogrenilmis/prior yari-yari
 
-    def __init__(self, history_path: str = "data/learning_history.json"):
+    def __init__(self, history_path: str = "data/learning_history.json",
+                 static_only: bool = False):
+        """static_only=True: gecmis YUKLENMEZ ve kaydedilmez — her zaman
+        STATIC_PRIORS doner (backtest'in look-ahead'siz statik modu icin)."""
+        self.static_only = static_only
         self.history_path = Path(history_path)
-        self.history: List[Dict] = self._load_history()
+        self.history: List[Dict] = [] if static_only else self._load_history()
 
     def _load_history(self) -> List[Dict]:
         """Gecmis gozlemleri yukle.
@@ -57,6 +61,9 @@ class LearningEngineV2:
         alpha_vs_benchmark: float,
     ) -> None:
         """Yeni bir performans gozlemi kaydet."""
+        if self.static_only:
+            logger.warning("static_only modunda gozlem kaydedilmez — atlandi")
+            return
         self.history.append({
             "date": date,
             "regime": regime,
