@@ -10,7 +10,7 @@ Yapay zeka destekli Bireysel Emeklilik Sistemi (BES) portföy yönetim ve analiz
 - **Reel Getiri:** Enflasyon düzeltmeli performans analizi (Fisher denklemi)
 - **Backtest:** Gerçek günlük NAV (TEFAS tarihsel verisi) ile walk-forward geriye dönük test; karma BES benchmark'ı, look-ahead'siz makro
 - **PDF Rapor:** Otomatik aylık profesyonel rapor üretimi
-- **~300 Test:** Kapsamlı test suite ile doğrulanmış
+- **331 Test:** Kapsamlı test suite ile doğrulanmış
 
 ## Dashboard
 
@@ -76,7 +76,7 @@ Detaylı mimari için [ARCHITECTURE.md](ARCHITECTURE.md).
 ## Testler
 
 ```bash
-pytest tests/ -q  # ~300 test
+pytest tests/ -q  # 331 test
 ```
 
 ## Yasal Uyarı

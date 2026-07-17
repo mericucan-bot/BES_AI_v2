@@ -316,7 +316,10 @@ class MLPipeline:
         monthly_rf = (1 + annual_rate) ** (1 / 12) - 1
 
         # Aylik piyasa verisi (BME = business month end)
-        mkt_monthly = market_data.resample("BME").last()
+        try:
+            mkt_monthly = market_data.resample("BME").last()
+        except ValueError:
+            mkt_monthly = market_data.resample("BM").last()
         mkt_bist = mkt_monthly["BIST"].pct_change() * 100 if "BIST" in mkt_monthly else None
         mkt_usd = mkt_monthly["USDTRY"].pct_change() * 100 if "USDTRY" in mkt_monthly else None
         mkt_gold = mkt_monthly["GOLD"].pct_change() * 100 if "GOLD" in mkt_monthly else None

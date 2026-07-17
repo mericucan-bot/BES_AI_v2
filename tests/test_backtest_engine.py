@@ -40,6 +40,11 @@ class TestBacktestConfig:
         assert config.start_date == "2025-01-01"
         assert config.initial_capital == 50_000
 
+    def test_config_default_end_is_current_month(self):
+        """end_date default'u dinamik: icinde bulunulan ayin 1'i olmali."""
+        from datetime import datetime
+        assert BacktestConfig().end_date == datetime.now().strftime("%Y-%m-01")
+
 
 class TestBacktestDates:
     def test_generate_rebalance_dates(self):

@@ -13,7 +13,10 @@ class PerformanceTracker:
 
     def calculate_current_portfolio_value(self, holdings_tl):
         total_value = sum(holdings_tl.values())
-        weights = {k: (v / total_value) for k, v in holdings_tl.items()}
+        if total_value <= 0:
+            weights = {k: 0.0 for k in holdings_tl}
+        else:
+            weights = {k: (v / total_value) for k, v in holdings_tl.items()}
         return {"total_value": round(total_value, 2), "weights": weights, "date": datetime.now().isoformat()}
 
     def revalue_holdings(

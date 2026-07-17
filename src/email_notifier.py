@@ -96,7 +96,7 @@ class EmailNotifier:
                     msg.attach(pdf_attachment)
                 logger.info(f"PDF eki eklendi: {pdf_filename}")
 
-            with smtplib.SMTP(self.SMTP_SERVER, self.SMTP_PORT) as server:
+            with smtplib.SMTP(self.SMTP_SERVER, self.SMTP_PORT, timeout=30) as server:
                 server.starttls()
                 server.login(self.sender, self.password)
                 server.send_message(msg)
@@ -294,7 +294,7 @@ class EmailNotifier:
                 "html", "utf-8",
             ))
 
-            with smtplib.SMTP(self.SMTP_SERVER, self.SMTP_PORT) as server:
+            with smtplib.SMTP(self.SMTP_SERVER, self.SMTP_PORT, timeout=30) as server:
                 server.starttls()
                 server.login(self.sender, self.password)
                 server.send_message(msg)

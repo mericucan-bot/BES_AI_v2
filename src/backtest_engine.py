@@ -238,7 +238,7 @@ class RealNavReturnProvider:
 class BacktestConfig:
     """Backtest parametreleri."""
     start_date: str = "2024-01-01"
-    end_date: str = "2026-04-01"
+    end_date: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-01"))
     rebalance_frequency: str = "monthly"
     initial_capital: float = 100_000.0
     benchmark_weights: Optional[Dict[str, float]] = None
@@ -246,6 +246,7 @@ class BacktestConfig:
     use_learning: bool = False
     use_real_nav: bool = True  # TEFAS gercek fon getirileri (False = eski proxy)
     tefas_cache_dir: str = "data/tefas_cache"
+    risk_free_annual: float = 0.36  # Sharpe icin yillik risksiz oran
 
 
 @dataclass
@@ -615,7 +616,7 @@ class BacktestEngine:
 
         # Sharpe (risk-free = %36 yillik — Turkiye faiz ortami)
         if result.volatility > 0:
-            result.sharpe_ratio = (result.cagr - 0.36) / result.volatility
+            result.sharpe_ratio = (result.cagr - self.config.risk_free_annual) / result.volatility
 
         # Max Drawdown
         equity = [self.config.initial_capital]

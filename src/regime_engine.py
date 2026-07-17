@@ -428,7 +428,7 @@ class RegimeEngineV2:
         try:
             import json as _j
             from pathlib import Path as _P
-            snap_files = sorted(_P(history_dir).glob("*.json"))[-3:]
+            snap_files = sorted(_P(history_dir).glob("*_snapshot.json"))[-3:]
             for sf in snap_files:
                 d = _j.loads(sf.read_text(encoding="utf-8"))
                 reg = d.get("regime", {})

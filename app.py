@@ -1560,7 +1560,14 @@ with tab2:
             with st.popover("+  Yeni"):
                 _new_name_t2 = st.text_input("Ad:", key="new_pf_inline")
                 if st.button("Oluştur", key="create_pf_inline") and _new_name_t2:
-                    _new_slug_t2 = _pm_t2.create_slug(_new_name_t2)
+                    _slug_base_t2 = _pm_t2.create_slug(_new_name_t2)
+                    # Slug cakismasini onle: mevcut portfoy sessizce ezilmesin
+                    _existing_slugs_t2 = {p["slug"] for p in _pm_t2.list_portfolios()}
+                    _new_slug_t2 = _slug_base_t2
+                    _slug_counter_t2 = 2
+                    while _new_slug_t2 in _existing_slugs_t2:
+                        _new_slug_t2 = f"{_slug_base_t2}_{_slug_counter_t2}"
+                        _slug_counter_t2 += 1
                     _pm_t2.save_portfolio(_new_slug_t2, _new_name_t2, {})
                     st.session_state.active_portfolio = _new_slug_t2
                     st.session_state.portfolio = {}
@@ -2306,7 +2313,7 @@ Aşağıdaki test, sistemin **geçmişteki gerçek piyasa verisiyle** ne yapaca�
     with st.expander("Backtest Ayarları", expanded=False):
         bc1, bc2 = st.columns(2)
         bt_start = bc1.date_input("Başlangıç", value=pd.Timestamp("2024-06-01"))
-        bt_end   = bc2.date_input("Bitiş",     value=pd.Timestamp("2026-04-01"))
+        bt_end   = bc2.date_input("Bitiş",     value=pd.Timestamp.today().normalize())
         run_backtest = st.button("Backtest Çalıştır", type="primary")
 
     if run_backtest:

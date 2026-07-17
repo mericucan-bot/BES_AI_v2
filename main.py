@@ -135,7 +135,7 @@ Ornekler:
     parser.add_argument("--portfolio", default="data/my_portfolio.json", help="Portfoy JSON yolu")
     parser.add_argument("--backtest",      action="store_true", help="Walk-forward backtest calistir")
     parser.add_argument("--bt-start", default="2024-01-01", help="Backtest baslangic (YYYY-MM-DD)")
-    parser.add_argument("--bt-end",   default="2026-04-01", help="Backtest bitis (YYYY-MM-DD)")
+    parser.add_argument("--bt-end",   default=None, help="Backtest bitis (YYYY-MM-DD, varsayilan: icinde bulunulan ayin 1'i)")
     parser.add_argument("--learn-from-backtest", action="store_true",
                         help="Backtest sonuclarini learning history'ye yaz ve ogrenilmis agirliklarla tekrar backtest calistir")
     parser.add_argument("--ml-train",      action="store_true", help="ML model egitimi calistir (TEFAS verisiyle)")
@@ -210,7 +210,7 @@ Ornekler:
 
                 preds = result.get("predictions")
                 if preds is not None and not preds.empty:
-                    pred_col = f"predicted_fwd_return_3m"
+                    pred_col = "predicted_fwd_return_3m"
                     print(f"\nTahmin sayisi   : {result['predictions_count']}")
                     print("\nEn iyi 5 fon (3M tahmini):")
                     for _, row in preds.head(5).iterrows():
@@ -230,9 +230,9 @@ Ornekler:
 
     if args.backtest:
         from src.backtest_engine import BacktestEngine, BacktestConfig
-        bt_config = BacktestConfig(start_date=args.bt_start, end_date=args.bt_end)
+        bt_config = BacktestConfig(start_date=args.bt_start, **({"end_date": args.bt_end} if args.bt_end else {}))
         bt_engine = BacktestEngine(bt_config)
-        logger.info(f"Backtest modu: {args.bt_start} -> {args.bt_end}")
+        logger.info(f"Backtest modu: {args.bt_start} -> {bt_config.end_date}")
         bt_result = bt_engine.run()
         if args.json:
             output = {
@@ -271,8 +271,8 @@ Ornekler:
             print("\n🔄 Ogrenilmis agirliklarla yeniden backtest calistiriliyor...\n")
             bt_config_v2 = BacktestConfig(
                 start_date=args.bt_start,
-                end_date=args.bt_end,
                 use_learning=True,
+                **({"end_date": args.bt_end} if args.bt_end else {}),
             )
             bt_engine_v2 = BacktestEngine(bt_config_v2)
             bt_result_v2 = bt_engine_v2.run()

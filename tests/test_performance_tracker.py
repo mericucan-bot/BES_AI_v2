@@ -29,6 +29,13 @@ class TestPerformanceTracker:
         result = tracker.calculate_current_portfolio_value({"VEF": 100})
         datetime.fromisoformat(result["date"])
 
+    def test_zero_holdings_no_crash(self):
+        """Tum bakiyeler 0 ise ZeroDivisionError olmamali; agirliklar 0.0 olmali."""
+        tracker = PerformanceTracker()
+        result = tracker.calculate_current_portfolio_value({"A": 0, "B": 0})
+        assert result["total_value"] == 0
+        assert result["weights"] == {"A": 0.0, "B": 0.0}
+
 
 class TestRealReturn:
     def setup_method(self):

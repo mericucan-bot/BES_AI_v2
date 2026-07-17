@@ -147,3 +147,24 @@ class TestRegimeEngineEdgeCases:
             result = engine.fetch_live_data()  # fırlatmamalı
         assert isinstance(result, pd.DataFrame)
         assert len(result) <= 3
+
+
+class TestRegimeChangeRiskSnapshotGlob:
+    """detect_regime_change_risk yalnizca *_snapshot.json okumali (.bak yedekleri haric)."""
+
+    def test_bak_backups_excluded_from_recent_regimes(self, tmp_path):
+        files = {
+            "2026_05_snapshot.json":            "2026-05-01",
+            "2026_06_snapshot.json":            "2026-06-01",
+            "2026_06_snapshot.bak_120000.json": "2026-06-01",  # yedek: sayilmamali
+        }
+        for name, run_date in files.items():
+            (tmp_path / name).write_text(
+                '{"run_date": "%s", "regime": {"detected": "STABLE"}}' % run_date,
+                encoding="utf-8",
+            )
+        engine = RegimeEngineV2()
+        result = {"detected": "STABLE", "scores": {"STABLE": 0.6, "RISK_ON": 0.4}}
+        out = engine.detect_regime_change_risk(result, history_dir=str(tmp_path))
+        # .bak yedegi haric tutuldugu icin yalnizca 2 gercek snapshot sayilir
+        assert len(out["recent_regimes"]) == 2
