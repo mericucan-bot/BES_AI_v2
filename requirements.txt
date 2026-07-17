@@ -1,4 +1,4 @@
-pandas>=2.1.0,<3.0.0
+pandas>=2.2.0,<3.0.0          # BME frekansi icin 2.2+ (ml_pipeline.resample)
 numpy>=1.26.0,<2.0.0
 streamlit>=1.30.0,<2.0.0
 plotly>=5.18.0
@@ -8,3 +8,15 @@ python-dateutil>=2.8.2
 python-dotenv>=1.0.0
 requests>=2.31.0
 pyarrow>=14.0.0
+
+# --- ML (main.py --ml-train) ---
+scikit-learn>=1.6.0,<2.0.0
+scipy>=1.13.0
+xgboost>=2.1.0,<4.0.0
+joblib>=1.5.0
+
+# --- Opsiyonel ---
+# evdspy: TCMB EVDS fallback istemcisi (REST birincil yol API key ile calisir)
+evdspy>=1.2
+# shap: feature importance icin opsiyonel — buyuk bagimlilik, istege bagli:
+# shap>=0.49

@@ -31,6 +31,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+ML eğitimi (`--ml-train`) dahil tüm bağımlılıklar `requirements.txt` içindedir.
+
 ## Konfigürasyon
 
 ```bash
