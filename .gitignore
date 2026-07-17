@@ -64,3 +64,12 @@ APIKEY_FOLDER/arch.txt
 
 # Portföyler (kişisel veri)
 data/portfolios/
+
+# Ic calisma dokumanlari — GitHub'a gitmez
+plans/
+
+# Yerel calisma dosyalari / repo disi icerik
+TEFAS_data/
+Dashboard_Pages/
+BES_Fon_Onerisi_Kullanici_Kilavuzu.pdf
+Images/App store picure.png
