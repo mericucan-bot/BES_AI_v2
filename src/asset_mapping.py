@@ -24,6 +24,14 @@ ASSET_CATEGORY_MAP: Dict[str, List[str]] = {
     "CASH": ["money market"],
 }
 
+# Kod bazli manuel istisnalar — kategori alani yaniltici olan fonlar icin.
+# Kategori eslemesinden SONRA uygulanir (her zaman kazanir).
+# GMF: "GUMUS FON SEPETI" — gumus = kiymetli maden, ama TEFAS kategorisi
+# "Fund of Funds" oldugundan otomatik eslenemiyor (kullanici onayi: 2026-07-18).
+MANUAL_CLASS_OVERRIDES: Dict[str, str] = {
+    "GMF": "ALT",
+}
+
 
 def load_fund_class_map(cache_dir: str = "data/tefas_cache") -> Dict[str, str]:
     """En guncel snapshot'tan {FON_KODU: sinif} haritasi. Sinif kodlari
@@ -32,13 +40,16 @@ def load_fund_class_map(cache_dir: str = "data/tefas_cache") -> Dict[str, str]:
     files = sorted(glob.glob(os.path.join(cache_dir, "snapshot_EMK_*.parquet")))
     if not files:
         logger.warning(f"Fon-sinif haritasi: snapshot yok ({cache_dir})")
+        mapping.update(MANUAL_CLASS_OVERRIDES)
         return mapping
     try:
         df = pd.read_parquet(files[-1])
     except Exception as e:
         logger.warning(f"Fon-sinif haritasi: snapshot okunamadi: {e}")
+        mapping.update(MANUAL_CLASS_OVERRIDES)
         return mapping
     if "fund_code" not in df.columns or "category" not in df.columns:
+        mapping.update(MANUAL_CLASS_OVERRIDES)
         return mapping
     for code, cat in zip(df["fund_code"], df["category"]):
         cat_l = str(cat).lower()
@@ -46,6 +57,8 @@ def load_fund_class_map(cache_dir: str = "data/tefas_cache") -> Dict[str, str]:
             if any(s in cat_l for s in subs):
                 mapping[str(code).upper()] = asset
                 break
+    # Manuel istisnalar kategori sonucunu ezer (snapshot olsun olmasin gecerli)
+    mapping.update(MANUAL_CLASS_OVERRIDES)
     return mapping
 
 

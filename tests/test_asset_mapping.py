@@ -2,6 +2,7 @@ import pandas as pd
 
 from src.asset_mapping import (
     ASSET_CLASSES,
+    MANUAL_CLASS_OVERRIDES,
     load_fund_class_map,
     holdings_to_class,
     funds_by_class,
@@ -11,8 +12,9 @@ from src.asset_mapping import (
 def _write_snapshot(cache_dir) -> None:
     """tmp cache dizinine kucuk bir TEFAS snapshot parquet'i yaz."""
     df = pd.DataFrame({
-        "fund_code": ["AHS", "BGL", "GMF", "XYZ"],
-        "category":  ["Stock Fund", "Gold Fund", "Money Market Fund", "Fund of Funds"],
+        "fund_code": ["AHS", "BGL", "PPF", "GMF", "XYZ"],
+        "category":  ["Stock Fund", "Gold Fund", "Money Market Fund",
+                      "Fund of Funds ", "Fund of Funds"],
     })
     df.to_parquet(cache_dir / "snapshot_EMK_2026_05.parquet")
 
@@ -23,7 +25,7 @@ class TestLoadFundClassMap:
         m = load_fund_class_map(str(tmp_path))
         assert m["AHS"] == "VEF"
         assert m["BGL"] == "ALT"
-        assert m["GMF"] == "CASH"
+        assert m["PPF"] == "CASH"
         assert "XYZ" not in m          # "Fund of Funds" hicbir sinifa eslenmiyor
         assert m["VEF"] == "VEF"       # sinif kodu kendine eslenir
 
@@ -33,9 +35,33 @@ class TestLoadFundClassMap:
         # anahtarlar buyuk harf
         assert "AHS" in m and "ahs" not in m
 
-    def test_no_snapshot_returns_only_class_codes(self, tmp_path):
+    def test_no_snapshot_returns_class_codes_and_overrides(self, tmp_path):
         m = load_fund_class_map(str(tmp_path))  # bos dizin, snapshot yok
-        assert m == {c: c for c in ASSET_CLASSES}
+        expected = {c: c for c in ASSET_CLASSES}
+        expected.update(MANUAL_CLASS_OVERRIDES)
+        assert m == expected
+
+
+class TestManualOverrides:
+    def test_gmf_silver_fund_maps_to_alt(self, tmp_path):
+        # GMF kategorisi "Fund of Funds " (yaniltici) — manuel istisna ALT'a esler
+        _write_snapshot(tmp_path)
+        m = load_fund_class_map(str(tmp_path))
+        assert m["GMF"] == "ALT"
+
+    def test_override_wins_over_category(self, tmp_path):
+        # Kategori CASH derse bile istisna kazanmali
+        df = pd.DataFrame({
+            "fund_code": ["GMF"],
+            "category":  ["Money Market Fund"],
+        })
+        df.to_parquet(tmp_path / "snapshot_EMK_2026_06.parquet")
+        m = load_fund_class_map(str(tmp_path))
+        assert m["GMF"] == "ALT"
+
+    def test_override_available_without_snapshot(self, tmp_path):
+        m = load_fund_class_map(str(tmp_path))
+        assert m.get("GMF") == "ALT"
 
 
 class TestHoldingsToClass:

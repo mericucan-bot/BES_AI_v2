@@ -218,8 +218,10 @@ class TestPipelineFundClassMapping:
     """PLAN-03: gercek TEFAS fon kodlu portfoy -> oneriler SINIF uzayinda uretilir."""
 
     def _write_snapshot(self, cache_dir: Path) -> None:
+        # NOT: "GMF" bilerek kullanilmiyor — MANUAL_CLASS_OVERRIDES'ta global
+        # istisnasi var; notr para piyasasi ornegi olarak PPF kullanilir.
         df = pd.DataFrame({
-            "fund_code": ["AHS", "BGL", "GMF"],
+            "fund_code": ["AHS", "BGL", "PPF"],
             "category":  ["Stock Fund", "Gold Fund", "Money Market Fund"],
         })
         df.to_parquet(cache_dir / "snapshot_EMK_2026_05.parquet")
@@ -245,7 +247,7 @@ class TestPipelineFundClassMapping:
         from src.asset_mapping import ASSET_CLASSES
 
         pipeline = self._make_pipeline(
-            tmp_path, {"AHS": 30000, "BGL": 30000, "GMF": 40000}, with_snapshot=True
+            tmp_path, {"AHS": 30000, "BGL": 30000, "PPF": 40000}, with_snapshot=True
         )
         with patch.object(pipeline.regime_engine, "compute_composite_score",
                           return_value=mock_regime_result):
@@ -256,17 +258,17 @@ class TestPipelineFundClassMapping:
         assert actions, "sinif bazinda oneri uretilmeli"
         # Tum oneriler SINIF kodu; hicbir gercek fon kodu (ozellikle SAT) yok
         assert all(r["asset"] in ASSET_CLASSES for r in actions)
-        assert not any(r["asset"] in {"AHS", "BGL", "GMF"} for r in actions)
+        assert not any(r["asset"] in {"AHS", "BGL", "PPF"} for r in actions)
         # class_weights snapshot'a yazildi; fon-bazli weights korundu
         assert result["portfolio_value"]["class_weights"] == {"VEF": 0.3, "ALT": 0.3, "CASH": 0.4}
-        assert set(result["portfolio_value"]["weights"]) == {"AHS", "BGL", "GMF"}
+        assert set(result["portfolio_value"]["weights"]) == {"AHS", "BGL", "PPF"}
         # Her oneriye o siniftaki gercek fon ipucu eklendi
         by_asset = {r["asset"]: r for r in actions}
-        assert by_asset["CASH"]["funds_in_class"] == ["GMF"]
+        assert by_asset["CASH"]["funds_in_class"] == ["PPF"]
 
     def test_no_snapshot_no_recommendations(self, tmp_path, mock_regime_result):
         pipeline = self._make_pipeline(
-            tmp_path, {"AHS": 30000, "BGL": 30000, "GMF": 40000}, with_snapshot=False
+            tmp_path, {"AHS": 30000, "BGL": 30000, "PPF": 40000}, with_snapshot=False
         )
         with patch.object(pipeline.regime_engine, "compute_composite_score",
                           return_value=mock_regime_result):
@@ -276,7 +278,7 @@ class TestPipelineFundClassMapping:
         # Sessizce "her seyi sat" URETME — oneri yok + not mevcut
         assert result["recommendation"]["actions"] == []
         assert result["recommendation_note"]
-        assert set(result["portfolio_value"]["unmapped_tl"]) == {"AHS", "BGL", "GMF"}
+        assert set(result["portfolio_value"]["unmapped_tl"]) == {"AHS", "BGL", "PPF"}
 
     def test_demo_class_codes_unchanged(self, tmp_path, mock_regime_result):
         """Sinif kodlu (demo) portfoy davranisi degismez — kendine eslenir."""
