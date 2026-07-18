@@ -152,10 +152,6 @@
     "title": "AGESA HAYAT VE EMEKLİLİK A.Ş. İKİNCİ FON SEPETİ EMEKLİLİK YATIRIM FONU"
   },
   {
-    "code": "AUG",
-    "title": "ALLIANZ HAYAT VE EMEKLILIK VARIABLE PENSION FUND"
-  },
-  {
     "code": "AZA",
     "title": "ALLIANZ HAYAT VE EMEKLİLİK A.Ş. GOVERNMENT BONDS AND BILLS GROUP PENSION MUTUAL FUND"
   },
@@ -178,6 +174,10 @@
   {
     "code": "AZD",
     "title": "ALLIANZ HAYAT VE EMEKLİLİK A.Ş. THE FIRST MIXED PENSION INVESTMENT FUND"
+  },
+  {
+    "code": "AUG",
+    "title": "ALLIANZ HAYAT VE EMEKLİLİK A.Ş. İKİNCİ KARMA EMEKLİLİK YATIRIM FONU"
   },
   {
     "code": "AZY",
@@ -216,10 +216,6 @@
     "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. ALTIN KATILIM EMEKLİLİK YATIRIM FONU"
   },
   {
-    "code": "AEZ",
-    "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. ATA PORTFOLİO VARIABLE PENSION MUTUAL FUND"
-  },
-  {
     "code": "FOA",
     "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. AZİMUT FON SEPETİ EMEKLİLİK YATIRIM FONU"
   },
@@ -232,12 +228,12 @@
     "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. BIST DIVIDEND INDEX PENSION MUTUAL FUND"
   },
   {
-    "code": "AMF",
-    "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. CONTRIBUTION PENSION MUTUAL FUND"
+    "code": "BAE",
+    "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. BORÇLANMA ARAÇLARI EMEKLİLİK YATIRIM FONU"
   },
   {
-    "code": "ALU",
-    "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. DYNAMIC VARIABLE PENSION MUTUAL FUND"
+    "code": "AMF",
+    "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. CONTRIBUTION PENSION MUTUAL FUND"
   },
   {
     "code": "AMG",
@@ -246,6 +242,10 @@
   {
     "code": "AMZ",
     "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. GOLD PENSION MUTUAL FUND"
+  },
+  {
+    "code": "ALU",
+    "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. KATILIM HİSSE SENEDİ EMEKLİLİK YATIRIM FONU"
   },
   {
     "code": "ALI",
@@ -274,6 +274,10 @@
   {
     "code": "AEP",
     "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. UNİLEVER SECOND VARIABLE GROUP PENSION MUTUAL FUND"
+  },
+  {
+    "code": "AEZ",
+    "title": "ALLIANZ YAŞAM VE EMEKLİLİK A.Ş. YAPI KREDİ FON SEPETİ EMEKLİLİK YATIRIM FONU"
   },
   {
     "code": "AZS",
@@ -628,10 +632,6 @@
     "title": "BEREKET EMEKLİLİK VE HAYAT A.Ş. PARTICIPATION VARIABLE GROUP PENSION MUTUAL FUND"
   },
   {
-    "code": "BSR",
-    "title": "BNP PARIBAS CARDIF EMEKLİLİK A.Ş. SÜRDÜRÜLEBİLİRLİK FON SEPETİ EMEKLİLİK YATIRIM FONU"
-  },
-  {
     "code": "BPE",
     "title": "BNP PARİBAS CARDİF EMEKLİLİK  A.Ş. BALANCED VARIABLE PENSION MUTUAL FUND"
   },
@@ -716,6 +716,10 @@
     "title": "BNP PARİBAS CARDİF EMEKLİLİK A.Ş. STANDARD PENSION MUTUAL FUND"
   },
   {
+    "code": "BSR",
+    "title": "BNP PARİBAS CARDİF EMEKLİLİK A.Ş. SÜRDÜRÜLEBİLİRLİK FON SEPETİ EMEKLİLİK YATIRIM FONU"
+  },
+  {
     "code": "BZY",
     "title": "BNP PARİBAS CARDİF EMEKLİLİK A.Ş. TEKNOLOJİ SEKTÖRÜ DEĞİŞKEN EMEKLİLİK YATIRIM FONU"
   },
@@ -752,11 +756,11 @@
     "title": "CİGNA SAĞLIK HAYAT VE EMEKLİLİK A.Ş. BALANCED VARIABLE GROUP PENSION MUTUAL FUND"
   },
   {
-    "code": "CHK",
+    "code": "CGG",
     "title": "CİGNA SAĞLIK HAYAT VE EMEKLİLİK A.Ş. DEBT SECURITIES PENSION FUND"
   },
   {
-    "code": "CGG",
+    "code": "CHK",
     "title": "CİGNA SAĞLIK HAYAT VE EMEKLİLİK A.Ş. DEBT SECURITIES PENSION FUND"
   },
   {
@@ -876,16 +880,16 @@
     "title": "GARANTİ EMEKLİLİK VE HAYAT A.Ş. KARMA EMEKLİLİK YATIRIM FONU"
   },
   {
+    "code": "GEA",
+    "title": "GARANTİ EMEKLİLİK VE HAYAT A.Ş. KATILIM HİSSE SENEDİ EMEKLİLİK YATIRIM FONU"
+  },
+  {
     "code": "GEL",
     "title": "GARANTİ EMEKLİLİK VE HAYAT A.Ş. MONEY MARKET PENSION MUTUAL Fund"
   },
   {
     "code": "GHL",
     "title": "GARANTİ EMEKLİLİK VE HAYAT A.Ş. PARTICIPATION CONTRIBUTION PENSION MUTUAL Fund"
-  },
-  {
-    "code": "GEA",
-    "title": "GARANTİ EMEKLİLİK VE HAYAT A.Ş. PARTICIPATION DYNAMIC VARIABLE PENSION MUTUAL Fund"
   },
   {
     "code": "GES",
@@ -1140,16 +1144,16 @@
     "title": "KATILIM EMEKLİLİK VE HAYAT A.Ş. INITIAL PARTICIPATION PENSION MUTUAL FUND"
   },
   {
-    "code": "KFE",
-    "title": "KATILIM EMEKLİLİK VE HAYAT A.Ş. KATILIM FON SEPETİ EMEKLİLİK YATIRIM FONU"
-  },
-  {
     "code": "KKV",
     "title": "KATILIM EMEKLİLİK VE HAYAT A.Ş. KISA VADELİ KİRA SERTİFİKALARI KATILIM EMEKLİLİK YATIRIM FONU"
   },
   {
     "code": "KJM",
     "title": "KATILIM EMEKLİLİK VE HAYAT A.Ş. KIYMETLİ MADENLER KATILIM EMEKLİLİK YATIRIM FONU"
+  },
+  {
+    "code": "KFE",
+    "title": "KATILIM EMEKLİLİK VE HAYAT A.Ş. KUVEYT TÜRK KATILIM FON SEPETİ EMEKLİLİK YATIRIM FONU"
   },
   {
     "code": "KEA",
@@ -1276,24 +1280,16 @@
     "title": "METLİFE EMEKLİLİK VE HAYAT A.Ş.TEKNOLOJİ FON SEPETİ EMEKLİLİK YATIRIM FONU"
   },
   {
-    "code": "CHO",
-    "title": "QNB SAĞLIK HAYAT  SİGORTA VE EMEKLİLİK A.Ş. AES ATTACK VARIABLE PENSION MUTUAL FUND"
-  },
-  {
     "code": "CHT",
     "title": "QNB SAĞLIK HAYAT  SİGORTA VE EMEKLİLİK A.Ş. CONTRIBUTION P.M.F"
-  },
-  {
-    "code": "CHM",
-    "title": "QNB SAĞLIK HAYAT  SİGORTA VE EMEKLİLİK A.Ş. DYNAMIC VARIABLE PENSION MUTUAL FUND"
   },
   {
     "code": "CHL",
     "title": "QNB SAĞLIK HAYAT  SİGORTA VE EMEKLİLİK A.Ş. MONEY MARKET PENSION MUTUAL FUND"
   },
   {
-    "code": "CHS",
-    "title": "QNB SAĞLIK HAYAT  SİGORTA VE EMEKLİLİK A.Ş. STANDARD P.M.F"
+    "code": "CHO",
+    "title": "QNB SAĞLIK HAYAT SİGORTA VE EMEKLİLİK A.Ş. AES ATTACK VARIABLE PENSION MUTUAL FUND"
   },
   {
     "code": "CFE",
@@ -1316,6 +1312,10 @@
     "title": "QNB SAĞLIK HAYAT SİGORTA VE EMEKLİLİK A.Ş. DIŞ BORÇLANMA ARAÇLARI EMEKLİLİK YATIRIM FONU"
   },
   {
+    "code": "CHM",
+    "title": "QNB SAĞLIK HAYAT SİGORTA VE EMEKLİLİK A.Ş. DYNAMIC VARIABLE PENSION MUTUAL FUND"
+  },
+  {
     "code": "CHH",
     "title": "QNB SAĞLIK HAYAT SİGORTA VE EMEKLİLİK A.Ş. FIRST STOCK PENSION MUTUAL FUND"
   },
@@ -1330,6 +1330,10 @@
   {
     "code": "CFK",
     "title": "QNB SAĞLIK HAYAT SİGORTA VE EMEKLİLİK A.Ş. PARTICIPATION CONTRIBUTION PENSION MUTUAL FUND"
+  },
+  {
+    "code": "CHS",
+    "title": "QNB SAĞLIK HAYAT SİGORTA VE EMEKLİLİK A.Ş. STANDARD P.M.F"
   },
   {
     "code": "VEO",
@@ -1580,15 +1584,15 @@
     "title": "ZURICH YAŞAM VE EMEKLİLİK A.Ş. STOCK PENSION MUTUAL FUND"
   },
   {
-    "code": "NHN",
-    "title": "ZURICH YAŞAM VE EMEKLİLİK A.Ş. VARIABLE PENSION MUTUAL FUND"
+    "code": "NHM",
+    "title": "ZURICH YAŞAM VE EMEKLİLİK A.Ş. TEMKİNLİ DEĞİŞKEN EMEKLİLİK YATIRIM FONU"
   },
   {
     "code": "IEA",
     "title": "ZURICH YAŞAM VE EMEKLİLİK A.Ş. VARIABLE PENSION MUTUAL FUND"
   },
   {
-    "code": "NHM",
-    "title": "ZURİCH YAŞAM VE EMEKLİLİK A.Ş. TEMKİNLİ DEĞİŞKEN EMEKLİLİK YATIRIM FONU"
+    "code": "NHN",
+    "title": "ZURICH YAŞAM VE EMEKLİLİK A.Ş. VARIABLE PENSION MUTUAL FUND"
   }
 ]
