@@ -73,3 +73,6 @@ TEFAS_data/
 Dashboard_Pages/
 BES_Fon_Onerisi_Kullanici_Kilavuzu.pdf
 Images/App store picure.png
+
+# Kisisel portfoy (ana dosya — portfolios/ zaten ignore)
+data/my_portfolio.json
