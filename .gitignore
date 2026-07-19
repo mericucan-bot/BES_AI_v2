@@ -40,6 +40,7 @@ data/learning_history.json
 data/user_prefs.json
 data/notification_prefs.json
 data/auth_throttle.json
+data/user_class_overrides.json
 
 # launchd plist (makineye özgü)
 *.plist

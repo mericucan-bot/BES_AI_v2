@@ -1897,6 +1897,25 @@ with tab2:
                 f"Şu fonlar kategoriye eşlenemedi ve önerilere dahil edilmedi: **{_um_str}**. "
                 "Güncel fon verisi çekildiğinde otomatik eşlenecektir."
             )
+
+        if _unmapped_tl:
+            with st.expander("Eşlenmeyen fonları sınıflandır", expanded=True):
+                from src.asset_mapping import ASSET_CLASSES, save_user_override
+                _cls_labels = {"VEF": "Hisse", "KTS": "Kamu Borç.", "ALT": "Altın/Kıym. Maden",
+                               "KCH": "Karma/Değişken", "CASH": "Para Piyasası"}
+                for _uc in sorted(_unmapped_tl):
+                    _sel_cls = st.selectbox(
+                        f"{_uc} ({_unmapped_tl[_uc]:,.0f} TL) hangi sınıfa girer?",
+                        options=list(ASSET_CLASSES),
+                        format_func=lambda c: f"{c} — {_cls_labels[c]}",
+                        index=None, placeholder="Sınıf seç…",
+                        key=f"override_{_uc}",
+                    )
+                    if _sel_cls:
+                        if save_user_override(_uc, _sel_cls):
+                            st.cache_data.clear()   # _get_fund_class_map yenilensin
+                            st.rerun()
+
         st.markdown('<div class="section-heading">Bu Ay Yapman Gerekenler</div>', unsafe_allow_html=True)
 
         has_action = False
