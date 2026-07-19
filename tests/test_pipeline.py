@@ -26,6 +26,16 @@ def pipeline_dirs(tmp_path):
     }
 
 
+@pytest.fixture(autouse=True)
+def _stub_fund_selector():
+    """PLAN-13: pipeline BUY onerilerinde aday fon secici cagiriyor; secici
+    default ml_dir="data/ml" glob'una gider. Testler GERCEK data/ml dizinini
+    okumasin diye tum modulde stub'lanir (testler kendi patch'iyle ezebilir;
+    import run() icinde oldugundan patch hedefi src.fund_selector)."""
+    with patch("src.fund_selector.suggest_funds_for_class", return_value=[]):
+        yield
+
+
 @pytest.fixture
 def mock_regime_result():
     return {
@@ -297,6 +307,79 @@ class TestPipelineFundClassMapping:
         assert "unmapped_tl" not in result["portfolio_value"]
         assert result["recommendation_note"] is None
         assert all(r["asset"] in ASSET_CLASSES for r in result["recommendation"]["actions"])
+
+
+class TestPipelineCandidateFunds:
+    """PLAN-13: BUY onerilerine sinif ici somut aday fonlar (candidate_funds)."""
+
+    _FAKE_CANDIDATES = [
+        {"fund_code": "KTB", "fund_name": "Kamu Borclanma Fonu",
+         "score_basis": "ml_return", "predicted_3m": 0.123,
+         "return_1y": 48.2, "risk": 3.0, "held": False},
+        {"fund_code": "AEK", "fund_name": "Baska Kamu Fonu",
+         "score_basis": "ml_return", "predicted_3m": 0.101,
+         "return_1y": 44.0, "risk": 3.0, "held": False},
+    ]
+
+    def _make_pipeline(self, tmp_path):
+        # TestPipelineFundClassMapping deseni: AHS->VEF 0.3, BGL->ALT 0.3,
+        # PPF->CASH 0.4; STABLE hedefi KTS=0.30 icerdiginden KTS kesin BUY olur.
+        portfolio_path = tmp_path / "portfolio.json"
+        history_dir    = tmp_path / "history"
+        learning_path  = tmp_path / "learning.json"
+        cache_dir      = tmp_path / "cache"
+        history_dir.mkdir()
+        cache_dir.mkdir()
+        portfolio_path.write_text(json.dumps({
+            "holdings_tl": {"AHS": 30000, "BGL": 30000, "PPF": 40000}
+        }), encoding="utf-8")
+        df = pd.DataFrame({
+            "fund_code": ["AHS", "BGL", "PPF"],
+            "category":  ["Stock Fund", "Gold Fund", "Money Market Fund"],
+        })
+        df.to_parquet(cache_dir / "snapshot_EMK_2026_05.parquet")
+        return MonthlyPipeline(
+            portfolio_path=str(portfolio_path),
+            history_dir=str(history_dir),
+            learning_path=str(learning_path),
+            tefas_cache_dir=str(cache_dir),
+        )
+
+    def test_buy_recommendations_get_candidate_funds(self, tmp_path, mock_regime_result):
+        pipeline = self._make_pipeline(tmp_path)
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result), \
+             patch("src.fund_selector.suggest_funds_for_class",
+                   return_value=self._FAKE_CANDIDATES) as mock_sel:
+            result = pipeline.run()
+
+        assert result["status"] == "SUCCESS"
+        actions = result["recommendation"]["actions"]
+        buys = [a for a in actions if a["action"] == "BUY"]
+        assert buys, "en az bir BUY onerisi beklenir (KTS)"
+        for b in buys:
+            assert b["candidate_funds"] == self._FAKE_CANDIDATES
+        # BUY olmayanlara candidate_funds EKLENMEZ (deferred HOLD haric —
+        # onlar limit filtresinden once BUY idi)
+        for a in actions:
+            if a["action"] == "SELL":
+                assert "candidate_funds" not in a
+        # Secici dogru parametrelerle cagrildi: kullanicinin fonlari held_codes
+        _, kwargs = mock_sel.call_args
+        assert kwargs["held_codes"] == {"AHS", "BGL", "PPF"}
+        assert kwargs["cache_dir"] == pipeline.tefas_cache_dir
+        assert kwargs["class_map"].get("AHS") == "VEF"
+
+    def test_selector_exception_pipeline_still_success(self, tmp_path, mock_regime_result):
+        pipeline = self._make_pipeline(tmp_path)
+        with patch.object(pipeline.regime_engine, "compute_composite_score",
+                          return_value=mock_regime_result), \
+             patch("src.fund_selector.suggest_funds_for_class",
+                   side_effect=RuntimeError("selector patladi")):
+            result = pipeline.run()
+
+        assert result["status"] == "SUCCESS"
+        assert result["recommendation"]["actions"], "oneriler yine uretilmeli"
 
 
 class TestPipelineLearningDedupAndWeights:

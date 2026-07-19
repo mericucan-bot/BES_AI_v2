@@ -531,6 +531,28 @@ def _get_fund_class_map():
     return load_fund_class_map()
 
 
+@st.cache_data(ttl=1800)
+def _get_fund_candidates(asset_class: str):
+    """Sinif icin somut aday fonlar (ML skoru + gercek getiri; yalniz yerel
+    dosyalar). Sinif haritasini paylasilan cache'ten gecirir."""
+    from src.fund_selector import suggest_funds_for_class
+    return suggest_funds_for_class(asset_class, class_map=_get_fund_class_map())
+
+
+def _cand_metric(c: dict, with_label: bool = False) -> str:
+    """Aday fon skor metni: predicted_3m varsa '+%12.3' (with_label ->
+    'AI 3A: +%12.3'), yoksa '1Y: %48.2'."""
+    p3 = c.get("predicted_3m")
+    if p3 is not None:
+        p = p3 * 100
+        s = f"{'+' if p >= 0 else '-'}%{abs(p):.1f}"
+        return f"AI 3A: {s}" if with_label else s
+    r1y = c.get("return_1y")
+    if r1y is not None:
+        return f"1Y: {'-' if r1y < 0 else ''}%{abs(r1y):.1f}"
+    return ""
+
+
 result = get_market_analysis()
 regime = result["detected"]
 metrics = result["metrics"]
@@ -1925,8 +1947,25 @@ with tab2:
             has_action = True
             _cls_funds = _funds_in_class.get(item["asset"], [])
             if item["action"] == "BUY":
+                # Sinif ici somut aday fonlar (yerel snapshot + ML; cache'li)
+                _cands = _get_fund_candidates(item["asset"])
                 if _cls_funds:
                     _buy_hint = f"\n\nBu sınıftaki fonun: **{', '.join(_cls_funds)}**"
+                    if _cands:
+                        _cand_str = " · ".join(
+                            f"{c['fund_code']} ({_cand_metric(c)})" if _cand_metric(c)
+                            else c["fund_code"]
+                            for c in _cands[:3]
+                        )
+                        _buy_hint += f"\n\nAday fonlar: {_cand_str}"
+                elif _cands:
+                    # Kullanicinin bu sinifta fonu yok: genel cumle YERINE adaylar
+                    _cand_str = " · ".join(
+                        f"**{c['fund_code']}** — {c['fund_name']}"
+                        + (f" ({_cand_metric(c, with_label=True)})" if _cand_metric(c, with_label=True) else "")
+                        for c in _cands[:3]
+                    )
+                    _buy_hint = f"\n\nÖnerilen fonlar: {_cand_str}"
                 else:
                     _buy_hint = (
                         "\n\nBu sınıftan bir fon eklemen gerekir "

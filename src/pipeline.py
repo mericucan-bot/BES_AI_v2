@@ -467,6 +467,19 @@ class MonthlyPipeline:
             for rec in recommendations:
                 rec["funds_in_class"] = _fbc.get(rec["asset"], [])
 
+            # 6d. AL onerilerine somut aday fonlar ekle (hata pipeline'i durdurmaz)
+            try:
+                from src.fund_selector import suggest_funds_for_class
+                _held = {str(c).upper() for c in holdings}
+                for rec in recommendations:
+                    if rec.get("action") == "BUY":
+                        rec["candidate_funds"] = suggest_funds_for_class(
+                            rec["asset"], cache_dir=self.tefas_cache_dir,
+                            class_map=fund_class_map, held_codes=_held,
+                        )
+            except Exception as e:
+                logger.warning(f"Aday fon onerisi uretilemedi: {e}")
+
         # 6b. Aylik limit filtresi
         recommendations = self.cost_model.filter_recommendations_by_limit(recommendations)
 

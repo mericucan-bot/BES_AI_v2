@@ -247,7 +247,23 @@ class EmailNotifier:
                             <td>{abs(a['diff_tl']):,.0f} TL</td>
                         </tr>
                     """
-                html += "</table></div>"
+                html += "</table>"
+
+                # BUY aksiyonlarinda sinif ici aday fonlar (kod listesi yeterli)
+                cand_parts = []
+                for a in sorted(actionable, key=lambda x: -abs(x.get("diff_tl", 0))):
+                    if a.get("action") != "BUY":
+                        continue
+                    codes = [c.get("fund_code", "?") for c in (a.get("candidate_funds") or [])[:3]]
+                    if codes:
+                        cand_parts.append(f"{a['asset']}: {', '.join(codes)}")
+                if cand_parts:
+                    html += f"""
+                    <p style="margin: 12px 0 0; font-size: 13px; color: #374151;">
+                        Aday fonlar — {' · '.join(cand_parts)}
+                    </p>
+                    """
+                html += "</div>"
 
         if ml_summary and ml_summary.get("status") == "SUCCESS":
             html += f"""

@@ -16,6 +16,27 @@ from src.pipeline import MonthlyPipeline
 from src.performance_tracker import PerformanceTracker
 
 
+def _format_candidate_funds(candidates: list) -> str:
+    """BUY onerisi icin aday fonlari tek satirda formatla (en fazla 3, '·' ile).
+    Ornek: "KTB (AI 3A:+%12.3 | 1Y:%48.2) · AEK (1Y:%44.0)". predicted_3m None
+    ise yalniz 1Y; held=True ise kodun yanina '(elinde)' eklenir."""
+    parts = []
+    for c in (candidates or [])[:3]:
+        code = str(c.get("fund_code", "?"))
+        if c.get("held"):
+            code += " (elinde)"
+        segs = []
+        p3 = c.get("predicted_3m")
+        if p3 is not None:
+            p = p3 * 100
+            segs.append(f"AI 3A:{'+' if p >= 0 else '-'}%{abs(p):.1f}")
+        r1y = c.get("return_1y")
+        if r1y is not None:
+            segs.append(f"1Y:{'-' if r1y < 0 else ''}%{abs(r1y):.1f}")
+        parts.append(f"{code} ({' | '.join(segs)})" if segs else code)
+    return " · ".join(parts)
+
+
 def print_summary(result: dict) -> None:
     """Insan-okunabilir ozet (stdout'a)."""
     if result.get("status") != "SUCCESS":
@@ -86,6 +107,10 @@ def print_summary(result: dict) -> None:
               f"{sign}{action['diff_tl']:>12,.0f} TL "
               f"(su an: %{action['current_weight']*100:.1f} -> "
               f"hedef: %{action['target_weight']*100:.1f})")
+        if action["action"] == "BUY":
+            cand_line = _format_candidate_funds(action.get("candidate_funds"))
+            if cand_line:
+                print(f"          → aday: {cand_line}")
 
     if not has_action:
         print("   Portfoy hedefe yakin, aksiyon gerekmiyor")
