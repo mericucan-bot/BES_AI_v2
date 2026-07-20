@@ -15,6 +15,8 @@ class SignificanceConfig:
     drift_notable: float = 0.15   # hedeften sinif bazinda mutlak sapma esigi
     drift_action: float = 0.25
     turnover_notable: float = 0.20
+    concentration_notable: float = 0.50   # tek sinif payi bu esigi asarsa notable
+    concentration_action: float = 0.70    # bu esigi asarsa action
     level_action: int = 50        # skor esikleri
     level_notable: int = 25
 
@@ -83,6 +85,21 @@ def compute_significance(
     if turnover >= cfg.turnover_notable:
         score += 10
         reasons.append(f"Onerilen degisim portfoyun %{turnover*100:.0f}'i")
+
+    # 4b) Konsantrasyon riski — tek sinifin asiri agirligi (class_weights doluysa)
+    if class_weights:
+        top_asset = max(class_weights, key=class_weights.get)
+        top_w = class_weights[top_asset]
+        if top_w >= cfg.concentration_action:
+            score += 25
+            reasons.append(
+                f"Konsantrasyon riski: portföyün %{top_w*100:.0f}'i tek sınıfta ({top_asset})"
+            )
+        elif top_w >= cfg.concentration_notable:
+            score += 12
+            reasons.append(
+                f"Yüksek yoğunlaşma: %{top_w*100:.0f} ({top_asset}) — çeşitlendirmeyi düşün"
+            )
 
     # 5) Anomaliler (high tercih; yoksa medium)
     anomalies = (regime_result or {}).get("anomalies") or []

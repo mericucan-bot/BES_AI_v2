@@ -19,11 +19,12 @@ class TestSignificanceScoring:
         assert out["reasons"] == []
 
     def test_regime_change_alone(self):
-        cw = {"VEF": 0.5}
+        # cesitlendirilmis cw (tek sinif <%50) — yalniz rejim degisimi sinyali izole
+        cw = {"VEF": 0.34, "ALT": 0.33, "KTS": 0.33}
         out = compute_significance(
             _regime("RATE_HIKE"),
             {"previous_regime": "STABLE"},
-            cw, {"VEF": 0.5}, {"turnover_pct": 0.0},
+            cw, cw, {"turnover_pct": 0.0},   # cw==tw: drift 0
         )
         assert out["score"] == 40
         assert out["level"] == "notable"
@@ -38,19 +39,21 @@ class TestSignificanceScoring:
             {"previous_regime": "STABLE"},   # +40 rejim degisti
             cw, tw, {"turnover_pct": 0.9},   # +40 crisis +30 drift +10 turnover
         )
-        assert out["score"] == 100    # 40+40+30+10 = 120 -> kirp 100
+        # +25 konsantrasyon (ALT %100) da eklenir; toplam 145 -> kirp 100
+        assert out["score"] == 100
         assert out["level"] == "action"
 
     def test_drift_notable_threshold(self):
-        cw = {"VEF": 0.48, "ALT": 0.52}
-        tw = {"VEF": 0.30, "ALT": 0.70}   # ALT sapma 0.18 -> notable (+15)
+        # cesitlendirilmis cw (max <%50) — yalniz drift sinyali izole
+        cw = {"VEF": 0.42, "ALT": 0.34, "KTS": 0.24}
+        tw = {"VEF": 0.24, "ALT": 0.34, "KTS": 0.42}   # max sapma 0.18 -> notable (+15)
         out = compute_significance(_regime(), None, cw, tw, {"turnover_pct": 0.0})
         assert out["score"] == 15
         assert any("Hedeften sapma" in r for r in out["reasons"])
 
     def test_drift_action_threshold(self):
-        cw = {"VEF": 0.35, "ALT": 0.65}
-        tw = {"VEF": 0.30, "ALT": 0.30}   # ALT sapma 0.35 -> action drift (+30)
+        cw = {"VEF": 0.45, "ALT": 0.30, "KTS": 0.25}
+        tw = {"VEF": 0.10, "ALT": 0.65, "KTS": 0.25}   # max sapma 0.35 -> action drift (+30)
         out = compute_significance(_regime(), None, cw, tw, {"turnover_pct": 0.0})
         assert out["score"] == 30
         assert any("belirgin sapma" in r for r in out["reasons"])
@@ -104,3 +107,37 @@ class TestSignificanceScoring:
         )
         assert out["score"] == 10
         assert out["level"] == "notable"   # 10 >= 5
+
+
+class TestConcentrationGuard:
+    """PLAN-20: tek sinifin asiri agirligi -> onemlilik sinyali."""
+
+    def test_concentration_action(self):
+        cw = {"ALT": 0.76, "VEF": 0.24}   # hedefe esit (drift 0), yalniz konsantrasyon
+        out = compute_significance(_regime(), None, cw, cw, {"turnover_pct": 0.0})
+        assert out["score"] == 25
+        assert any("Konsantrasyon riski" in r and "%76" in r and "ALT" in r
+                   for r in out["reasons"])
+
+    def test_concentration_notable(self):
+        cw = {"ALT": 0.55, "VEF": 0.45}
+        out = compute_significance(_regime(), None, cw, cw, {"turnover_pct": 0.0})
+        assert out["score"] == 12
+        assert any("Yüksek yoğunlaşma" in r for r in out["reasons"])
+
+    def test_no_concentration_below_threshold(self):
+        cw = {"ALT": 0.40, "VEF": 0.35, "KTS": 0.25}
+        out = compute_significance(_regime(), None, cw, cw, {"turnover_pct": 0.0})
+        assert out["score"] == 0
+
+    def test_concentration_stacks_with_crisis(self):
+        cw = {"ALT": 0.76, "VEF": 0.24}
+        out = compute_significance(_regime("CRISIS"), None, cw, cw, {"turnover_pct": 0.0})
+        assert out["score"] == 65   # 40 crisis + 25 konsantrasyon
+        assert out["level"] == "action"
+
+    def test_empty_class_weights_no_concentration(self):
+        # bos class_weights -> 'harita eksik' +15 (mevcut) ama konsantrasyon puani yok
+        out = compute_significance(_regime(), None, {}, {"VEF": 0.3}, {"turnover_pct": 0.0})
+        assert out["score"] == 15
+        assert not any("Konsantrasyon" in r or "yoğunlaşma" in r for r in out["reasons"])
