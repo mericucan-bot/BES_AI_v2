@@ -2348,6 +2348,59 @@ Aşağıdaki tablo farklı getiri senaryolarında gerçek (reel) kazancını gö
         elif _cmp_sel:
             st.info("En az 2 portföy seç.")
 
+    # === ÖNERİ KARNESİ — UYGULASAYDIN vs DOKUNMASAYDIN ===
+    st.divider()
+    st.markdown('<div class="section-heading">Öneri Karnesi — Uygulasaydın vs Dokunmasaydın</div>', unsafe_allow_html=True)
+
+    @st.cache_data(ttl=600)
+    def _get_counterfactual_df():
+        from src.counterfactual import build_tracks
+        return build_tracks()
+
+    try:
+        _cf_df = _get_counterfactual_df()
+    except Exception:
+        _cf_df = pd.DataFrame()
+
+    if _cf_df.empty or len(_cf_df) < 2:
+        st.info("Karşılaştırma için en az 2 aylık snapshot gerekli — her ay otomatik birikir.")
+    else:
+        _cf_fig = go.Figure()
+        _cf_fig.add_trace(go.Scatter(
+            x=_cf_df["date"], y=_cf_df["actual_value"], name="Dokunmadın (gerçek)",
+            line=dict(color="#3b82f6", width=2.5),
+            hovertemplate="Tarih: %{x}<br>Değer: %{y:,.0f} TL<extra></extra>",
+        ))
+        _cf_fig.add_trace(go.Scatter(
+            x=_cf_df["date"], y=_cf_df["advised_value"], name="Uygulasaydın (öneri)",
+            line=dict(color="#22c55e", width=2, dash="dash"),
+            hovertemplate="Tarih: %{x}<br>Değer: %{y:,.0f} TL<extra></extra>",
+        ))
+        _cf_fig.update_layout(
+            height=380, margin=dict(l=20, r=20, t=30, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            yaxis_title="Portföy Değeri (TL)", yaxis_tickformat=",",
+            hovermode="x unified",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(_cf_fig, use_container_width=True)
+
+        _cf_act = _cf_df["actual_value"].iloc[-1]
+        _cf_adv = _cf_df["advised_value"].iloc[-1]
+        _cf_diff = _cf_adv - _cf_act
+        _cf_pct = (_cf_adv / _cf_act - 1) if _cf_act else 0
+        _cfm1, _cfm2, _cfm3 = st.columns(3)
+        _cfm1.metric("Öneri Farkı", f"{_cf_diff:+,.0f} TL")
+        _cfm2.metric("Fark %", f"%{_cf_pct*100:+.1f}")
+        _cfm3.metric("Süre", f"{len(_cf_df)-1} ay")
+
+        st.caption(
+            "Katkı/çıkışlardan arındırılmış, gerçek NAV bazlı; öneri serisine "
+            "rebalans maliyeti (%0.2 slippage) dahildir."
+        )
+        if _cf_df["basis"].astype(str).str.contains("flat").any():
+            st.caption("⚠️ Bazı aylarda NAV verisi eksikti; o aylar nötr sayıldı.")
+
     # === BACKTEST BÖLÜMÜ ===
     st.divider()
     st.markdown('<div class="section-heading">Geriye Dönük Test (Backtest)</div>', unsafe_allow_html=True)
