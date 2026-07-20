@@ -101,6 +101,7 @@ class MLPipeline:
         Gercek gunluk NAV gecmisinden (nav_history.parquet) fon serileri uret.
         Returns: {fund_code: Series(index=gunluk tarih, values=NAV fiyati)}
         """
+        self._last_nav_raw = None   # akis feature'lari icin ham df (yoksa None)
         path = self.collector.cache_dir / "nav_history.parquet"
         if not path.exists():
             # Ilk kurulumda otomatik cekmeyi dene (aylik cron da bunu yapiyor)
@@ -121,6 +122,7 @@ class MLPipeline:
             return {}
 
         nav["date"] = pd.to_datetime(nav["date"], errors="coerce")
+        self._last_nav_raw = nav   # akis feature'lari (PLAN-16) icin ham veri
         pivot = nav.pivot_table(
             index="date", columns="fund_code", values="price", aggfunc="last"
         ).sort_index()
@@ -231,6 +233,49 @@ class MLPipeline:
 
         return fund_navs
 
+    def _build_flow_features(self, nav_raw: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """
+        nav_history ham verisinden fon-akisi feature'lari (yalniz gecmise bakar).
+        Returns: DataFrame[date, fund_code, size_chg_1m, kisi_chg_1m, flow_proxy_1m].
+        Gerekli kolonlar yoksa None.
+
+        flow_proxy_1m = size_chg_1m - ret_1m ≈ net para girisi (buyuklugun
+        NAV getirisi UZERINDEKI degisimi). kisi_chg_1m = yatirimci sayisi momentumu.
+        """
+        needed = {"fund_code", "date", "price", "portfoy_buyukluk", "kisi_sayisi"}
+        if nav_raw is None or not needed.issubset(nav_raw.columns):
+            logger.info("Akis feature'lari: gerekli kolonlar yok, atlandi")
+            return None
+        try:
+            df = nav_raw.copy()
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            size = df.pivot_table(index="date", columns="fund_code",
+                                  values="portfoy_buyukluk", aggfunc="last").sort_index()
+            kisi = df.pivot_table(index="date", columns="fund_code",
+                                  values="kisi_sayisi", aggfunc="last").sort_index()
+            price = df.pivot_table(index="date", columns="fund_code",
+                                   values="price", aggfunc="last").sort_index()
+            size_chg = size.pct_change(21)
+            kisi_chg = kisi.pct_change(21)
+            ret_1m = price.pct_change(21)
+            flow_proxy = size_chg - ret_1m
+
+            def _melt(pivot, name):
+                m = pivot.reset_index().melt(id_vars="date", var_name="fund_code",
+                                             value_name=name)
+                return m
+
+            out = _melt(size_chg, "size_chg_1m")
+            out = out.merge(_melt(kisi_chg, "kisi_chg_1m"),
+                            on=["date", "fund_code"], how="outer")
+            out = out.merge(_melt(flow_proxy, "flow_proxy_1m"),
+                            on=["date", "fund_code"], how="outer")
+            out = out.replace([np.inf, -np.inf], np.nan)
+            return out
+        except Exception as e:
+            logger.warning(f"Akis feature uretilemedi: {e}")
+            return None
+
     def collect_market_data(self, lookback_days: int = 760) -> pd.DataFrame:
         """yfinance'tan gunluk piyasa verisi cek (varsayilan 760 gun ~ 2.5 yil)."""
         logger.info(f"Piyasa verisi cekiliyor (yfinance, {lookback_days} gun)...")
@@ -286,6 +331,33 @@ class MLPipeline:
             min_nav_length=126,
         )
         logger.info(f"Dataset (FeatureEngineer): {dataset.shape}")
+
+        # PLAN-16: fon-akisi feature'lari (nav_history ham verisinden, varsa)
+        flow = self._build_flow_features(getattr(self, "_last_nav_raw", None))
+        if flow is not None and not dataset.empty and "fund_code" in dataset.columns:
+            n_before = len(dataset)
+            idx_name = dataset.index.name or "index"
+            key = dataset.reset_index().rename(columns={idx_name: "date"})
+            if "date" in key.columns:
+                key["date"] = pd.to_datetime(key["date"], errors="coerce")
+                merged = key.merge(flow, on=["date", "fund_code"], how="left")
+                dataset = merged.set_index("date")
+                if len(dataset) == n_before:
+                    logger.info(
+                        "Akis feature'lari eklendi: size_chg_1m/kisi_chg_1m/flow_proxy_1m"
+                    )
+                else:
+                    logger.warning(
+                        f"Akis merge satir sayisini degistirdi ({n_before}->{len(dataset)})"
+                    )
+
+        # PLAN-16: kesitsel sira hedefi (tarih-ici yuzdelik) — anti-leakage:
+        # get_clean_features target_cols icinde, feature matrisine sizmaz.
+        if not dataset.empty and "fwd_return_3m" in dataset.columns:
+            dataset["fwd_rank_3m"] = (
+                dataset.groupby(dataset.index)["fwd_return_3m"].rank(pct=True)
+            )
+
         return dataset
 
     def _build_snapshot_features(
@@ -535,6 +607,52 @@ class MLPipeline:
     # 6. Tam pipeline
     # ------------------------------------------------------------------
 
+    def _train_and_merge_rank(
+        self, dataset: pd.DataFrame, fund_navs: Dict[str, pd.Series]
+    ) -> Optional[Dict]:
+        """PLAN-16: kesitsel rank hedefini egit, tahminleri 0-100'e olcekle ve
+        en guncel 3M predictions CSV'sine merge et. Returns: ozet dict veya None."""
+        X, _, _ = self.feature_eng.get_clean_features(dataset)
+        y_rank = dataset["fwd_rank_3m"]
+        valid_n = int((X.notna().all(axis=1) & y_rank.notna()).sum())
+        if valid_n < 20:
+            logger.warning(f"Rank modeli icin yetersiz veri ({valid_n} satir)")
+            return None
+
+        if valid_n < 80:
+            cfg = ModelConfig(target="fwd_rank_3m", min_train_samples=max(10, valid_n // 4),
+                              test_size_weeks=max(3, valid_n // 8), n_splits=3)
+        else:
+            cfg = ModelConfig(target="fwd_rank_3m")
+        predictor = BESPredictor(cfg)
+        results = predictor.compare_models(X, y_rank)
+        if not results:
+            return None
+        best = max(results, key=lambda k: results[k].avg_ic)
+        self._save_predictor(predictor, "fwd_rank_3m")
+
+        preds = self.generate_predictions(dataset, model_name=best, target="fwd_rank_3m")
+        if preds.empty:
+            return {"best": best, "ic": results[best].avg_ic}
+
+        # 0-100 olcek + kolon adi
+        preds["predicted_rank_3m"] = (preds["predicted_fwd_rank_3m"] * 100).round(1)
+        rank_map = preds[["fund_code", "predicted_rank_3m"]]
+
+        # En guncel 3M CSV'ye merge (geriye uyumlu: mevcut kolonlar + yeni kolon)
+        csv_files = sorted(self.output_dir.glob("predictions_fwd_return_3m_*.csv"))
+        if csv_files:
+            try:
+                base = pd.read_csv(csv_files[-1])
+                if "predicted_rank_3m" in base.columns:
+                    base = base.drop(columns=["predicted_rank_3m"])
+                merged = base.merge(rank_map, on="fund_code", how="left")
+                merged.to_csv(csv_files[-1], index=False)
+                logger.info(f"Rank kolonu 3M CSV'ye eklendi: {csv_files[-1].name}")
+            except Exception as e:
+                logger.warning(f"Rank merge CSV hatasi: {e}")
+        return {"best": best, "ic": round(results[best].avg_ic, 4)}
+
     def run_full_pipeline(
         self,
         fund_codes: Optional[List[str]] = None,
@@ -632,6 +750,15 @@ class MLPipeline:
         if not all_model_results:
             return {"status": "ERROR", "message": "Hicbir target icin model egitimi basarisiz"}
 
+        # PLAN-16: kesitsel sira (rank) modeli — 'hangi fon akranlarindan iyi'.
+        # 3M predictions CSV'sine predicted_rank_3m (0-100) kolonu ekler.
+        rank_summary = None
+        if "fwd_rank_3m" in dataset.columns and _TARGET_3M in targets:
+            try:
+                rank_summary = self._train_and_merge_rank(dataset, fund_navs)
+            except Exception as e:
+                logger.warning(f"Rank modeli egitilemedi (ana akis etkilenmez): {e}")
+
         # Top-level summary: birincil target (genellikle 3M) yansitir — geri uyumluluk
         primary = targets[0]
         primary_results = all_model_results[primary]
@@ -667,6 +794,8 @@ class MLPipeline:
             ),
             "predictions_count": len(primary_preds),
         }
+        if rank_summary:
+            summary["rank_model"] = rank_summary
 
         summary_path = self.output_dir / "latest_run_summary.json"
         atomic_write_text(summary_path, json.dumps(summary, indent=2, ensure_ascii=False, default=str))

@@ -99,6 +99,89 @@ class TestBuildFeatures:
         assert not dataset.empty
         assert dataset["fund_code"].nunique() == 3
         assert "fwd_return_3m" in dataset.columns
+        # PLAN-16: rank hedefi eklenir (kesitsel yuzdelik)
+        assert "fwd_rank_3m" in dataset.columns
+
+
+class TestFlowFeatures:
+    """PLAN-16: nav_history ham verisinden fon-akisi feature'lari."""
+
+    def _nav_raw(self, n=100):
+        np.random.seed(7)
+        dates = pd.date_range("2024-01-01", periods=n, freq="B")
+        frames = []
+        for code in ["F1", "F2"]:
+            price = 100 * np.cumprod(1 + np.random.normal(0.0005, 0.01, n))
+            size = 1e6 * np.cumprod(1 + np.random.normal(0.001, 0.02, n))
+            kisi = (1000 + np.arange(n) * 2).astype(float)
+            frames.append(pd.DataFrame({
+                "fund_code": code, "date": dates, "price": price,
+                "portfoy_buyukluk": size, "kisi_sayisi": kisi,
+            }))
+        return pd.concat(frames, ignore_index=True)
+
+    def test_flow_features_computed(self, tmp_path):
+        ml = MLPipeline(output_dir=str(tmp_path / "ml"))
+        nav = self._nav_raw()
+        flow = ml._build_flow_features(nav)
+        assert flow is not None
+        assert set(["date", "fund_code", "size_chg_1m", "kisi_chg_1m", "flow_proxy_1m"]).issubset(flow.columns)
+        # flow_proxy = size_chg - ret; bir ornek satirda elle dogrula
+        f1 = nav[nav["fund_code"] == "F1"].sort_values("date").reset_index(drop=True)
+        i = 40
+        exp_size = f1["portfoy_buyukluk"].iloc[i] / f1["portfoy_buyukluk"].iloc[i-21] - 1
+        exp_ret = f1["price"].iloc[i] / f1["price"].iloc[i-21] - 1
+        row = flow[(flow["fund_code"] == "F1") & (flow["date"] == f1["date"].iloc[i])].iloc[0]
+        assert row["flow_proxy_1m"] == pytest.approx(exp_size - exp_ret, abs=1e-9)
+
+    def test_missing_columns_returns_none(self, tmp_path):
+        ml = MLPipeline(output_dir=str(tmp_path / "ml"))
+        nav = self._nav_raw().drop(columns=["kisi_sayisi"])
+        assert ml._build_flow_features(nav) is None
+
+    def test_flow_merged_into_dataset(self, tmp_path, mock_market_data, macro_patch):
+        ml = MLPipeline(output_dir=str(tmp_path / "ml"))
+        # nav_history'i akis kolonlariyla dogrudan yukle
+        nav = self._nav_raw(n=600)
+        ml._last_nav_raw = nav
+        navs = {}
+        for code in ["F1", "F2"]:
+            s = nav[nav["fund_code"] == code].set_index("date")["price"]
+            navs[code] = s
+        with patch.object(ml.macro_engine, "get_macro_snapshot", return_value=macro_patch):
+            dataset = ml.build_features(navs, mock_market_data, sample_frequency="weekly")
+        n_before = len(dataset)
+        assert "flow_proxy_1m" in dataset.columns
+        assert "size_chg_1m" in dataset.columns
+        assert len(dataset) == n_before   # merge satir sayisini degistirmedi
+
+
+class TestRankTarget:
+    """PLAN-16: fwd_rank_3m tarih-ici kesitsel + feature'a sizmaz."""
+
+    def test_rank_is_cross_sectional_and_excluded_from_X(self, tmp_path):
+        from src.feature_engineer import FeatureEngineer
+        fe = FeatureEngineer()
+        # 2 tarih x 3 fon mini dataset — bilinen getiri sirasi
+        idx = pd.to_datetime(["2024-06-07", "2024-06-07", "2024-06-07",
+                              "2024-06-14", "2024-06-14", "2024-06-14"])
+        ds = pd.DataFrame({
+            "return_1m": [0.01, 0.02, 0.03, 0.04, 0.05, 0.06],
+            "fund_code": ["A", "B", "C", "A", "B", "C"],
+            "fwd_return_3m": [0.1, 0.2, 0.3, 0.9, 0.5, 0.1],
+            "fwd_return_12m": [0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+        }, index=idx)
+        ds["fwd_rank_3m"] = ds.groupby(ds.index)["fwd_return_3m"].rank(pct=True)
+        # ilk tarihte C en yuksek -> rank 1.0
+        first = ds.loc[ds.index[0:3]]
+        assert first[first["fund_code"] == "C"]["fwd_rank_3m"].iloc[0] == pytest.approx(1.0)
+        # ikinci tarihte A en yuksek -> rank 1.0
+        second = ds.iloc[3:]
+        assert second[second["fund_code"] == "A"]["fwd_rank_3m"].iloc[0] == pytest.approx(1.0)
+        # get_clean_features: fwd_rank_3m X'e sizmamali
+        X, _, _ = fe.get_clean_features(ds)
+        assert "fwd_rank_3m" not in X.columns
+        assert "fwd_return_3m" not in X.columns
 
     def test_monthly_nav_uses_snapshot_builder(self, tmp_path, mock_monthly_navs, mock_market_data, macro_patch):
         ml = MLPipeline(output_dir=str(tmp_path / "ml"))

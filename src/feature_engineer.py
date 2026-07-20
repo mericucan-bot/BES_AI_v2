@@ -22,6 +22,7 @@ class FeatureEngineer:
 
     TARGET_3M = "fwd_return_3m"
     TARGET_12M = "fwd_return_12m"
+    TARGET_RANK_3M = "fwd_rank_3m"   # PLAN-16: tarih-ici kesitsel yuzdelik sira
 
     def __init__(self):
         pass
@@ -240,6 +241,7 @@ class FeatureEngineer:
             "fund_code",
             self.TARGET_3M,
             self.TARGET_12M,
+            self.TARGET_RANK_3M,
             "fwd_direction_3m",
             "fwd_direction_12m",
         ]
@@ -253,7 +255,8 @@ class FeatureEngineer:
         max_nan_col_pct: Bu esikten fazla NaN olan sutunlar dusurulur (varsayilan 0.5 = %50).
                          Az veriyle calisirken uzun-pencere feature'larinin otomatik filtrelenmesini saglar.
         """
-        target_cols = [self.TARGET_3M, self.TARGET_12M, "fwd_direction_3m", "fwd_direction_12m"]
+        target_cols = [self.TARGET_3M, self.TARGET_12M, self.TARGET_RANK_3M,
+                       "fwd_direction_3m", "fwd_direction_12m"]
         meta_cols = ["fund_code"]
 
         feature_cols = [c for c in dataset.columns if c not in target_cols + meta_cols]

@@ -2721,11 +2721,21 @@ with tab4:
                         )
 
                 with st.expander("Tüm Fonlar — Tahmin Tablosu"):
-                    display_df = pred_df[["fund_code", "fon_adi", "predicted_fwd_return_3m"]].copy()
-                    display_df.columns = ["Kod", "Fon Adı", "3M Tahmini Getiri"]
+                    _has_rank = "predicted_rank_3m" in pred_df.columns
+                    _cols = ["fund_code", "fon_adi", "predicted_fwd_return_3m"]
+                    _names = ["Kod", "Fon Adı", "3M Tahmini Getiri"]
+                    if _has_rank:
+                        _cols.append("predicted_rank_3m")
+                        _names.append("AI Skoru")
+                    display_df = pred_df[_cols].copy()
+                    display_df.columns = _names
                     display_df["3M Tahmini Getiri"] = display_df["3M Tahmini Getiri"].apply(
                         lambda x: f"%{x*100:+.1f}"
                     )
+                    if _has_rank:
+                        display_df["AI Skoru"] = display_df["AI Skoru"].apply(
+                            lambda x: f"{x:.0f}/100" if pd.notna(x) else "—"
+                        )
                     st.dataframe(display_df, hide_index=True, use_container_width=True)
             else:
                 st.info("Tahmin dosyası boş veya beklenmedik formatta.")
