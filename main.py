@@ -65,6 +65,11 @@ def print_summary(result: dict) -> None:
               f"({rate_change_pp:+.2f}pp/30g), "
               f"TÜFE=%{(macro.get('cpi_yoy', 0) or 0)*100:.1f}")
 
+    sig = result.get("significance")
+    if sig:
+        _reasons = "; ".join(sig.get("reasons", [])) or "sakin ay"
+        print(f"Önemlilik    : {sig['score']}/100 ({sig['level']}) — {_reasons}")
+
     if result.get("previous_evaluation"):
         ev = result["previous_evaluation"]
         status_map = {"WIN": "[WIN]", "LOSS": "[LOSS]", "NEUTRAL": "[NEUTRAL]"}
@@ -170,6 +175,8 @@ Ornekler:
                         help="12 aylik uzun vadeli model de egit (3M + 12M)")
     parser.add_argument("--email", action="store_true",
                         help="Sonuçları e-posta ile gönder")
+    parser.add_argument("--email-full", action="store_true",
+                        help="Sessiz ayda bile tam rapor gönder (önemlilik eşiğini atla)")
     parser.add_argument("--test-email", action="store_true",
                         help="Test e-postası gönder (yapılandırma kontrolü)")
     parser.add_argument("--report", action="store_true",
@@ -419,7 +426,11 @@ Ornekler:
             pdf_files = sorted(Path("data/reports").glob("BES_AI_Rapor_*.pdf"))
             pdf_path  = str(pdf_files[-1]) if pdf_files else None
 
-            if notifier.send_monthly_report(result, pdf_path, ml_summary):
+            if notifier.send_monthly_report(
+                result, pdf_path, ml_summary,
+                significance=result.get("significance"),
+                force_full=args.email_full,
+            ):
                 print(f"\n📧 E-posta gönderildi: {', '.join(notifier.recipients)}")
             else:
                 print("\n⚠️ E-posta gönderilemedi. Logs'a bak.")

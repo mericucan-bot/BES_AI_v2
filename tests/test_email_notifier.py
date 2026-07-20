@@ -107,3 +107,74 @@ class TestSendEmail:
 
         success = notifier.send_monthly_report({})
         assert success is False
+
+
+class TestSignificanceMode:
+    _RESULT = {
+        "status": "SUCCESS",
+        "regime": {"detected": "STABLE", "confidence": 0.8},
+        "portfolio_value": {"total_value": 100000},
+        "recommendation": {"actions": [
+            {"asset": "KTS", "action": "BUY", "diff_tl": 5000}
+        ]},
+    }
+
+    def _notifier(self):
+        return EmailNotifier(sender="t@gmail.com", password="p",
+                             recipients=["a@b.com"])
+
+    def _captured_msg(self, mock_smtp):
+        mock_server = MagicMock()
+        mock_smtp.return_value.__enter__ = MagicMock(return_value=mock_server)
+        mock_smtp.return_value.__exit__ = MagicMock(return_value=False)
+        return mock_server
+
+    @patch("src.email_notifier.smtplib.SMTP")
+    def test_quiet_sends_short_body(self, mock_smtp):
+        server = self._captured_msg(mock_smtp)
+        n = self._notifier()
+        ok = n.send_monthly_report(
+            self._RESULT, significance={"level": "quiet", "score": 0, "reasons": []},
+        )
+        assert ok is True
+        sent = server.send_message.call_args[0][0]
+        body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
+        assert "önemli bir gelişme yok" in body
+        assert "Bu Ay Yapılması Gerekenler" not in body
+        assert "Sakin ay" in sent["Subject"]
+
+    @patch("src.email_notifier.smtplib.SMTP")
+    def test_quiet_force_full_sends_full(self, mock_smtp):
+        server = self._captured_msg(mock_smtp)
+        n = self._notifier()
+        n.send_monthly_report(
+            self._RESULT, significance={"level": "quiet", "score": 0, "reasons": []},
+            force_full=True,
+        )
+        sent = server.send_message.call_args[0][0]
+        body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
+        assert "Bu Ay Yapılması Gerekenler" in body
+
+    @patch("src.email_notifier.smtplib.SMTP")
+    def test_action_shows_reasons_and_prefix(self, mock_smtp):
+        server = self._captured_msg(mock_smtp)
+        n = self._notifier()
+        n.send_monthly_report(
+            self._RESULT,
+            significance={"level": "action", "score": 80,
+                          "reasons": ["Kriz rejimi tespit edildi"]},
+        )
+        sent = server.send_message.call_args[0][0]
+        body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
+        assert "Bu ay önemli" in body
+        assert "Kriz rejimi tespit edildi" in body
+        assert sent["Subject"].startswith("⚠️")
+
+    @patch("src.email_notifier.smtplib.SMTP")
+    def test_no_significance_defaults_full(self, mock_smtp):
+        server = self._captured_msg(mock_smtp)
+        n = self._notifier()
+        n.send_monthly_report(self._RESULT)   # significance None -> tam rapor
+        sent = server.send_message.call_args[0][0]
+        body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
+        assert "Bu Ay Yapılması Gerekenler" in body

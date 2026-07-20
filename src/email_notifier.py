@@ -67,9 +67,15 @@ class EmailNotifier:
         pipeline_result: Optional[Dict] = None,
         pdf_path: Optional[str] = None,
         ml_summary: Optional[Dict] = None,
+        significance: Optional[Dict] = None,
+        force_full: bool = False,
     ) -> bool:
         """
         Aylık rapor e-postası gönder.
+
+        significance: {"score","level","reasons"} — level="quiet" ve force_full
+        False ise kısa "sakin ay" maili gönderilir (aksiyon tablosu/PDF olmadan).
+        Aksi halde tam rapor; notable/action'da nedenler en üste eklenir.
 
         Returns: True başarılı, False başarısız
         """
@@ -77,16 +83,22 @@ class EmailNotifier:
             logger.warning("E-posta yapılandırılmamış, gönderim atlandı")
             return False
 
+        level = (significance or {}).get("level", "action")
+        quiet = (level == "quiet") and not force_full
+
         try:
             msg = MIMEMultipart("alternative")
             msg["From"] = self.sender
             msg["To"] = ", ".join(self.recipients)
-            msg["Subject"] = self._build_subject(pipeline_result)
+            msg["Subject"] = self._build_subject(pipeline_result, significance, quiet)
 
-            html_body = self._build_html_body(pipeline_result, ml_summary)
+            if quiet:
+                html_body = self._build_quiet_body(pipeline_result)
+            else:
+                html_body = self._build_html_body(pipeline_result, ml_summary, significance)
             msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-            if pdf_path and Path(pdf_path).exists():
+            if not quiet and pdf_path and Path(pdf_path).exists():
                 with open(pdf_path, "rb") as f:
                     pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
                     pdf_filename = Path(pdf_path).name
@@ -119,8 +131,16 @@ class EmailNotifier:
             logger.error(f"E-posta gönderim hatası: {e}")
             return False
 
-    def _build_subject(self, pipeline_result: Optional[Dict]) -> str:
+    def _build_subject(
+        self,
+        pipeline_result: Optional[Dict],
+        significance: Optional[Dict] = None,
+        quiet: bool = False,
+    ) -> str:
         month = self._tr_month_year(datetime.now())
+
+        if quiet:
+            return f"✅ BES AI — {month} | Sakin ay, değişiklik önerisi yok"
 
         if pipeline_result and pipeline_result.get("status") == "SUCCESS":
             regime = pipeline_result.get("regime", {}).get("detected", "?")
@@ -132,14 +152,62 @@ class EmailNotifier:
             }
             regime_text = regime_labels.get(regime, regime)
             total = pipeline_result.get("portfolio_value", {}).get("total_value", 0)
-            return f"🛡️ BES AI Rapor — {month} | {regime_text} | {total:,.0f} TL"
+            level = (significance or {}).get("level")
+            prefix = {"action": "⚠️", "notable": "🔔"}.get(level, "🛡️")
+            return f"{prefix} BES AI Rapor — {month} | {regime_text} | {total:,.0f} TL"
 
         return f"🛡️ BES AI Aylık Rapor — {month}"
+
+    def _build_quiet_body(self, pipeline_result: Optional[Dict]) -> str:
+        """Sessiz ay için kısa gövde: header + 3 metrik + tek cümle."""
+        total = 0
+        regime_label = "Sakin Piyasa"
+        real_line = ""
+        if pipeline_result and pipeline_result.get("status") == "SUCCESS":
+            regime = pipeline_result.get("regime", {}).get("detected", "STABLE")
+            regime_label = {
+                "STABLE": "😌 Sakin Piyasa", "CRISIS": "🚨 Kriz Modu",
+                "RISK_ON": "🚀 Yükseliş", "RATE_HIKE": "🏦 Faiz Artışı",
+            }.get(regime, regime)
+            total = pipeline_result.get("portfolio_value", {}).get("total_value", 0)
+            real_pf = pipeline_result.get("real_portfolio")
+            if real_pf and real_pf.get("real_total_return") is not None:
+                real_line = f"""
+                <div class="metric">
+                    <div class="value">{real_pf['real_total_return']:+.1%}</div>
+                    <div class="label">Reel Getiri</div>
+                </div>"""
+        return f"""
+        <html><head><style>
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; line-height: 1.6; }}
+            .header {{ background: linear-gradient(135deg, #1e40af, #3b82f6); color: white;
+                      padding: 24px; border-radius: 12px; text-align: center; }}
+            .metric {{ display: inline-block; text-align: center; padding: 12px 20px;
+                      background: #f8fafc; border-radius: 8px; margin: 4px; min-width: 120px; }}
+            .metric .value {{ font-size: 22px; font-weight: 700; color: #1e40af; }}
+            .metric .label {{ font-size: 12px; color: #6b7280; text-transform: uppercase; }}
+            .footer {{ text-align: center; color: #9ca3af; font-size: 12px; margin-top: 24px; padding: 16px; }}
+        </style></head><body>
+        <div class="header"><h1>🛡️ BES Akıllı Fon Danışmanı</h1>
+        <p>Bu ay sakin — önemli bir gelişme yok</p></div>
+        <div style="text-align:center; margin:20px 0;">
+            <div class="metric"><div class="value">{total:,.0f} TL</div>
+                <div class="label">Portföy Değeri</div></div>
+            <div class="metric"><div class="value" style="font-size:16px;">{regime_label}</div>
+                <div class="label">Piyasa Durumu</div></div>{real_line}
+        </div>
+        <p style="text-align:center; color:#4b5563;">
+            Bu ay önemli bir gelişme yok; detaylar dashboard'da.</p>
+        <div class="footer"><p>BES Akıllı Fon Danışmanı v2.0 — {datetime.now().strftime('%d.%m.%Y')}</p>
+        <p>⚠️ Bu e-posta yatırım tavsiyesi niteliği taşımaz.</p></div>
+        </body></html>
+        """
 
     def _build_html_body(
         self,
         pipeline_result: Optional[Dict],
         ml_summary: Optional[Dict],
+        significance: Optional[Dict] = None,
     ) -> str:
         html = """
         <html>
@@ -173,6 +241,19 @@ class EmailNotifier:
             <p>Aylık Portföy Analiz Raporu</p>
         </div>
         """
+
+        # notable/action ise nedenleri en uste yaz
+        _reasons = (significance or {}).get("reasons") or []
+        _level = (significance or {}).get("level")
+        if _reasons and _level in ("notable", "action"):
+            _accent = "#ef4444" if _level == "action" else "#f59e0b"
+            _items = "".join(f"<li>{r}</li>" for r in _reasons)
+            html += f"""
+            <div class="section" style="border-left-color: {_accent};">
+                <h2>🔔 Bu ay önemli</h2>
+                <ul style="margin:0; padding-left:20px;">{_items}</ul>
+            </div>
+            """
 
         if pipeline_result and pipeline_result.get("status") == "SUCCESS":
             regime_obj = pipeline_result.get("regime", {})

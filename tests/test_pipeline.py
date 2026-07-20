@@ -61,6 +61,9 @@ class TestPipelineFirstRun:
         assert result["regime"]["detected"] == "STABLE"
         assert result["previous_evaluation"] is None
         assert "actions" in result["recommendation"]
+        # PLAN-14: onemlilik skoru her kosumda uretilir
+        assert result["significance"]["level"] in {"quiet", "notable", "action"}
+        assert 0 <= result["significance"]["score"] <= 100
 
     def test_snapshot_file_created(self, pipeline_dirs, mock_regime_result):
         pipeline = MonthlyPipeline(**pipeline_dirs)

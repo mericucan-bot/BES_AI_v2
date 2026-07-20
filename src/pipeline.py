@@ -489,6 +489,19 @@ class MonthlyPipeline:
             total_value=portfolio_value["total_value"],
         )
 
+        # 6e. Onemlilik skoru (bildirim yogunlugu icin)
+        from src.significance import compute_significance
+        significance = compute_significance(
+            regime_result=regime_result,
+            evaluation=evaluation,
+            class_weights=class_weights,
+            target_weights=target_weights,
+            cost_analysis=cost_analysis,
+        )
+        logger.info(
+            f"Onemlilik: {significance['score']}/100 ({significance['level']})"
+        )
+
         # 7. Ilk snapshot'tan bu yana reel toplam getiri
         first_snapshot = self._get_first_snapshot()
         cpi_yoy = regime_result.get("macro", {}).get("cpi_yoy")
@@ -523,6 +536,7 @@ class MonthlyPipeline:
             "recommendation_note": recommendation_note,
             "previous_evaluation": evaluation,
             "real_portfolio": real_portfolio,
+            "significance": significance,
         }
 
         # 9. Diske kaydet
