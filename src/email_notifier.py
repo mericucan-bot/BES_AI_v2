@@ -365,6 +365,12 @@ class EmailNotifier:
             </div>
             """
 
+        from src.data_health import check_data_health
+        _h = check_data_health()
+        if not _h["ok"]:
+            _witems = "".join(f"<li>{w}</li>" for w in _h["warnings"])
+            html += f'<div class="section" style="border-left-color:#9ca3af;"><h2 style="color:#6b7280;">⚙️ Veri Durumu</h2><ul>{_witems}</ul></div>'
+
         html += f"""
         <div class="footer">
             <p>BES Akıllı Fon Danışmanı v2.0 — {datetime.now().strftime('%d.%m.%Y')}</p>

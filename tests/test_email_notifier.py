@@ -178,3 +178,19 @@ class TestSignificanceMode:
         sent = server.send_message.call_args[0][0]
         body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
         assert "Bu Ay Yapılması Gerekenler" in body
+
+    @patch("src.data_health.check_data_health")
+    @patch("src.email_notifier.smtplib.SMTP")
+    def test_data_health_warning_in_body(self, mock_smtp, mock_health):
+        # PLAN-22: saglik sorunu varsa govdede "Veri Durumu" bloku
+        mock_health.return_value = {
+            "ok": False, "checks": [],
+            "warnings": ["⚠️ NAV verisi 20 gündür güncellenmedi"],
+        }
+        server = self._captured_msg(mock_smtp)
+        n = self._notifier()
+        n.send_monthly_report(self._RESULT)
+        sent = server.send_message.call_args[0][0]
+        body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
+        assert "Veri Durumu" in body
+        assert "NAV verisi 20 gündür" in body

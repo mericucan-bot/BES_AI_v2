@@ -142,6 +142,13 @@ def print_summary(result: dict) -> None:
               f"{first['total_value']:,.0f} → {last['total_value']:,.0f} TL "
               f"({ret:+.1%})")
 
+    from src.data_health import check_data_health
+    _health = check_data_health()
+    if not _health["ok"]:
+        print("\n⚠️ Veri Sağlık Uyarıları:")
+        for w in _health["warnings"]:
+            print(f"   - {w}")
+
     print("=" * 64)
     print()
 
