@@ -2402,14 +2402,21 @@ Aşağıdaki tablo farklı getiri senaryolarında gerçek (reel) kazancını gö
         from src.counterfactual import build_tracks
         return build_tracks()
 
+    @st.cache_data(ttl=1800)
+    def _get_personal_backtest():
+        from src.personal_backtest import run_personal_backtest
+        _h = st.session_state.get("portfolio", {})
+        if not _h:
+            return pd.DataFrame()
+        return run_personal_backtest(_h)
+
     try:
         _cf_df = _get_counterfactual_df()
     except Exception:
         _cf_df = pd.DataFrame()
 
-    if _cf_df.empty or len(_cf_df) < 2:
-        st.info("Karşılaştırma için en az 2 aylık snapshot gerekli — her ay otomatik birikir.")
-    else:
+    if not _cf_df.empty and len(_cf_df) >= 2:
+        # PLAN-15: snapshot karnesi doluysa mevcut davranis
         _cf_fig = go.Figure()
         _cf_fig.add_trace(go.Scatter(
             x=_cf_df["date"], y=_cf_df["actual_value"], name="Dokunmadın (gerçek)",
@@ -2445,6 +2452,51 @@ Aşağıdaki tablo farklı getiri senaryolarında gerçek (reel) kazancını gö
         )
         if _cf_df["basis"].astype(str).str.contains("flat").any():
             st.caption("⚠️ Bazı aylarda NAV verisi eksikti; o aylar nötr sayıldı.")
+    else:
+        # PLAN-17: snapshot yetersizse kisisel NAV backtest'i dene
+        try:
+            _pb_df = _get_personal_backtest()
+        except Exception:
+            _pb_df = pd.DataFrame()
+
+        if _pb_df is not None and not _pb_df.empty and len(_pb_df) >= 2:
+            _pb_fig = go.Figure()
+            _pb_fig.add_trace(go.Scatter(
+                x=_pb_df["date"], y=_pb_df["hold_value"],
+                name="Kendi fonlarını tuttun",
+                line=dict(color="#3b82f6", width=2.5),
+                hovertemplate="Tarih: %{x}<br>Değer: %{y:,.0f} TL<extra></extra>",
+            ))
+            _pb_fig.add_trace(go.Scatter(
+                x=_pb_df["date"], y=_pb_df["advised_value"],
+                name="Sistemi kullansaydın",
+                line=dict(color="#22c55e", width=2, dash="dash"),
+                hovertemplate="Tarih: %{x}<br>Değer: %{y:,.0f} TL<extra></extra>",
+            ))
+            _pb_fig.update_layout(
+                height=380, margin=dict(l=20, r=20, t=30, b=20),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                yaxis_title="Portföy Değeri (TL)", yaxis_tickformat=",",
+                hovermode="x unified",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(_pb_fig, use_container_width=True)
+
+            _pb_hold = _pb_df["hold_value"].iloc[-1]
+            _pb_adv = _pb_df["advised_value"].iloc[-1]
+            _pb_diff = _pb_adv - _pb_hold
+            _pb_pct = (_pb_adv / _pb_hold - 1) if _pb_hold else 0
+            _pbm1, _pbm2, _pbm3 = st.columns(3)
+            _pbm1.metric("Öneri Farkı", f"{_pb_diff:+,.0f} TL")
+            _pbm2.metric("Fark %", f"%{_pb_pct*100:+.1f}")
+            _pbm3.metric("Süre", f"{len(_pb_df)-1} ay")
+
+            st.caption(
+                "Gerçek NAV geçmişi üzerinde simülasyon; rejim her ay o güne kadarki veriyle "
+                "tespit edildi (look-ahead yok). Öneri serisine rebalans maliyeti dahildir."
+            )
+        else:
+            st.info("Karşılaştırma için en az 2 aylık snapshot gerekli — her ay otomatik birikir.")
 
     # === BACKTEST BÖLÜMÜ ===
     st.divider()
