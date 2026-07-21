@@ -1715,6 +1715,14 @@ with tab2:
             height=80,
         )
 
+        # PLAN-19: aylik BES katkisi (devlet katkisi optimizasyonu)
+        _existing_contrib = _active_data_t2.get("monthly_contribution_tl", 0) if _active_data_t2 else 0
+        _monthly_contrib = st.number_input(
+            "Aylık BES katkın (TL):", min_value=0, max_value=1_000_000,
+            value=int(_existing_contrib or 0), step=500, key="pf_monthly_contrib",
+            help="Devlet katkısı optimizasyonu için (opsiyonel)",
+        )
+
         # === KAYDET / SIFIRLA / DEMO ===
         st.divider()
         save_col1, save_col2, save_col3 = st.columns(3)
@@ -1722,7 +1730,11 @@ with tab2:
         with save_col1:
             if st.button("Kaydet", type="primary", key="save_portfolio"):
                 st.session_state.portfolio = updated_portfolio if updated_portfolio else st.session_state.portfolio
-                if _pm_t2.save_portfolio(active_slug, active_pf_name, st.session_state.portfolio, notes=_pf_notes):
+                if _pm_t2.save_portfolio(
+                    active_slug, active_pf_name, st.session_state.portfolio,
+                    notes=_pf_notes,
+                    monthly_contribution_tl=float(_monthly_contrib or 0),
+                ):
                     st.success(f"{active_pf_name} kaydedildi!")
                     st.cache_data.clear()
                     st.rerun()
@@ -1912,6 +1924,21 @@ with tab2:
             st.info(f"Risk profilin: **{_rp_display[_user_rp]}** — Öneriler buna göre kişiselleştirildi.")
         else:
             st.caption("Risk profilini belirleyerek kişiselleştirilmiş öneriler alabilirsin. ↑ Yukarıdaki anketi doldur.")
+
+        # PLAN-19: devlet katkisi tavan karti
+        from src.state_contribution import analyze_contribution
+        _contrib = analyze_contribution(st.session_state.get("pf_monthly_contrib") or None)
+        if _contrib["at_cap"]:
+            st.success(
+                f"✅ Devlet katkısı tavanındasın: yılda {_contrib['annual_match']:,.0f} TL bedava katkı."
+            )
+        else:
+            st.warning(
+                f"💰 Devlet katkısı fırsatı: şu an yılda {_contrib['annual_match']:,.0f} TL "
+                f"alıyorsun, tavan {_contrib['max_annual_match']:,.0f} TL. Ayda "
+                f"{_contrib['suggested_extra_monthly']:,.0f} TL daha koyarsan yılda "
+                f"{_contrib['match_gap']:,.0f} TL daha bedava katkı kazanırsın."
+            )
 
         if _unmapped_tl:
             _um_str = ", ".join(sorted(_unmapped_tl.keys()))

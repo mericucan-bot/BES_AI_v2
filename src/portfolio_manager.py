@@ -120,6 +120,7 @@ class PortfolioManager:
         name: str,
         holdings_tl: Dict[str, int],
         notes: str = "",
+        monthly_contribution_tl: float = 0,
     ) -> bool:
         """Portföy kaydet (yeni veya güncelleme)."""
         path = self.portfolios_dir / f"{slug}.json"
@@ -138,6 +139,7 @@ class PortfolioManager:
             "updated_at":  datetime.now().strftime("%Y-%m-%d %H:%M"),
             "notes":       notes if notes else existing.get("notes", ""),
             "holdings_tl": holdings_tl,
+            "monthly_contribution_tl": float(monthly_contribution_tl or 0),
         }
 
         try:

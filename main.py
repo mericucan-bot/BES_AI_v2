@@ -76,6 +76,21 @@ def print_summary(result: dict, narrative: Optional[str] = None) -> None:
         _reasons = "; ".join(sig.get("reasons", [])) or "sakin ay"
         print(f"Önemlilik    : {sig['score']}/100 ({sig['level']}) — {_reasons}")
 
+    sc = result.get("state_contribution")
+    if sc:
+        if sc.get("at_cap"):
+            print(
+                f"Devlet Katkısı: yılda {sc['annual_match']:,.0f} TL "
+                f"(tavan {sc['max_annual_match']:,.0f}) — tavandasın"
+            )
+        else:
+            print(
+                f"Devlet Katkısı: yılda {sc['annual_match']:,.0f} TL "
+                f"(tavan {sc['max_annual_match']:,.0f}) — "
+                f"ayda {sc['suggested_extra_monthly']:,.0f} TL daha koy, "
+                f"{sc['match_gap']:,.0f} TL kaçırıyorsun"
+            )
+
     if result.get("previous_evaluation"):
         ev = result["previous_evaluation"]
         status_map = {"WIN": "[WIN]", "LOSS": "[LOSS]", "NEUTRAL": "[NEUTRAL]"}

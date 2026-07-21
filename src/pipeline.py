@@ -502,6 +502,16 @@ class MonthlyPipeline:
             f"Onemlilik: {significance['score']}/100 ({significance['level']})"
         )
 
+        # 6f. Devlet katkisi durumu (BES %30 match / tavan)
+        from src.state_contribution import analyze_contribution
+        _monthly_contrib = portfolio.get("monthly_contribution_tl")
+        state_contribution = analyze_contribution(_monthly_contrib)
+        logger.info(
+            f"Devlet katkisi: yilda {state_contribution['annual_match']:,.0f} TL "
+            f"(tavan {state_contribution['max_annual_match']:,.0f}, "
+            f"at_cap={state_contribution['at_cap']})"
+        )
+
         # 7. Ilk snapshot'tan bu yana reel toplam getiri
         first_snapshot = self._get_first_snapshot()
         cpi_yoy = regime_result.get("macro", {}).get("cpi_yoy")
@@ -537,6 +547,7 @@ class MonthlyPipeline:
             "previous_evaluation": evaluation,
             "real_portfolio": real_portfolio,
             "significance": significance,
+            "state_contribution": state_contribution,
         }
 
         # 9. Diske kaydet

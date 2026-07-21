@@ -84,3 +84,16 @@ class TestPortfolioManager:
         assert pf2["created_at"] == created
         assert pf2["name"] == "Güncellendi"
         assert pf2["holdings_tl"]["A"] == 2000
+
+    def test_monthly_contribution_tl_saved(self, tmp_path):
+        """PLAN-19: monthly_contribution_tl kaydedilir; parametresiz cagri 0 yazar."""
+        pm = PortfolioManager(str(tmp_path / "portfolios"))
+        pm.save_portfolio("test", "Test", {"A": 1000}, monthly_contribution_tl=5000)
+        pf = pm.get_portfolio("test")
+        assert pf is not None
+        assert pf["monthly_contribution_tl"] == 5000
+
+        # Parametresiz cagri geriye uyumlu: 0 yazar
+        pm.save_portfolio("test", "Test", {"A": 1000})
+        pf2 = pm.get_portfolio("test")
+        assert pf2["monthly_contribution_tl"] == 0

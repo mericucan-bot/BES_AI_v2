@@ -268,6 +268,32 @@ class EmailNotifier:
             </div>
             """
 
+        # PLAN-19: devlet katkisi tavan durumu (narrative/significance sonrasi)
+        _sc = (pipeline_result or {}).get("state_contribution") if pipeline_result else None
+        if _sc:
+            if _sc.get("at_cap"):
+                html += f"""
+                <div class="section" style="border-left-color: #16a34a;">
+                    <h2>🏛️ Devlet Katkısı</h2>
+                    <p style="margin:0; color:#166534;">
+                        ✅ Tavanındasın: yılda {_sc['annual_match']:,.0f} TL bedava katkı
+                        (tavan {_sc['max_annual_match']:,.0f} TL).
+                    </p>
+                </div>
+                """
+            else:
+                html += f"""
+                <div class="section" style="border-left-color: #f59e0b;">
+                    <h2>🏛️ Devlet Katkısı</h2>
+                    <p style="margin:0; color:#92400e;">
+                        💰 Ayda {_sc['suggested_extra_monthly']:,.0f} TL daha koy →
+                        yılda {_sc['match_gap']:,.0f} TL daha bedava katkı.
+                        Şu an yılda {_sc['annual_match']:,.0f} TL
+                        (tavan {_sc['max_annual_match']:,.0f} TL).
+                    </p>
+                </div>
+                """
+
         if pipeline_result and pipeline_result.get("status") == "SUCCESS":
             regime_obj = pipeline_result.get("regime", {})
             detected   = regime_obj.get("detected", "?")

@@ -64,6 +64,11 @@ class TestPipelineFirstRun:
         # PLAN-14: onemlilik skoru her kosumda uretilir
         assert result["significance"]["level"] in {"quiet", "notable", "action"}
         assert 0 <= result["significance"]["score"] <= 100
+        # PLAN-19: devlet katkisi snapshot'a yazilir
+        assert "state_contribution" in result
+        assert isinstance(result["state_contribution"]["at_cap"], bool)
+        assert "max_annual_match" in result["state_contribution"]
+        assert "annual_match" in result["state_contribution"]
 
     def test_snapshot_file_created(self, pipeline_dirs, mock_regime_result):
         pipeline = MonthlyPipeline(**pipeline_dirs)
