@@ -253,6 +253,8 @@ Ornekler:
                         help="Aylik PDF rapor uret")
     parser.add_argument("--narrative", action="store_true",
                         help="Rapora LLM anlati ozeti ekle (ANTHROPIC_API_KEY gerekir; yoksa sablon)")
+    parser.add_argument("--no-telegram", action="store_true",
+                        help="Telegram uyarisi gonderme (varsayilan: yapilandirilmissa gonder)")
     args = parser.parse_args()
 
     if args.quiet:
@@ -452,6 +454,16 @@ Ornekler:
         # E-posta: tum portfoyleri tek mailde
         if args.email:
             _send_combined_email(all_results, args, logger)
+        # PLAN-23: Telegram birlesik uyari (e-postadan bagimsiz)
+        if not args.no_telegram:
+            try:
+                from src.telegram_notifier import TelegramNotifier, build_multi_message
+                _tg_msg = build_multi_message(all_results)
+                if _tg_msg and TelegramNotifier().send(_tg_msg):
+                    if not args.json:
+                        print("\n📱 Telegram uyarısı gönderildi")
+            except Exception as e:
+                logger.warning(f"Telegram hatasi: {e}")
         sys.exit(0 if ok == len(all_results) and all_results else 1)
 
     try:
@@ -540,6 +552,17 @@ Ornekler:
                 print("\n⚠️ E-posta gönderilemedi. Logs'a bak.")
         except Exception as e:
             logger.error(f"E-posta hatası: {e}")
+
+    # PLAN-23: Telegram uyari (e-postadan bagimsiz; yalniz SUCCESS)
+    if result.get("status") == "SUCCESS" and not args.no_telegram:
+        try:
+            from src.telegram_notifier import TelegramNotifier, build_alert_message
+            _tg_msg = build_alert_message(result)
+            if _tg_msg and TelegramNotifier().send(_tg_msg):
+                if not args.json:
+                    print("\n📱 Telegram uyarısı gönderildi")
+        except Exception as e:
+            logger.warning(f"Telegram hatasi: {e}")
 
     sys.exit(0 if result.get("status") == "SUCCESS" else 1)
 

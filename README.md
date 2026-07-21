@@ -44,6 +44,10 @@ python3 -c "from evdspy import save_apikey; save_apikey('your_key')"
 
 Streamlit Cloud için `.streamlit/secrets.toml.example` dosyasına bakın.
 
+**Telegram uyarıları (opsiyonel):** `.env` içine `TELEGRAM_BOT_TOKEN` ve
+`TELEGRAM_CHAT_ID` ekle (BotFather + bota `/start`). Önemli aylarda (notable/action)
+pipeline otomatik kısa uyarı gönderir; kapatmak için `--no-telegram`.
+
 ## Çalıştırma
 
 ```bash
