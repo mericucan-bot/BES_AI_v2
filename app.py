@@ -2044,6 +2044,24 @@ Kendi durumunuza göre değerlendirin.
 # TAB 3 — Geçmiş Performans
 # ══════════════════════════════════════════════════════
 with tab3:
+    # === BU AY ÖZET (ucuz sablon anlati, LLM'siz) ===
+    try:
+        from src.narrative import _template_summary as _tpl_summary
+        _pf_hist = st.session_state.get("portfolio", {})
+        _last_snap = sorted(Path("data/history").glob("*_snapshot.json"))
+        if _last_snap:
+            _snap_data = json.loads(_last_snap[-1].read_text(encoding="utf-8"))
+            _narr_txt = _tpl_summary(_snap_data)
+            st.markdown(f"""
+<div class="info-box info-box-blue">
+    <p><strong>📝 Bu Ay Özet:</strong> {_narr_txt}</p>
+    <p style="font-size:0.8rem; opacity:0.7; margin-top:6px;">
+        Detaylı AI yorumu için aylık e-postaya bak.</p>
+</div>
+""", unsafe_allow_html=True)
+    except Exception:
+        pass
+
     # === SAYFA AÇIKLAMASI ===
     st.markdown("""
     <div class="info-box info-box-yellow">

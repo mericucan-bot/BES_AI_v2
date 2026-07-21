@@ -3,6 +3,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -37,7 +38,7 @@ def _format_candidate_funds(candidates: list) -> str:
     return " · ".join(parts)
 
 
-def print_summary(result: dict) -> None:
+def print_summary(result: dict, narrative: Optional[str] = None) -> None:
     """Insan-okunabilir ozet (stdout'a)."""
     if result.get("status") != "SUCCESS":
         print(f"\nHATA: {result.get('message', 'Bilinmeyen hata')}\n")
@@ -52,6 +53,11 @@ def print_summary(result: dict) -> None:
     print("=" * 64)
     print("BES AI - Aylik Analiz Raporu")
     print("=" * 64)
+    if narrative:
+        print("Özet         :")
+        for _line in narrative.splitlines():
+            print(f"   {_line}")
+        print("-" * 64)
     print(f"Tarih        : {result['run_date'][:10]}")
     print(f"Toplam Deger : {pv['total_value']:>14,.2f} TL")
     print(f"Rejim        : {rg['detected']} (guven: {rg['confidence']:.1%})")
@@ -188,6 +194,8 @@ Ornekler:
                         help="Test e-postası gönder (yapılandırma kontrolü)")
     parser.add_argument("--report", action="store_true",
                         help="Aylik PDF rapor uret")
+    parser.add_argument("--narrative", action="store_true",
+                        help="Rapora LLM anlati ozeti ekle (ANTHROPIC_API_KEY gerekir; yoksa sablon)")
     args = parser.parse_args()
 
     if args.quiet:
@@ -379,12 +387,26 @@ Ornekler:
         logger.exception(f"Pipeline beklenmedik hata: {e}")
         result = {"status": "ERROR", "message": f"Beklenmedik hata: {e}"}
 
+    # LLM/sablon anlati ozeti (yalniz --narrative veya --email istenirse uret)
+    _narrative = None
+    if (args.narrative or args.email) and result.get("status") == "SUCCESS":
+        try:
+            from src.narrative import generate_narrative
+            _ml_for_narr = None
+            _ml_p = Path("data/ml/latest_run_summary.json")
+            if _ml_p.exists():
+                with open(_ml_p) as _f:
+                    _ml_for_narr = json.load(_f)
+            _narrative = generate_narrative(result, _ml_for_narr)
+        except Exception as e:
+            logger.warning(f"Anlati uretilemedi: {e}")
+
     if args.json:
         # stdout'a sadece JSON
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     elif not args.quiet:
         # Normal mod: insan-okunabilir ozet
-        print_summary(result)
+        print_summary(result, narrative=_narrative)
     # quiet modda: hicbir sey basma, sadece log dosyasina yazildi
 
     # PDF rapor
@@ -437,6 +459,7 @@ Ornekler:
                 result, pdf_path, ml_summary,
                 significance=result.get("significance"),
                 force_full=args.email_full,
+                narrative=_narrative,
             ):
                 print(f"\n📧 E-posta gönderildi: {', '.join(notifier.recipients)}")
             else:

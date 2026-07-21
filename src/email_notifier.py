@@ -69,6 +69,7 @@ class EmailNotifier:
         ml_summary: Optional[Dict] = None,
         significance: Optional[Dict] = None,
         force_full: bool = False,
+        narrative: Optional[str] = None,
     ) -> bool:
         """
         Aylık rapor e-postası gönder.
@@ -95,7 +96,8 @@ class EmailNotifier:
             if quiet:
                 html_body = self._build_quiet_body(pipeline_result)
             else:
-                html_body = self._build_html_body(pipeline_result, ml_summary, significance)
+                html_body = self._build_html_body(
+                    pipeline_result, ml_summary, significance, narrative=narrative)
             msg.attach(MIMEText(html_body, "html", "utf-8"))
 
             if not quiet and pdf_path and Path(pdf_path).exists():
@@ -208,6 +210,7 @@ class EmailNotifier:
         pipeline_result: Optional[Dict],
         ml_summary: Optional[Dict],
         significance: Optional[Dict] = None,
+        narrative: Optional[str] = None,
     ) -> str:
         html = """
         <html>
@@ -241,6 +244,16 @@ class EmailNotifier:
             <p>Aylık Portföy Analiz Raporu</p>
         </div>
         """
+
+        # LLM/sablon anlati ozeti — header'in hemen altinda
+        if narrative:
+            _narr_html = narrative.replace("\n", "<br>")
+            html += f"""
+            <div class="section" style="border-left-color: #7c3aed;">
+                <h2>📝 Bu Ay Özet</h2>
+                <p style="margin:0; color:#374151;">{_narr_html}</p>
+            </div>
+            """
 
         # notable/action ise nedenleri en uste yaz
         _reasons = (significance or {}).get("reasons") or []

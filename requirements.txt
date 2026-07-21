@@ -20,3 +20,6 @@ joblib>=1.5.0
 evdspy>=1.2
 # shap: feature importance icin opsiyonel — buyuk bagimlilik, istege bagli:
 # shap>=0.49
+# anthropic: LLM anlati ozeti (PLAN-21) icin opsiyonel — ANTHROPIC_API_KEY ile;
+# yoksa deterministik sablon ozete duser (pip install anthropic):
+# anthropic>=0.40
