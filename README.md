@@ -69,6 +69,9 @@ python main.py --backtest --bt-start 2024-06-01 --bt-end 2026-06-01
 # PDF rapor
 python main.py --report
 
+# Kişisel veri zip yedeği (data/backups; BES_BACKUP_DIR=iCloud/Drive yolu verilebilir)
+python main.py --backup
+
 # Gerçek tarihsel günlük NAV'ı çek/güncelle (backtest verisi)
 python -c "from src.data_collector import TEFASCollector; TEFASCollector().update_nav_history()"
 ```

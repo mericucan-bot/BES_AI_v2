@@ -31,5 +31,8 @@ ML_EXIT=$?
 # 3. Backtest güncelle ve öğren
 $VENV main.py --backtest --learn-from-backtest --bt-start 2024-06-01 --bt-end "$(date +%Y-%m-01)" --quiet 2>> "$LOG"
 
+# 4. Kisisel veri yedegi (BES_BACKUP_DIR tanimliysa oraya, yoksa data/backups)
+$VENV main.py --backup >> "$LOG" 2>&1
+
 echo "$(date): Pipeline=$PIPELINE_EXIT, ML=$ML_EXIT" >> "$LOG"
 echo "========================================" >> "$LOG"

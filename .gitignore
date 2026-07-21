@@ -16,6 +16,9 @@ data/tefas_cache/
 data/ml/*
 !data/ml/latest_run_summary.json
 
+# Kisisel veri zip yedekleri (PLAN-24)
+data/backups/
+
 # ML model dosyalari (buyuk binary)
 *.pkl
 

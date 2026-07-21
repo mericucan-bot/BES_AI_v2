@@ -849,6 +849,19 @@ with st.sidebar:
 </div>
 """, unsafe_allow_html=True)
 
+    # PLAN-24: veri saglik / aylik kosum bekcisi (yalniz sorun varsa)
+    try:
+        from src.data_health import check_data_health
+        @st.cache_data(ttl=3600)
+        def _get_health():
+            return check_data_health()
+        _hh = _get_health()
+        if not _hh["ok"]:
+            st.warning("⚙️ " + _hh["warnings"][0] +
+                       (f" (+{len(_hh['warnings'])-1} uyarı)" if len(_hh["warnings"]) > 1 else ""))
+    except Exception:
+        pass
+
     # Fon verisi güncelle butonu
     if _tc_sb:
         if st.button("↻  Fon Verilerini Güncelle", key="force_cache_refresh", use_container_width=True):

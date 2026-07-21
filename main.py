@@ -255,6 +255,8 @@ Ornekler:
                         help="Rapora LLM anlati ozeti ekle (ANTHROPIC_API_KEY gerekir; yoksa sablon)")
     parser.add_argument("--no-telegram", action="store_true",
                         help="Telegram uyarisi gonderme (varsayilan: yapilandirilmissa gonder)")
+    parser.add_argument("--backup", action="store_true",
+                        help="Kisisel veriyi zip yedekle ve cik (data/backups veya BES_BACKUP_DIR)")
     args = parser.parse_args()
 
     if args.quiet:
@@ -273,6 +275,13 @@ Ornekler:
 
     logger = get_logger(__name__)
     logger.info(f"main.py basladi (verbose={args.verbose}, json={args.json})")
+
+    # PLAN-24: yalniz yedek alip cik (ml_train/backtest'ten once)
+    if args.backup:
+        from src.backup import backup_personal_data
+        p = backup_personal_data()
+        print(f"Yedek: {p}" if p else "Yedek alınamadı")
+        sys.exit(0 if p else 1)
 
     if args.ml_train:
         from src.ml_pipeline import MLPipeline

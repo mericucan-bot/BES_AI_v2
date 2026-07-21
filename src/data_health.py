@@ -16,6 +16,7 @@ class HealthThresholds:
     snapshot_stale_days: int = 45   # son tefas snapshot
     macro_stale_days: int = 3       # makro cache
     ml_stale_days: int = 45         # ml ozeti
+    monthly_run_stale_days: int = 40  # aylik pipeline kosumu
 
 
 def _age_days(dt: datetime, now: Optional[datetime] = None) -> int:
@@ -199,10 +200,79 @@ def _check_ml_summary(ml_dir: str, max_age_days: int) -> Dict:
         }
 
 
+def _check_monthly_run(history_dir: str, max_age_days: int) -> Dict:
+    """history_dir altindaki en guncel *_snapshot.json (slug alt dizinleri dahil)."""
+    name = "monthly_run"
+    try:
+        pattern = os.path.join(history_dir, "**", "*_snapshot.json")
+        files = glob.glob(pattern, recursive=True)
+        if not files:
+            return {
+                "name": name, "status": "missing",
+                "detail": "⚠️ Hiç aylık koşum snapshot'ı yok",
+                "age_days": None,
+            }
+
+        newest: Optional[datetime] = None
+        for fp in files:
+            dt = None
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+                run_date = payload.get("run_date")
+                if run_date:
+                    raw = str(run_date)
+                    if raw.endswith("Z"):
+                        raw = raw[:-1] + "+00:00"
+                    dt = datetime.fromisoformat(raw)
+                    if dt.tzinfo is not None:
+                        dt = dt.replace(tzinfo=None)
+            except Exception:
+                dt = None
+            if dt is None:
+                try:
+                    dt = datetime.fromtimestamp(os.path.getmtime(fp))
+                except Exception:
+                    dt = None
+            if dt is not None and (newest is None or dt > newest):
+                newest = dt
+
+        if newest is None:
+            return {
+                "name": name, "status": "missing",
+                "detail": "⚠️ Hiç aylık koşum snapshot'ı yok",
+                "age_days": None,
+            }
+
+        age = _age_days(newest)
+        if age > max_age_days:
+            return {
+                "name": name, "status": "stale",
+                "detail": (
+                    f"⚠️ Aylık koşum {age} gündür çalışmamış görünüyor "
+                    f"(launchd/cron'u kontrol et)"
+                ),
+                "age_days": age,
+            }
+        return {
+            "name": name, "status": "ok",
+            "detail": f"Aylık koşum {age} gün önce çalıştı",
+            "age_days": age,
+        }
+    except Exception as e:
+        logger.warning(f"monthly_run saglik kontrolu hatasi: {e}")
+        return {
+            "name": name, "status": "missing",
+            "detail": "⚠️ Aylık koşum kontrol edilemedi",
+            "age_days": None,
+        }
+
+
 def check_data_health(
     cache_dir: str = "data/tefas_cache",
     macro_dir: str = "data/cache",
     ml_dir: str = "data/ml",
+    history_dir: str = "data/history",
     thresholds: Optional[HealthThresholds] = None,
 ) -> Dict:
     """
@@ -222,6 +292,7 @@ def check_data_health(
         ("tefas_snapshot", _check_tefas_snapshot, cache_dir, th.snapshot_stale_days),
         ("macro_cache", _check_macro_cache, macro_dir, th.macro_stale_days),
         ("ml_summary", _check_ml_summary, ml_dir, th.ml_stale_days),
+        ("monthly_run", _check_monthly_run, history_dir, th.monthly_run_stale_days),
     )
     for fallback_name, check_fn, arg_dir, max_age in _checklist:
         try:
