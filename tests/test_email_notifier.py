@@ -194,3 +194,60 @@ class TestSignificanceMode:
         body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
         assert "Veri Durumu" in body
         assert "NAV verisi 20 gündür" in body
+
+
+class TestMultiPortfolioEmail:
+    """PLAN-18: birlesik coklu-portfoy e-postasi."""
+
+    def _all_results(self):
+        return [
+            {
+                "slug": "meric",
+                "name": "Meric Portfoy",
+                "result": {
+                    "status": "SUCCESS",
+                    "regime": {"detected": "STABLE", "confidence": 0.8},
+                    "portfolio_value": {"total_value": 150000},
+                    "recommendation": {"actions": [
+                        {"asset": "KTS", "action": "BUY", "diff_tl": 5000},
+                    ]},
+                    "significance": {"level": "action", "score": 70, "reasons": []},
+                },
+            },
+            {
+                "slug": "annem_1",
+                "name": "Annem 1",
+                "result": {
+                    "status": "SUCCESS",
+                    "regime": {"detected": "RISK_ON", "confidence": 0.6},
+                    "portfolio_value": {"total_value": 80000},
+                    "recommendation": {"actions": []},
+                    "significance": {"level": "quiet", "score": 10, "reasons": []},
+                },
+            },
+        ]
+
+    def test_not_configured_returns_false(self):
+        n = EmailNotifier()
+        assert n.send_multi_portfolio_report(self._all_results()) is False
+
+    @patch("src.email_notifier.smtplib.SMTP")
+    def test_sends_both_names_and_count_in_subject(self, mock_smtp):
+        mock_server = MagicMock()
+        mock_smtp.return_value.__enter__ = MagicMock(return_value=mock_server)
+        mock_smtp.return_value.__exit__ = MagicMock(return_value=False)
+
+        n = EmailNotifier(
+            sender="test@gmail.com",
+            password="testpass",
+            recipients=["alici@email.com"],
+        )
+        ok = n.send_multi_portfolio_report(self._all_results())
+        assert ok is True
+
+        sent = mock_server.send_message.call_args[0][0]
+        assert "2 portföy" in sent["Subject"]
+        body = sent.get_payload()[0].get_payload(decode=True).decode("utf-8")
+        assert "Meric Portfoy" in body
+        assert "Annem 1" in body
+        assert "150,000" in body or "150.000" in body

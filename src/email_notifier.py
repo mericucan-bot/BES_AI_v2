@@ -205,17 +205,10 @@ class EmailNotifier:
         </body></html>
         """
 
-    def _build_html_body(
-        self,
-        pipeline_result: Optional[Dict],
-        ml_summary: Optional[Dict],
-        significance: Optional[Dict] = None,
-        narrative: Optional[str] = None,
-    ) -> str:
-        html = """
-        <html>
-        <head>
-            <style>
+    @staticmethod
+    def _email_styles() -> str:
+        """Ortak CSS — tek-portfoy ve coklu-portfoy HTML govdeleri."""
+        return """
                 body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; line-height: 1.6; }
                 .header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white;
                           padding: 24px; border-radius: 12px; text-align: center; }
@@ -236,6 +229,122 @@ class EmailNotifier:
                 th { background: #1e40af; color: white; padding: 10px; text-align: left; }
                 td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
                 tr:nth-child(even) { background: #f8fafc; }
+        """
+
+    def send_multi_portfolio_report(self, all_results: List[Dict]) -> bool:
+        """Birden fazla portfoy sonucunu tek e-postada ozetle (PLAN-18)."""
+        if not self.is_configured:
+            logger.warning("E-posta yapılandırılmamış, birleşik gönderim atlandı")
+            return False
+
+        n = len(all_results or [])
+        month = self._tr_month_year(datetime.now())
+        subject = f"🛡️ BES AI — {month} | {n} portföy"
+
+        regime_labels = {
+            "STABLE": "Sakin Piyasa",
+            "CRISIS": "Kriz Modu",
+            "RISK_ON": "Yükseliş",
+            "RATE_HIKE": "Faiz Artışı",
+        }
+
+        cards = []
+        for item in all_results or []:
+            name = item.get("name") or item.get("slug") or "?"
+            result = item.get("result") or {}
+            status = result.get("status", "ERROR")
+            if status != "SUCCESS":
+                cards.append(f"""
+                <div class="section" style="border-left-color: #dc2626;">
+                    <h2>📁 {name}</h2>
+                    <p style="margin:0; color:#991b1b;">
+                        HATA: {result.get('message', 'bilinmeyen hata')}
+                    </p>
+                </div>
+                """)
+                continue
+
+            total = result.get("portfolio_value", {}).get("total_value", 0)
+            detected = result.get("regime", {}).get("detected", "?")
+            regime_text = regime_labels.get(detected, detected)
+            actions = result.get("recommendation", {}).get("actions") or []
+            n_action = sum(1 for a in actions if a.get("action") in ("BUY", "SELL"))
+            sig_level = (result.get("significance") or {}).get("level")
+            sig_line = f" · önemlilik: {sig_level}" if sig_level else ""
+
+            cards.append(f"""
+            <div class="section">
+                <h2>📁 {name}</h2>
+                <div class="metric">
+                    <div class="value">{total:,.0f} TL</div>
+                    <div class="label">Portföy Değeri</div>
+                </div>
+                <div class="metric">
+                    <div class="value" style="font-size:16px;">{regime_text}</div>
+                    <div class="label">Rejim</div>
+                </div>
+                <div class="metric">
+                    <div class="value">{n_action}</div>
+                    <div class="label">Aksiyon (AL/SAT)</div>
+                </div>
+                <p style="margin:8px 0 0; font-size:13px; color:#6b7280;">
+                    {status}{sig_line}
+                </p>
+            </div>
+            """)
+
+        html = f"""
+        <html>
+        <head><style>{self._email_styles()}</style></head>
+        <body>
+        <div class="header">
+            <h1>🛡️ BES Akıllı Fon Danışmanı</h1>
+            <p>{n} portföy — {month} özeti</p>
+        </div>
+        {"".join(cards)}
+        <div class="footer">
+            <p>BES Akıllı Fon Danışmanı v2.0 — {datetime.now().strftime('%d.%m.%Y')}</p>
+            <p>⚠️ Bu e-posta yatırım tavsiyesi niteliği taşımaz.</p>
+        </div>
+        </body></html>
+        """
+
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["From"] = self.sender
+            msg["To"] = ", ".join(self.recipients)
+            msg["Subject"] = subject
+            msg.attach(MIMEText(html, "html", "utf-8"))
+
+            with smtplib.SMTP(self.SMTP_SERVER, self.SMTP_PORT, timeout=30) as server:
+                server.starttls()
+                server.login(self.sender, self.password)
+                server.send_message(msg)
+
+            logger.info(f"Birleşik e-posta gönderildi ({n} portföy): {', '.join(self.recipients)}")
+            return True
+        except smtplib.SMTPAuthenticationError:
+            logger.error("Gmail kimlik doğrulama hatası (birleşik e-posta)")
+            return False
+        except smtplib.SMTPException as e:
+            logger.error(f"SMTP hatası (birleşik e-posta): {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Birleşik e-posta gönderim hatası: {e}")
+            return False
+
+    def _build_html_body(
+        self,
+        pipeline_result: Optional[Dict],
+        ml_summary: Optional[Dict],
+        significance: Optional[Dict] = None,
+        narrative: Optional[str] = None,
+    ) -> str:
+        html = f"""
+        <html>
+        <head>
+            <style>
+                {self._email_styles()}
             </style>
         </head>
         <body>

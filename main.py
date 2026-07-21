@@ -174,6 +174,45 @@ def print_summary(result: dict, narrative: Optional[str] = None) -> None:
     print()
 
 
+def run_all_portfolios(args, logger):
+    """Tum portfoyleri sirayla kosar. Returns: [{slug, name, result}, ...]."""
+    from src.portfolio_manager import PortfolioManager
+    from src.pipeline import MonthlyPipeline
+    pm = PortfolioManager()
+    portfolios = pm.list_portfolios()
+    if not portfolios:
+        logger.error("Hicbir portfoy bulunamadi (data/portfolios/)")
+        return []
+    results = []
+    for p in portfolios:
+        slug = p["slug"]
+        pf_path = f"data/portfolios/{slug}.json"
+        logger.info(f"=== Portfoy: {p['name']} ({slug}) ===")
+        try:
+            pipeline = MonthlyPipeline(
+                portfolio_path=pf_path,
+                history_dir=f"data/history/{slug}",
+                learning_path=f"data/history/{slug}/learning_history.json",
+            )
+            result = pipeline.run()
+        except Exception as e:
+            logger.exception(f"Portfoy hatasi ({slug}): {e}")
+            result = {"status": "ERROR", "message": str(e)}
+        results.append({"slug": slug, "name": p["name"], "result": result})
+    return results
+
+
+def _send_combined_email(all_results, args, logger):
+    try:
+        from src.email_notifier import EmailNotifier
+        notifier = EmailNotifier()
+        ok = notifier.send_multi_portfolio_report(all_results)
+        if ok:
+            print(f"\n📧 Birlesik e-posta gonderildi: {', '.join(notifier.recipients)}")
+    except Exception as e:
+        logger.error(f"Birlesik e-posta hatasi: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="BES AI Aylik Pipeline - Otomatik portfoy analizi",
@@ -185,12 +224,15 @@ Ornekler:
   python main.py --quiet             # Sadece hata goster
   python main.py --json > rapor.json # JSON ciktisi dosyaya
   python main.py --portfolio data/test.json
+  python main.py --all-portfolios    # Tum portfoyleri kos
         """,
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="DEBUG seviyesi log")
     parser.add_argument("--quiet",   "-q", action="store_true", help="Sadece WARNING+ log")
     parser.add_argument("--json",          action="store_true", help="Sadece JSON ciktisi")
     parser.add_argument("--portfolio", default="data/my_portfolio.json", help="Portfoy JSON yolu")
+    parser.add_argument("--all-portfolios", action="store_true",
+                        help="data/portfolios/ altindaki TUM portfoyleri sirayla kosar")
     parser.add_argument("--backtest",      action="store_true", help="Walk-forward backtest calistir")
     parser.add_argument("--bt-start", default="2024-01-01", help="Backtest baslangic (YYYY-MM-DD)")
     parser.add_argument("--bt-end",   default=None, help="Backtest bitis (YYYY-MM-DD, varsayilan: icinde bulunulan ayin 1'i)")
@@ -394,6 +436,23 @@ Ornekler:
             logger.warning(f"nav_history güncelleme hatası: {_e2}")
     except Exception as _e:
         logger.warning(f"TEFAS cache kontrol hatası: {_e}")
+
+    # PLAN-18: tum portfoyleri sirayla kos (tek-portfoy yolundan once)
+    if args.all_portfolios:
+        all_results = run_all_portfolios(args, logger)
+        ok = sum(1 for r in all_results if r["result"].get("status") == "SUCCESS")
+        if args.json:
+            print(json.dumps(
+                [{"slug": r["slug"], "name": r["name"], "result": r["result"]}
+                 for r in all_results], ensure_ascii=False, indent=2, default=str))
+        elif not args.quiet:
+            for r in all_results:
+                print(f"\n{'#'*64}\n# {r['name']} ({r['slug']})\n{'#'*64}")
+                print_summary(r["result"])
+        # E-posta: tum portfoyleri tek mailde
+        if args.email:
+            _send_combined_email(all_results, args, logger)
+        sys.exit(0 if ok == len(all_results) and all_results else 1)
 
     try:
         pipeline = MonthlyPipeline(portfolio_path=args.portfolio)

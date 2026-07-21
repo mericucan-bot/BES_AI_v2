@@ -19,8 +19,9 @@ echo "========================================" >> "$LOG"
 echo "$(date): TEFAS cache güncelleniyor..." >> "$LOG"
 $VENV -c "from src.data_collector import TEFASCollector; r=TEFASCollector().auto_refresh_cache(max_age_days=0); print('Cache güncellendi' if r else 'Cache güncel')" >> "$LOG" 2>&1
 
-# 1. Aylık portföy analizi + PDF rapor + e-posta
-$VENV main.py --quiet --report --email 2>> "$LOG"
+# 1. Tum portfoyleri sirayla kos + birlesik e-posta
+# Not: birlesik PDF kapsam disi (PLAN-18); tek-portfoy PDF icin --report ayri kullan.
+$VENV main.py --all-portfolios --quiet --email 2>> "$LOG"
 PIPELINE_EXIT=$?
 
 # 2. ML model yeniden eğitimi (TEFAS cache güncelle + eğit)
