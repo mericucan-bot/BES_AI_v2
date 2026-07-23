@@ -553,6 +553,43 @@ def _cand_metric(c: dict, with_label: bool = False) -> str:
     return ""
 
 
+# --- ORTAK: "tek bakis" durum seridi (tum sekmelerde ayni gorunum) ---
+def status_band(items):
+    """Sekme ustune kompakt durum seridi cizer.
+
+    items: [{"k": ust-etiket, "v": buyuk-deger, "s": alt-not, "tone": ton}, ...]
+    tone: "normal" | "alert" (kirmizi) | "warn" (sari) | "good" (yesil)
+    Kayboolmayi onler: nerede olursan ol ozeti tek satirda gorursun.
+    """
+    _light = st.session_state.get("theme") == "light"
+    _tones = {
+        "normal": ("rgba(197,162,62,0.18)", "rgba(26,92,46,0.10)", None),
+        "alert":  ("rgba(248,113,113,0.40)", "rgba(248,113,113,0.07)", "#f87171"),
+        "warn":   ("rgba(234,179,8,0.35)",   "rgba(234,179,8,0.06)",   "#eab308"),
+        "good":   ("rgba(74,222,128,0.35)",  "rgba(26,92,46,0.12)",    "#4ade80"),
+    }
+    _txt = "#0d2e16" if _light else "#e8e8e8"
+    _dim = "rgba(13,46,22,0.55)" if _light else "rgba(232,232,232,0.55)"
+    _dimmer = "rgba(13,46,22,0.40)" if _light else "rgba(232,232,232,0.35)"
+    _chips = ""
+    for it in items:
+        bd, bg, vc = _tones.get(it.get("tone", "normal"), _tones["normal"])
+        _vcol = vc or _txt
+        _chips += (
+            f'<div style="flex:1;min-width:150px;background:{bg};border:1px solid {bd};'
+            f'border-radius:12px;padding:11px 14px;">'
+            f'<div style="font-size:0.6rem;letter-spacing:0.7px;text-transform:uppercase;'
+            f'color:{_dimmer};margin-bottom:5px;">{it["k"]}</div>'
+            f'<div style="font-size:1.2rem;font-weight:700;color:{_vcol};line-height:1.15;">{it["v"]}</div>'
+            f'<div style="font-size:0.7rem;color:{_dim};margin-top:2px;">{it.get("s","")}</div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;">{_chips}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 result = get_market_analysis()
 regime = result["detected"]
 metrics = result["metrics"]
@@ -1096,6 +1133,25 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     regime_info = explain_regime(regime)
     macro = result.get("macro", {})
+
+    # === TEK BAKIŞ DURUM ŞERİDİ ===
+    _t1_conf = result.get("confidence", 0)
+    _t1_dd = metrics.get("dd", 0) * 100
+    _t1_cpi = macro.get("cpi_yoy")
+    _t1_rate = macro.get("current_policy_rate")
+    _t1_anom = [a for a in result.get("anomalies", []) if a.get("severity") in ("high", "medium")]
+    status_band([
+        {"k": "Piyasa Rejimi", "v": regime_info["label"],
+         "s": f"güven %{_t1_conf*100:.0f}",
+         "tone": "alert" if regime == "CRISIS" else ("good" if regime == "RISK_ON" else "normal")},
+        {"k": "BIST 100", "v": f"%{_t1_dd:.1f}", "s": "zirveden uzaklık",
+         "tone": "alert" if _t1_dd < -10 else ("warn" if _t1_dd < -5 else "normal")},
+        {"k": "TCMB Faizi", "v": f"%{_t1_rate:.1f}" if _t1_rate else "—",
+         "s": f"TÜFE %{_t1_cpi*100:.1f}" if _t1_cpi else "makro", "tone": "normal"},
+        {"k": "Uyarı", "v": f"{len(_t1_anom)} anomali" if _t1_anom else "Sakin",
+         "s": "olağandışı hareket" if _t1_anom else "normal seyir",
+         "tone": "warn" if _t1_anom else "good"},
+    ])
 
     # === ANA MESAJ ===
     regime_class = {
