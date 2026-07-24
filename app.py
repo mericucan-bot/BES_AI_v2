@@ -1602,14 +1602,17 @@ with tab2:
     }
     _asset_labels = {"VEF": "Hisse Senedi", "ALT": "Altın", "KTS": "Kamu Borç.", "KCH": "Karma/Değişken", "CASH": "Para Piyasası"}
 
-    # session_state'e kayıtlı profil yoksa my_portfolio.json'dan yükle
+    # Risk profili GLOBAL bir tercih (portfoyden bagimsiz) — data/user_prefs.json'da
+    # kalici tutulur. session_state'te yoksa dosyadan yukle; bir kez doldurulunca
+    # her acilista hatirlanir ve anket kapali kalir.
     if "risk_profile" not in st.session_state:
         try:
             import json as _json_rp
-            with open("data/my_portfolio.json", "r", encoding="utf-8") as _frp:
-                _rp_json = _json_rp.load(_frp)
-            if "risk_profile" in _rp_json:
-                st.session_state.risk_profile = _rp_json["risk_profile"]
+            _up_path_rp = Path("data/user_prefs.json")
+            if _up_path_rp.exists():
+                _up_rp = _json_rp.loads(_up_path_rp.read_text(encoding="utf-8"))
+                if _up_rp.get("risk_profile"):
+                    st.session_state.risk_profile = _up_rp["risk_profile"]
         except Exception:
             pass
 
@@ -1787,10 +1790,32 @@ with tab2:
                 )
             if _unmapped_tl:
                 _um_str = ", ".join(sorted(_unmapped_tl.keys()))
-                st.warning(
-                    f"Şu fonlar kategoriye eşlenemedi ve önerilere dahil edilmedi: **{_um_str}**. "
-                    "Güncel fon verisi çekildiğinde otomatik eşlenecektir."
+                _um_tl = sum(_unmapped_tl.values())
+                _um_pct = (_um_tl / total_value * 100) if total_value > 0 else 0
+                # Portfoyde siniflandirilmamis fon varsa oneriler EKSIK hesaplanir —
+                # bunu gozden kacirilmayacak sekilde one cikar ve cozumu buraya koy.
+                st.error(
+                    f"⚠️ **Portföyünün %{_um_pct:.0f}'i sınıflandırılmadı** "
+                    f"({_um_str} — {_um_tl:,.0f} TL). Aşağıdaki öneriler bu fonları "
+                    f"**HARİÇ tutarak** hesaplandı, yani eksik olabilir. Doğru öneri için "
+                    f"önce sınıfını seç:"
                 )
+                from src.asset_mapping import ASSET_CLASSES as _ASSET_CLASSES_U, save_user_override as _save_override_u
+                _cls_labels_u = {"VEF": "Hisse", "KTS": "Kamu Borç.", "ALT": "Altın/Kıym. Maden",
+                                 "KCH": "Karma/Değişken", "CASH": "Para Piyasası"}
+                for _uc in sorted(_unmapped_tl):
+                    _sel_cls_u = st.selectbox(
+                        f"{_uc} ({_unmapped_tl[_uc]:,.0f} TL) hangi sınıfa girer?",
+                        options=list(_ASSET_CLASSES_U),
+                        format_func=lambda c: f"{c} — {_cls_labels_u[c]}",
+                        index=None, placeholder="Sınıf seç…",
+                        key=f"override_durum_{_uc}",
+                    )
+                    if _sel_cls_u:
+                        if _save_override_u(_uc, _sel_cls_u):
+                            st.cache_data.clear()
+                            st.rerun()
+                st.divider()
             st.markdown('<div class="section-heading">Bu Ay Yapman Gerekenler</div>', unsafe_allow_html=True)
 
             has_action = False
@@ -2112,14 +2137,15 @@ with tab2:
                         _new_profile = "agresif"
 
                     st.session_state.risk_profile = _new_profile
+                    # Global tercih olarak kalici kaydet (atomik) — bir daha sorma
                     try:
                         import json as _json_rp2
-                        _pf_path_rp = "data/my_portfolio.json"
-                        with open(_pf_path_rp, "r", encoding="utf-8") as _f_rp:
-                            _pf_json_rp = _json_rp2.load(_f_rp)
-                        _pf_json_rp["risk_profile"] = _new_profile
-                        with open(_pf_path_rp, "w", encoding="utf-8") as _f_rp:
-                            _json_rp2.dump(_pf_json_rp, _f_rp, ensure_ascii=False, indent=4)
+                        _up_path_rp2 = Path("data/user_prefs.json")
+                        _up_data_rp2 = {}
+                        if _up_path_rp2.exists():
+                            _up_data_rp2 = _json_rp2.loads(_up_path_rp2.read_text(encoding="utf-8"))
+                        _up_data_rp2["risk_profile"] = _new_profile
+                        _atomic_write_text(_up_path_rp2, _json_rp2.dumps(_up_data_rp2, ensure_ascii=False, indent=2))
                     except Exception:
                         pass
 
@@ -2368,6 +2394,12 @@ with tab3:
             st.success(f"**Sistem öğreniyor!** {total_obs} aylık gözlem mevcut.")
 
         with st.expander("Rejim Bazlı Öğrenme İstatistikleri", expanded=False):
+            st.caption(
+                "Her piyasa rejiminde (Sakin/Kriz/Yükseliş/Faiz) sistemin geçmişte "
+                "ne kadar isabetli olduğu: **n** = gözlem sayısı, **win_rate** = kazanma "
+                "oranı, **avg_alpha** = benchmark'a göre ortalama fazla getiri, "
+                "**confidence** = o rejimdeki güven. Sistem bu birikimle öğreniyor."
+            )
             stats_df = pd.DataFrame.from_dict(stats, orient="index")
             stats_df.index.name = "Rejim"
             st.dataframe(stats_df.style.format({
