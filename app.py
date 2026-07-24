@@ -590,6 +590,103 @@ def status_band(items):
     )
 
 
+def render_how_to():
+    """'Nasıl Kullanılır?' rehber içeriği — hem tab0'da hem sidebar Rehber
+    butonunun tam-ekran overlay'inde kullanılır (tek kaynak)."""
+    _light0 = st.session_state.get("theme") == "light"
+    _txt0 = "#0d2e16" if _light0 else "#e8e8e8"
+    _dim0 = "rgba(13,46,22,0.65)" if _light0 else "rgba(232,232,232,0.68)"
+    _card0 = "rgba(26,92,46,0.10)"
+    _bd0 = "rgba(197,162,62,0.20)"
+
+    st.markdown(f"""
+<div style="background:linear-gradient(135deg,#0d2e16 0%,#1a5c2e 80%,#7a6020 100%);
+    padding:22px 26px;border-radius:16px;margin-bottom:18px;border-left:6px solid #c5a23e;">
+  <h2 style="margin:0;color:#fff;font-size:1.5rem;">Hoş geldin — buradan başla</h2>
+  <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:1.02rem;line-height:1.55;">
+    Bu uygulama piyasayı senin yerine analiz eder ve BES portföyün için
+    <strong>“bu ay ne yapmalısın”</strong> önerir. Amacı: hiç uğraşmadan,
+    ayda bir bakışta kararını görmen.</p>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown('<div class="section-heading">Aslında sadece 3 şey yapman yeterli</div>', unsafe_allow_html=True)
+
+    _steps = [
+        ("1", "Portföyünü bir kez gir",
+         "Hangi BES fonların var ve ne kadar — <b>Portföy</b> sekmesi → <b>Portföyü Düzenle</b>. Bir daha girmene gerek yok.",
+         "#4ade80"),
+        ("2", "Ayda bir aç, önerilere bak",
+         "<b>Portföy</b> sekmesini aç. Üstteki 4 kutu durumu özetler; altında <b>“Bu Ay Yapman Gerekenler”</b> ne alıp satacağını söyler.",
+         "#c5a23e"),
+        ("3", "Önemli bir şey olursa haber gelir",
+         "Kriz, aşırı yoğunlaşma veya rejim değişiminde <b>Telegram/e-posta</b> uyarısı düşer. Gelmiyorsa: her şey yolunda, hiçbir şey yapma.",
+         "#60a5fa"),
+    ]
+    _step_cards = ""
+    for _n, _t, _d, _clr in _steps:
+        _step_cards += f"""
+<div style="flex:1 1 0;min-width:180px;display:flex;flex-direction:column;
+    background:{_card0};border:1px solid {_bd0};border-top:3px solid {_clr};
+    border-radius:12px;padding:16px 16px 18px;">
+  <div style="display:inline-flex;align-items:center;justify-content:center;
+      width:30px;height:30px;border-radius:50%;background:{_clr}22;color:{_clr};
+      font-weight:800;font-size:1rem;margin-bottom:10px;">{_n}</div>
+  <div style="font-weight:700;color:{_txt0};font-size:1rem;margin-bottom:6px;">{_t}</div>
+  <div style="color:{_dim0};font-size:0.9rem;line-height:1.55;">{_d}</div>
+</div>"""
+    st.markdown(
+        f'<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:stretch;">{_step_cards}</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="section-heading">Hangi sekme ne için?</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+<div style="color:{_dim0};font-size:0.9rem;margin:-4px 0 8px;">
+  Günlük kullanımda sana lazım olan tek sekme <b style="color:{_txt0};">Portföy</b>.
+</div>
+""", unsafe_allow_html=True)
+    _guide = [
+        ("Portföy", "★ Asıl kullanacağın", "Ne alıp satmalıyım, devlet katkısı, aday fonlar. Günde/ayda buraya bak.", "#4ade80"),
+        ("Piyasa", "Bilgi", "Bugün piyasa nasıl: rejim, faiz, enflasyon, uyarılar.", "#c5a23e"),
+        ("Geçmiş", "Kanıt", "Sistem işe yarıyor mu? “Uygulasaydın vs dokunmasaydın” karnesi + backtest.", "#60a5fa"),
+        ("AI Tahmin", "Fikir", "Yapay zekânın hangi fonları beğendiği (AI Skoru). Fon karşılaştırma.", "#a78bfa"),
+        ("Eğitim", "Öğrenmek istersen", "BES nedir, fon tipleri, terimler sözlüğü.", "rgba(232,232,232,0.5)"),
+    ]
+    for _name, _tag, _desc, _clr in _guide:
+        st.markdown(f"""
+<div style="display:flex;align-items:center;gap:14px;background:{_card0};
+    border:1px solid {_bd0};border-radius:10px;padding:12px 16px;margin-bottom:8px;">
+  <div style="min-width:96px;font-weight:700;color:{_txt0};">{_name}</div>
+  <div style="min-width:120px;font-size:0.75rem;color:{_clr};font-weight:600;">{_tag}</div>
+  <div style="color:{_dim0};font-size:0.9rem;line-height:1.5;">{_desc}</div>
+</div>
+""", unsafe_allow_html=True)
+
+    _hc1, _hc2 = st.columns(2)
+    with _hc1:
+        st.markdown('<div class="section-heading">Renkleri okuma</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+<div style="background:{_card0};border:1px solid {_bd0};border-radius:10px;padding:14px 16px;">
+  <div style="color:#4ade80;font-weight:600;margin-bottom:6px;">▲ Yeşil — EKLE</div>
+  <div style="color:#f87171;font-weight:600;margin-bottom:6px;">▼ Kırmızı — AZALT</div>
+  <div style="color:#eab308;font-weight:600;">● Sarı — DİKKAT (ama acil değil)</div>
+</div>
+""", unsafe_allow_html=True)
+    with _hc2:
+        st.markdown('<div class="section-heading">Kaybolursan</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.28);
+    border-radius:10px;padding:14px 16px;color:{_dim0};font-size:0.92rem;line-height:1.6;">
+  Sadece <b style="color:{_txt0};">Portföy</b> sekmesini aç. Üstteki 4 kutuya ve
+  <b style="color:{_txt0};">“Bu Ay Yapman Gerekenler”</b>e bak. Gerisi detaydır —
+  merak edersen incelersin, etmezsen boş ver.
+</div>
+""", unsafe_allow_html=True)
+
+    st.info("Bu bir bilgilendirme aracıdır, yatırım tavsiyesi değildir. Öneriler bir görüştür; kararı sen verirsin.")
+
+
 result = get_market_analysis()
 regime = result["detected"]
 metrics = result["metrics"]
@@ -954,8 +1051,7 @@ with st.sidebar:
     _fc1, _fc2 = st.columns(2)
     with _fc1:
         if st.button("↺  Rehber", key="reset_onboarding", use_container_width=True):
-            st.session_state.onboarding_complete = False
-            st.session_state.onboarding_step = 1
+            st.session_state.show_how_to = True
             st.rerun()
     with _fc2:
         if st.button("↻  Yenile", key="refresh_data", use_container_width=True):
@@ -1117,6 +1213,16 @@ if not st.session_state.onboarding_complete:
 
     st.stop()
 
+# --- REHBER OVERLAY (sidebar "↺ Rehber" butonu) ---
+# Streamlit sekmeyi programatik secemedigi icin, Rehber butonu ayni icerigi
+# tam-ekran overlay olarak gosterir; "Anladım, başla" ile kapanir.
+if st.session_state.get("show_how_to"):
+    render_how_to()
+    if st.button("Anladım, başla →", key="close_how_to", type="primary"):
+        st.session_state.show_how_to = False
+        st.rerun()
+    st.stop()
+
 # --- SEKMELER ---
 tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Nasıl Kullanılır?",
@@ -1132,96 +1238,7 @@ tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 0 — Nasıl Kullanılır? (yeni kullanici rehberi)
 # ══════════════════════════════════════════════════════
 with tab0:
-    _light0 = st.session_state.get("theme") == "light"
-    _txt0 = "#0d2e16" if _light0 else "#e8e8e8"
-    _dim0 = "rgba(13,46,22,0.65)" if _light0 else "rgba(232,232,232,0.68)"
-    _card0 = "rgba(26,92,46,0.10)" if _light0 else "rgba(26,92,46,0.10)"
-    _bd0 = "rgba(197,162,62,0.20)"
-
-    st.markdown(f"""
-<div style="background:linear-gradient(135deg,#0d2e16 0%,#1a5c2e 80%,#7a6020 100%);
-    padding:22px 26px;border-radius:16px;margin-bottom:18px;border-left:6px solid #c5a23e;">
-  <h2 style="margin:0;color:#fff;font-size:1.5rem;">Hoş geldin — buradan başla</h2>
-  <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:1.02rem;line-height:1.55;">
-    Bu uygulama piyasayı senin yerine analiz eder ve BES portföyün için
-    <strong>“bu ay ne yapmalısın”</strong> önerir. Amacı: hiç uğraşmadan,
-    ayda bir bakışta kararını görmen.</p>
-</div>
-""", unsafe_allow_html=True)
-
-    st.markdown('<div class="section-heading">Aslında sadece 3 şey yapman yeterli</div>', unsafe_allow_html=True)
-
-    _steps = [
-        ("1", "Portföyünü bir kez gir",
-         "Hangi BES fonların var ve ne kadar — <b>Portföy</b> sekmesi → <b>Portföyü Düzenle</b>. Bir daha girmene gerek yok.",
-         "#4ade80"),
-        ("2", "Ayda bir aç, önerilere bak",
-         "<b>Portföy</b> sekmesini aç. Üstteki 4 kutu durumu özetler; altında <b>“Bu Ay Yapman Gerekenler”</b> ne alıp satacağını söyler.",
-         "#c5a23e"),
-        ("3", "Önemli bir şey olursa haber gelir",
-         "Kriz, aşırı yoğunlaşma veya rejim değişiminde <b>Telegram/e-posta</b> uyarısı düşer. Gelmiyorsa: her şey yolunda, hiçbir şey yapma.",
-         "#60a5fa"),
-    ]
-    _sc = st.columns(3)
-    for _i, (_n, _t, _d, _clr) in enumerate(_steps):
-        with _sc[_i]:
-            st.markdown(f"""
-<div style="background:{_card0};border:1px solid {_bd0};border-top:3px solid {_clr};
-    border-radius:12px;padding:16px 16px 18px;height:100%;min-height:172px;">
-  <div style="display:inline-flex;align-items:center;justify-content:center;
-      width:30px;height:30px;border-radius:50%;background:{_clr}22;color:{_clr};
-      font-weight:800;font-size:1rem;margin-bottom:10px;">{_n}</div>
-  <div style="font-weight:700;color:{_txt0};font-size:1rem;margin-bottom:6px;">{_t}</div>
-  <div style="color:{_dim0};font-size:0.9rem;line-height:1.55;">{_d}</div>
-</div>
-""", unsafe_allow_html=True)
-
-    st.markdown('<div class="section-heading">Hangi sekme ne için?</div>', unsafe_allow_html=True)
-    st.markdown(f"""
-<div style="color:{_dim0};font-size:0.9rem;margin:-4px 0 8px;">
-  Aşağıdaki sekmeler yukarıdadır. Günlük kullanımda sana lazım olan tek sekme <b style="color:{_txt0};">Portföy</b>.
-</div>
-""", unsafe_allow_html=True)
-    _guide = [
-        ("Portföy", "★ Asıl kullanacağın", "Ne alıp satmalıyım, devlet katkısı, aday fonlar. Günde/ayda buraya bak.", "#4ade80"),
-        ("Piyasa", "Bilgi", "Bugün piyasa nasıl: rejim, faiz, enflasyon, uyarılar.", "#c5a23e"),
-        ("Geçmiş", "Kanıt", "Sistem işe yarıyor mu? “Uygulasaydın vs dokunmasaydın” karnesi + backtest.", "#60a5fa"),
-        ("AI Tahmin", "Fikir", "Yapay zekânın hangi fonları beğendiği (AI Skoru). Fon karşılaştırma.", "#a78bfa"),
-        ("Eğitim", "Öğrenmek istersen", "BES nedir, fon tipleri, terimler sözlüğü.", "rgba(232,232,232,0.5)"),
-    ]
-    for _name, _tag, _desc, _clr in _guide:
-        st.markdown(f"""
-<div style="display:flex;align-items:center;gap:14px;background:{_card0};
-    border:1px solid {_bd0};border-radius:10px;padding:12px 16px;margin-bottom:8px;">
-  <div style="min-width:96px;font-weight:700;color:{_txt0};">{_name}</div>
-  <div style="min-width:120px;font-size:0.75rem;color:{_clr};font-weight:600;">{_tag}</div>
-  <div style="color:{_dim0};font-size:0.9rem;line-height:1.5;">{_desc}</div>
-</div>
-""", unsafe_allow_html=True)
-
-    _hc1, _hc2 = st.columns(2)
-    with _hc1:
-        st.markdown('<div class="section-heading">Renkleri okuma</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-<div style="background:{_card0};border:1px solid {_bd0};border-radius:10px;padding:14px 16px;">
-  <div style="color:#4ade80;font-weight:600;margin-bottom:6px;">▲ Yeşil — EKLE</div>
-  <div style="color:#f87171;font-weight:600;margin-bottom:6px;">▼ Kırmızı — AZALT</div>
-  <div style="color:#eab308;font-weight:600;">● Sarı — DİKKAT (ama acil değil)</div>
-</div>
-""", unsafe_allow_html=True)
-    with _hc2:
-        st.markdown('<div class="section-heading">Kaybolursan</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.28);
-    border-radius:10px;padding:14px 16px;color:{_dim0};font-size:0.92rem;line-height:1.6;">
-  Sadece <b style="color:{_txt0};">Portföy</b> sekmesini aç. Üstteki 4 kutuya ve
-  <b style="color:{_txt0};">“Bu Ay Yapman Gerekenler”</b>e bak. Gerisi detaydır —
-  merak edersen incelersin, etmezsen boş ver.
-</div>
-""", unsafe_allow_html=True)
-
-    st.info("Bu bir bilgilendirme aracıdır, yatırım tavsiyesi değildir. Öneriler bir görüştür; kararı sen verirsin.")
-
+    render_how_to()
 
 
 # ══════════════════════════════════════════════════════
