@@ -1557,6 +1557,12 @@ with tab1:
 
     # === TEKNİK DETAYLAR (gizli) ===
     with st.expander("Teknik Detaylar (ileri düzey)"):
+        st.caption(
+            "Bu bölüm, yukarıdaki piyasa rejimi kararının **arkasındaki ham sayıları** "
+            "gösterir: sistemin “neden bu rejim?” dediğinin teknik cevabı. Rejim skorları, "
+            "olasılık dağılımı ve ham metrikler (drawdown, volatilite, momentum, veri "
+            "kalitesi). Günlük kullanımda gerekmez — yalnızca merak edersen."
+        )
         st.write("**Rejim Skorları** — Her piyasa durumunun olasılık puanı (0–1 arası):")
         st.bar_chart(pd.DataFrame.from_dict(result["scores"], orient="index", columns=["Skor"]))
 
@@ -1835,10 +1841,12 @@ with tab2:
             if not has_action:
                 st.success("Portföyün şu an dengeli görünüyor, değişiklik gerekmiyor.")
             st.divider()
+            st.markdown('<div class="section-heading">Bu değişikliğin maliyeti</div>', unsafe_allow_html=True)
+            st.caption("Yukarıdaki önerileri uygularsan ne olur — getiri tahmini değil, işlem maliyeti ve büyüklüğü.")
             cc1, cc2, cc3 = st.columns(3)
             cc1.metric("Tahmini Maliyet", format_tl(cost["total_cost_tl"]))
             cc2.metric("İşlem Sayısı", f"{cost['switch_count']} / 6 (aylık limit)")
-            cc3.metric("Portföy Değişimi", f"%{cost['turnover_pct']*100:.0f}")
+            cc3.metric("Portföyün Ne Kadarı Değişir", f"%{cost['turnover_pct']*100:.0f}")
 
             if cost["exceeds_monthly_limit"]:
                 st.error("Aylık fon değişikliği limiti (6) aşılıyor! En önemli değişiklikler önceliklendirildi.")
