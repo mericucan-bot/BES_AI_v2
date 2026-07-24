@@ -1457,8 +1457,7 @@ with tab1:
     else:
         st.info("Model henüz eğitilmemiş — `python main.py --ml-train` çalıştır.")
 
-    if st.button("Tüm Fonları Gör →", key="goto_tab4_btn"):
-        st.info("AI Tahmin sekmesinden tüm fon tahminlerini görebilirsin.")
+    st.caption("Tüm fon tahminleri, AI Skoru ve fon karşılaştırma için → **AI Tahmin** sekmesi.")
 
     st.divider()
 
