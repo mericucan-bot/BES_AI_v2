@@ -1845,41 +1845,7 @@ with tab2:
                 st.error("Aylık fon değişikliği limiti (6) aşılıyor! En önemli değişiklikler önceliklendirildi.")
 
             st.caption("BES'te fon geçişi ücretsizdir. Maliyet sadece tahmini slippage'dir (%0.2).")
-            # === DETAY TABLO (gizli) ===
-            with st.expander("Detaylı Portföy Tablosu"):
-                df_detail = pd.DataFrame([{
-                    "Fon":           f"{item['name']} ({item['asset']})",
-                    "Mevcut":        format_tl(item["current_tl"]),
-                    "Mevcut %":      f"%{item['current_w']*100:.1f}",
-                    "Hedef %":       f"%{item['target_w']*100:.1f}",
-                    "Değişiklik":    format_tl(item["diff_tl"]),
-                    "İşlem":         action_text(item["action"]),
-                } for item in analysis_data])
-                st.dataframe(df_detail, hide_index=True, use_container_width=True)
-            # === EĞİTİCİ EXPANDER ===
-            with st.expander("Bu öneriler ne anlama geliyor?"):
-                st.markdown(f"""
-**Sistem nasıl çalışıyor?**
-
-1. Piyasa verilerine bakarak ortamı sınıflandırıyoruz:
-       şu an **{regime_info['label']}** ({regime_info['symbol']})
-
-2. Her piyasa ortamı için tarihsel olarak en iyi çalışan
-       fon dağılımını hesaplıyoruz
-
-3. Senin mevcut dağılımınla hedef dağılımı karşılaştırıp
-       "ne kadar al, ne kadar sat" önerisi üretiyoruz
-
-**Fon tipleri nedir?**
-- □ **VEF (Hisse Fonu):** Borsa İstanbul hisselerine yatırım. Yüksek risk, yüksek getiri potansiyeli.
-- ◈ **ALT (Altın Fonu):** Altın fiyatına endeksli. Kriz dönemlerinde koruma sağlar.
-- ≡ **KTS (Kamu Borç.):** Devlet tahvili ve bonosu. Düşük risk, sabit getiri.
-- ↺ **KCH (Karma):** Hisse + tahvil + altın karışımı. Orta risk.
-- — **CASH (Para Piy.):** En düşük riskli, mevduat benzeri getiri.
-
-**Önemli:** Bu öneriler kesin yatırım tavsiyesi değildir.
-Kendi durumunuza göre değerlendirin.
-                """)
+            st.caption("Fon bazında tam tablo ve sistemin nasıl çalıştığı → **Analiz** alt sekmesi.")
 
     with _s_duzenle:
         # === PORTFÖY SEÇİCİ ===
@@ -2277,8 +2243,45 @@ Kendi durumunuza göre değerlendirin.
                     plot_bgcolor="rgba(0,0,0,0)",
                 )
                 st.plotly_chart(_fig_donut, use_container_width=True)
+
+            # === DETAYLI PORTFÖY TABLOSU (gorunur — Analiz'in dogal yeri) ===
+            st.markdown('<div class="section-heading">Detaylı Portföy Tablosu</div>', unsafe_allow_html=True)
+            df_detail = pd.DataFrame([{
+                "Fon":           f"{item['name']} ({item['asset']})",
+                "Mevcut":        format_tl(item["current_tl"]),
+                "Mevcut %":      f"%{item['current_w']*100:.1f}",
+                "Hedef %":       f"%{item['target_w']*100:.1f}",
+                "Değişiklik":    format_tl(item["diff_tl"]),
+                "İşlem":         action_text(item["action"]),
+            } for item in analysis_data])
+            st.dataframe(df_detail, hide_index=True, use_container_width=True)
+
+            # === SİSTEM NASIL ÇALIŞIYOR (referans — expander) ===
+            with st.expander("Bu öneriler ne anlama geliyor?"):
+                st.markdown(f"""
+**Sistem nasıl çalışıyor?**
+
+1. Piyasa verilerine bakarak ortamı sınıflandırıyoruz:
+       şu an **{regime_info['label']}** ({regime_info['symbol']})
+
+2. Her piyasa ortamı için tarihsel olarak en iyi çalışan
+       fon dağılımını hesaplıyoruz
+
+3. Senin mevcut dağılımınla hedef dağılımı karşılaştırıp
+       "ne kadar al, ne kadar sat" önerisi üretiyoruz
+
+**Fon tipleri nedir?**
+- □ **VEF (Hisse Fonu):** Borsa İstanbul hisselerine yatırım. Yüksek risk, yüksek getiri potansiyeli.
+- ◈ **ALT (Altın Fonu):** Altın fiyatına endeksli. Kriz dönemlerinde koruma sağlar.
+- ≡ **KTS (Kamu Borç.):** Devlet tahvili ve bonosu. Düşük risk, sabit getiri.
+- ↺ **KCH (Karma):** Hisse + tahvil + altın karışımı. Orta risk.
+- — **CASH (Para Piy.):** En düşük riskli, mevduat benzeri getiri.
+
+**Önemli:** Bu öneriler kesin yatırım tavsiyesi değildir.
+Kendi durumunuza göre değerlendirin.
+                """)
         else:
-            st.info("Donut grafiği için portföye fon ekle.")
+            st.info("Donut grafiği ve detaylı tablo için portföye fon ekle.")
 
 # ══════════════════════════════════════════════════════
 # TAB 3 — Geçmiş Performans
